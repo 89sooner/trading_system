@@ -42,3 +42,8 @@ pytest
 ## Current status
 
 This repository currently provides a clean package skeleton, a small risk-rule example, and repository-level skills for planning, implementation, review, and documentation work.
+
+## Analysis docs
+
+- Architecture overview: `docs/architecture/overview.md`
+- Current workspace analysis: `docs/architecture/workspace-analysis.md`
