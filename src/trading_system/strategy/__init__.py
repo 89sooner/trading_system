@@ -1,0 +1,1 @@
+"""Strategy contracts and signals."""

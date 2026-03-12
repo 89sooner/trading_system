@@ -1,0 +1,17 @@
+app:
+  environment: local
+  timezone: Asia/Seoul
+
+market_data:
+  provider: mock
+  symbols:
+    - BTCUSDT
+
+risk:
+  max_position: 1.0
+  max_notional: 100000.0
+  max_order_size: 0.25
+
+backtest:
+  starting_cash: 1000000.0
+  fee_bps: 5.0

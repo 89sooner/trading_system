@@ -1,0 +1,13 @@
+name: mean_reversion_smoke_test
+symbol: BTCUSDT
+timeframe: 1m
+start: 2024-01-01T00:00:00Z
+end: 2024-01-07T00:00:00Z
+strategy:
+  kind: mean_reversion
+  lookback: 20
+  zscore_entry: 2.0
+  zscore_exit: 0.5
+risk:
+  max_position: 1.0
+  max_order_size: 0.2
