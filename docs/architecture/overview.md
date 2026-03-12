@@ -18,3 +18,7 @@ Suggested flow:
 4. Execution converts the action into an order request.
 5. Portfolio state is updated from fills.
 6. Analytics computes metrics from the event stream.
+
+Current implementation note:
+
+- The repository now includes a deterministic v1 backtest loop that evaluates bars sequentially, applies allowed signals at the current bar close, charges configured fees, and records an equity curve for analytics.
