@@ -9,6 +9,7 @@ from trading_system.execution.broker import (
     FillStatus,
     FixedRatioFillPolicy,
     PolicyBrokerSimulator,
+    ResilientBroker,
 )
 from trading_system.execution.orders import OrderRequest, OrderSide
 
@@ -22,5 +23,6 @@ __all__ = [
     "OrderRequest",
     "OrderSide",
     "PolicyBrokerSimulator",
+    "ResilientBroker",
     "signal_to_order_request",
 ]

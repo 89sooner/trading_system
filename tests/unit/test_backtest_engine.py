@@ -1,9 +1,12 @@
+import json
+import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
 from trading_system.backtest.engine import BacktestContext, run_backtest
+from trading_system.core.ops import StructuredLogFormat, StructuredLogger
 from trading_system.core.types import MarketBar
 from trading_system.execution.broker import (
     BpsCommissionPolicy,
@@ -121,7 +124,9 @@ def test_run_backtest_supports_partial_fill_and_unfilled_order() -> None:
     )
     partial_result = run_backtest(
         _bars([Decimal("100")]),
-        StubStrategy([StrategySignal(side=SignalSide.BUY, quantity=Decimal("2"), reason="partial")]),
+        StubStrategy(
+            [StrategySignal(side=SignalSide.BUY, quantity=Decimal("2"), reason="partial")]
+        ),
         partial_context,
     )
 
@@ -136,7 +141,9 @@ def test_run_backtest_supports_partial_fill_and_unfilled_order() -> None:
     )
     unfilled_result = run_backtest(
         _bars([Decimal("100")]),
-        StubStrategy([StrategySignal(side=SignalSide.BUY, quantity=Decimal("2"), reason="no_fill")]),
+        StubStrategy(
+            [StrategySignal(side=SignalSide.BUY, quantity=Decimal("2"), reason="no_fill")]
+        ),
         unfilled_context,
     )
 
@@ -159,6 +166,30 @@ def test_run_backtest_applies_slippage_to_fill_price() -> None:
 
     assert result.final_portfolio.cash == Decimal("899")
     assert result.equity_curve == [Decimal("999")]
+
+
+def test_run_backtest_emits_order_and_risk_events(caplog) -> None:
+    context = BacktestContext(
+        portfolio=PortfolioBook(cash=Decimal("1000")),
+        risk_limits=RiskLimits(
+            max_position=Decimal("1"),
+            max_notional=Decimal("100000"),
+            max_order_size=Decimal("0.5"),
+        ),
+        broker=_broker(),
+        logger=StructuredLogger("trading_system.backtest.tests", StructuredLogFormat.JSON),
+    )
+    strategy = StubStrategy(
+        [StrategySignal(side=SignalSide.BUY, quantity=Decimal("1"), reason="too_big")]
+    )
+
+    with caplog.at_level(logging.INFO):
+        run_backtest(_bars([Decimal("100")]), strategy, context)
+
+    events = [json.loads(record.message)["event"] for record in caplog.records]
+    assert "order.created" in events
+    assert "risk.rejected" in events
+    assert "order.rejected" in events
 
 
 def _limits() -> RiskLimits:

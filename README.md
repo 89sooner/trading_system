@@ -67,6 +67,8 @@ PYTHONPATH=src python -m trading_system.backtest.example
 - `TRADING_SYSTEM_ENV`: logical runtime environment name (for example `local`, `staging`, `prod`).
 - `TRADING_SYSTEM_TIMEZONE`: operator timezone used for runtime context (for example `Asia/Seoul`).
 
+- `TRADING_SYSTEM_API_KEY`: live execution adapter credential injected from environment/secret manager only.
+
 
 ## Configuration schema
 
@@ -110,3 +112,11 @@ It runs a small single-symbol bar sequence through the v1 backtest loop with:
 - close-price immediate fills
 - fee-aware cash updates
 - a printed equity curve and return summary
+
+
+## Operations baseline
+
+- Boundary layers (`app`, `data`, `execution`) emit structured logs with a propagated `correlation_id`.
+- Key events use fixed schema names: `order.created`, `order.rejected`, `order.filled`, `risk.rejected`, `exception`.
+- Retry/timeout/circuit-breaker policies are applied only at external I/O boundaries.
+- Runbook for outage response: `docs/runbooks/incident-response.md`.
