@@ -4,16 +4,19 @@ from decimal import Decimal
 
 from trading_system.analytics.metrics import cumulative_return
 from trading_system.core.types import MarketBar
+from trading_system.execution.adapters import signal_to_order_request
+from trading_system.execution.broker import BrokerSimulator
+from trading_system.execution.orders import OrderSide
 from trading_system.portfolio.book import PortfolioBook
 from trading_system.risk.limits import RiskLimits
-from trading_system.strategy.base import SignalSide, Strategy
+from trading_system.strategy.base import Strategy
 
 
 @dataclass(slots=True)
 class BacktestContext:
     portfolio: PortfolioBook
     risk_limits: RiskLimits
-    fee_bps: Decimal
+    broker: BrokerSimulator
 
 
 @dataclass(slots=True)
@@ -42,15 +45,17 @@ def run_backtest(
     for bar in bars:
         processed_bars += 1
         signal = strategy.evaluate(bar)
-        signed_quantity = _signed_quantity(signal.side, signal.quantity)
+        order = signal_to_order_request(bar.symbol, signal)
 
-        if signed_quantity != 0:
+        if order is not None:
+            signed_quantity = order.quantity if order.side == OrderSide.BUY else -order.quantity
             current_position = context.portfolio.positions.get(bar.symbol, Decimal("0"))
             if context.risk_limits.allows_order(current_position, signed_quantity, bar.close):
-                context.portfolio.apply_fill(bar.symbol, signed_quantity, bar.close)
-                fee = _calculate_fee(signed_quantity, bar.close, context.fee_bps)
-                context.portfolio.cash -= fee
-                executed_trades += 1
+                fill = context.broker.submit_order(order, bar)
+                if fill.filled_quantity > 0:
+                    context.portfolio.apply_fill(fill.symbol, fill.signed_quantity, fill.fill_price)
+                    context.portfolio.cash -= fill.fee
+                    executed_trades += 1
             else:
                 rejected_signals += 1
 
@@ -63,18 +68,6 @@ def run_backtest(
         executed_trades=executed_trades,
         rejected_signals=rejected_signals,
     )
-
-
-def _signed_quantity(side: SignalSide, quantity: Decimal) -> Decimal:
-    if side == SignalSide.BUY:
-        return quantity
-    if side == SignalSide.SELL:
-        return -quantity
-    return Decimal("0")
-
-
-def _calculate_fee(quantity: Decimal, price: Decimal, fee_bps: Decimal) -> Decimal:
-    return abs(quantity * price) * fee_bps / Decimal("10000")
 
 
 def _equity_for_symbol(portfolio: PortfolioBook, symbol: str, mark_price: Decimal) -> Decimal:

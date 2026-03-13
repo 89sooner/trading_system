@@ -1,41 +1,29 @@
-from collections.abc import Iterable
 from dataclasses import dataclass
-from decimal import Decimal
 
 from trading_system.app.sample_data import build_sample_bars
 from trading_system.app.settings import AppMode, AppSettings
 from trading_system.backtest.engine import BacktestContext, BacktestResult, run_backtest
-from trading_system.core.types import MarketBar
+from trading_system.data.provider import InMemoryMarketDataProvider, MarketDataProvider
 from trading_system.portfolio.book import PortfolioBook
 from trading_system.risk.limits import RiskLimits
 from trading_system.strategy.base import Strategy
 from trading_system.strategy.example import MomentumStrategy
-
-
-class MockMarketDataProvider:
-    def __init__(self, symbols: tuple[str, ...]) -> None:
-        self._bars_by_symbol: dict[str, list[MarketBar]] = {
-            symbol: build_sample_bars(symbol=symbol) for symbol in symbols
-        }
-
-    def load_bars(self, symbol: str) -> Iterable[MarketBar]:
-        return list(self._bars_by_symbol[symbol])
-
-
-@dataclass(slots=True)
-class PaperExecutionService:
-    broker: str
+from trading_system.execution.broker import (
+    BpsCommissionPolicy,
+    BpsSlippagePolicy,
+    FixedRatioFillPolicy,
+    PolicyBrokerSimulator,
+)
 
 
 @dataclass(slots=True)
 class AppServices:
     mode: AppMode
     strategy: Strategy
-    data_provider: MockMarketDataProvider
+    data_provider: MarketDataProvider
     risk_limits: RiskLimits
-    execution: PaperExecutionService
+    broker_simulator: PolicyBrokerSimulator
     portfolio: PortfolioBook
-    fee_bps: Decimal
     symbols: tuple[str, ...]
 
     def run(self) -> BacktestResult:
@@ -47,7 +35,7 @@ class AppServices:
         context = BacktestContext(
             portfolio=self.portfolio,
             risk_limits=self.risk_limits,
-            fee_bps=self.fee_bps,
+            broker=self.broker_simulator,
         )
         return run_backtest(bars=bars, strategy=self.strategy, context=context)
 
@@ -61,17 +49,21 @@ def build_services(settings: AppSettings) -> AppServices:
     if settings.mode != AppMode.BACKTEST:
         raise RuntimeError(f"Mode '{settings.mode}' is not implemented yet.")
 
+    bars_by_symbol = {symbol: build_sample_bars(symbol=symbol) for symbol in settings.symbols}
     return AppServices(
         mode=settings.mode,
         strategy=MomentumStrategy(trade_quantity=settings.backtest.trade_quantity),
-        data_provider=MockMarketDataProvider(symbols=settings.symbols),
+        data_provider=InMemoryMarketDataProvider(bars_by_symbol=bars_by_symbol),
         risk_limits=RiskLimits(
             max_position=settings.risk.max_position,
             max_notional=settings.risk.max_notional,
             max_order_size=settings.risk.max_order_size,
         ),
-        execution=PaperExecutionService(broker=settings.broker),
+        broker_simulator=PolicyBrokerSimulator(
+            fill_quantity_policy=FixedRatioFillPolicy(),
+            slippage_policy=BpsSlippagePolicy(),
+            commission_policy=BpsCommissionPolicy(bps=settings.backtest.fee_bps),
+        ),
         portfolio=PortfolioBook(cash=settings.backtest.starting_cash),
-        fee_bps=settings.backtest.fee_bps,
         symbols=settings.symbols,
     )
