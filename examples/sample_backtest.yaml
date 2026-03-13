@@ -1,5 +1,11 @@
 name: mean_reversion_smoke_test
-symbol: BTCUSDT
+app:
+  mode: backtest
+market_data:
+  provider: mock
+  symbol: BTCUSDT
+execution:
+  broker: paper
 timeframe: 1m
 start: 2024-01-01T00:00:00Z
 end: 2024-01-07T00:00:00Z
@@ -11,3 +17,7 @@ strategy:
 risk:
   max_position: 1.0
   max_order_size: 0.2
+backtest:
+  starting_cash: 10000.0
+  fee_bps: 5.0
+  trade_quantity: 0.1
