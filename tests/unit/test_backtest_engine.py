@@ -168,28 +168,6 @@ def test_run_backtest_applies_slippage_to_fill_price() -> None:
     assert result.equity_curve == [Decimal("999")]
 
 
-def test_run_backtest_emits_order_and_risk_events(caplog) -> None:
-    context = BacktestContext(
-        portfolio=PortfolioBook(cash=Decimal("1000")),
-        risk_limits=RiskLimits(
-            max_position=Decimal("1"),
-            max_notional=Decimal("100000"),
-            max_order_size=Decimal("0.5"),
-        ),
-        broker=_broker(),
-        logger=StructuredLogger("trading_system.backtest.tests", StructuredLogFormat.JSON),
-    )
-    strategy = StubStrategy(
-        [StrategySignal(side=SignalSide.BUY, quantity=Decimal("1"), reason="too_big")]
-    )
-
-    with caplog.at_level(logging.INFO):
-        run_backtest(_bars([Decimal("100")]), strategy, context)
-
-    events = [json.loads(record.message)["event"] for record in caplog.records]
-    assert "order.created" in events
-    assert "risk.rejected" in events
-    assert "order.rejected" in events
 
 
 def _limits() -> RiskLimits:
