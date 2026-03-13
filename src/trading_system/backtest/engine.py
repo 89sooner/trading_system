@@ -41,6 +41,7 @@ def run_backtest(
     processed_bars = 0
     executed_trades = 0
     rejected_signals = 0
+    last_prices: dict[str, Decimal] = {}
 
     for bar in bars:
         processed_bars += 1
@@ -53,13 +54,18 @@ def run_backtest(
             if context.risk_limits.allows_order(current_position, signed_quantity, bar.close):
                 fill = context.broker.submit_order(order, bar)
                 if fill.filled_quantity > 0:
-                    context.portfolio.apply_fill(fill.symbol, fill.signed_quantity, fill.fill_price)
-                    context.portfolio.cash -= fill.fee
+                    context.portfolio.apply_fill(
+                        fill.symbol,
+                        fill.signed_quantity,
+                        fill.fill_price,
+                        fee=fill.fee,
+                    )
                     executed_trades += 1
             else:
                 rejected_signals += 1
 
-        equity_curve.append(_equity_for_symbol(context.portfolio, bar.symbol, bar.close))
+        last_prices[bar.symbol] = bar.close
+        equity_curve.append(_equity_for_portfolio(context.portfolio, last_prices))
 
     return BacktestResult(
         final_portfolio=context.portfolio,
@@ -70,6 +76,11 @@ def run_backtest(
     )
 
 
-def _equity_for_symbol(portfolio: PortfolioBook, symbol: str, mark_price: Decimal) -> Decimal:
-    position = portfolio.positions.get(symbol, Decimal("0"))
-    return portfolio.cash + (position * mark_price)
+def _equity_for_portfolio(portfolio: PortfolioBook, marks: dict[str, Decimal]) -> Decimal:
+    equity = portfolio.cash
+    for symbol, quantity in portfolio.positions.items():
+        mark_price = marks.get(symbol)
+        if mark_price is None:
+            continue
+        equity += quantity * mark_price
+    return equity

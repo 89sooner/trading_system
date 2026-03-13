@@ -161,6 +161,59 @@ def test_run_backtest_applies_slippage_to_fill_price() -> None:
     assert result.equity_curve == [Decimal("999")]
 
 
+def test_run_backtest_marks_equity_across_multiple_symbols() -> None:
+    context = BacktestContext(
+        portfolio=PortfolioBook(cash=Decimal("1000"), positions={"ETHUSDT": Decimal("3")}),
+        risk_limits=_limits(),
+        broker=_broker(),
+    )
+    strategy = StubStrategy(
+        signals=[
+            StrategySignal(side=SignalSide.BUY, quantity=Decimal("1"), reason="btc_entry"),
+            StrategySignal(side=SignalSide.HOLD, quantity=Decimal("0"), reason="eth_mark"),
+        ]
+    )
+    bars = [
+        MarketBar(
+            symbol="BTCUSDT",
+            timestamp=datetime(2024, 1, 1, 0, 0, 0),
+            open=Decimal("100"),
+            high=Decimal("100"),
+            low=Decimal("100"),
+            close=Decimal("100"),
+            volume=Decimal("1"),
+        ),
+        MarketBar(
+            symbol="ETHUSDT",
+            timestamp=datetime(2024, 1, 1, 0, 0, 1),
+            open=Decimal("50"),
+            high=Decimal("50"),
+            low=Decimal("50"),
+            close=Decimal("50"),
+            volume=Decimal("1"),
+        ),
+    ]
+
+    result = run_backtest(bars, strategy, context)
+
+    assert result.equity_curve == [Decimal("1000"), Decimal("1150")]
+
+
+def test_run_backtest_tracks_fees_inside_portfolio_book() -> None:
+    context = BacktestContext(
+        portfolio=PortfolioBook(cash=Decimal("1000")),
+        risk_limits=_limits(),
+        broker=_broker(commission_bps=Decimal("10")),
+    )
+    strategy = StubStrategy(
+        signals=[StrategySignal(side=SignalSide.BUY, quantity=Decimal("2"), reason="entry")]
+    )
+
+    result = run_backtest(_bars([Decimal("100")]), strategy, context)
+
+    assert result.final_portfolio.fees_paid["BTCUSDT"] == Decimal("0.2")
+    assert result.final_portfolio.total_fees_paid() == Decimal("0.2")
+
 def _limits() -> RiskLimits:
     return RiskLimits(
         max_position=Decimal("10"),
