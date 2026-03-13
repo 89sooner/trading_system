@@ -42,6 +42,14 @@ pytest
 
 ## Run commands
 
+### Test suites (CI split)
+
+- Fast smoke set: `pytest -m smoke -q`
+- Extended set: `pytest -m "not smoke" -q`
+
+The smoke set is intended for quick CI feedback. The extended set covers broader integration and failure-path scenarios.
+
+
 Backtest mode:
 
 ```bash
