@@ -1,9 +1,12 @@
 name: mean_reversion_smoke_test
 app:
+  environment: local
+  timezone: Asia/Seoul
   mode: backtest
 market_data:
   provider: mock
-  symbol: BTCUSDT
+  symbols:
+    - BTCUSDT
 execution:
   broker: paper
 timeframe: 1m
@@ -16,6 +19,7 @@ strategy:
   zscore_exit: 0.5
 risk:
   max_position: 1.0
+  max_notional: 100000.0
   max_order_size: 0.2
 backtest:
   starting_cash: 10000.0
