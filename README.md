@@ -67,6 +67,26 @@ PYTHONPATH=src python -m trading_system.backtest.example
 - `TRADING_SYSTEM_ENV`: logical runtime environment name (for example `local`, `staging`, `prod`).
 - `TRADING_SYSTEM_TIMEZONE`: operator timezone used for runtime context (for example `Asia/Seoul`).
 
+
+## Configuration schema
+
+`src/trading_system/config/settings.py` provides a YAML loader with validation:
+
+```python
+from trading_system.config import load_settings
+
+settings = load_settings("configs/base.yaml")
+```
+
+Required top-level sections:
+
+- `app`: `environment` (str), `timezone` (str), `mode` (`backtest`|`live`)
+- `market_data`: `provider` (str), `symbols` (list[str])
+- `risk`: `max_position`, `max_notional`, `max_order_size` (Decimal, > 0)
+- `backtest`: `starting_cash` (> 0), `fee_bps` (0~1000), `trade_quantity` (> 0)
+
+All amount/quantity/fee fields are parsed as `Decimal`. Validation errors return human-friendly messages for missing keys, invalid types, and out-of-range values.
+
 ## Current status
 
 This repository currently provides a clean package skeleton, a small risk-rule example, a deterministic single-symbol backtest loop, and repository-level skills for planning, implementation, review, and documentation work.
