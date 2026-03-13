@@ -13,6 +13,7 @@ Starter scaffold for a modular Python trading system.
 ```text
 src/trading_system/
   analytics/
+  app/
   backtest/
   config/
   core/
@@ -39,11 +40,32 @@ pip install -e .[dev]
 pytest
 ```
 
-To run the built-in smoke backtest without installing the package, use:
+## Run commands
+
+Backtest mode:
+
+```bash
+PYTHONPATH=src TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
+python -m trading_system.app.main --mode backtest --symbols BTCUSDT
+```
+
+Operational (live placeholder) mode validation:
+
+```bash
+PYTHONPATH=src TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
+python -m trading_system.app.main --mode live --symbols BTCUSDT
+```
+
+The built-in smoke backtest module is still available and now routes through the app layer:
 
 ```bash
 PYTHONPATH=src python -m trading_system.backtest.example
 ```
+
+## Required environment variables
+
+- `TRADING_SYSTEM_ENV`: logical runtime environment name (for example `local`, `staging`, `prod`).
+- `TRADING_SYSTEM_TIMEZONE`: operator timezone used for runtime context (for example `Asia/Seoul`).
 
 ## Current status
 
