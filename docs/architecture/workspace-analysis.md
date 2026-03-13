@@ -1,110 +1,116 @@
 # Workspace Analysis
 
-This document captures the current implementation state of the trading-system workspace as of March 12, 2026.
+This document captures the current implementation state of the trading-system workspace as of March 13, 2026.
 
 ## Repository state
 
-The repository is still at scaffold stage. The package layout under `src/trading_system/` matches the intended layered design, but most modules currently define contracts or small value objects rather than full workflows.
+The repository is no longer only a scaffold. It now includes a deterministic end-to-end backtest path, a CLI app entrypoint, typed configuration loading with validation, and both unit/integration tests for core orchestration.
 
 Implemented behavior today:
 
-- `risk.limits.RiskLimits` enforces order size, projected position, and projected notional checks.
-- `portfolio.book.PortfolioBook` updates cash and positions from fills.
-- `analytics.metrics.cumulative_return` computes a simple equity-curve return.
-- Unit coverage exists only for `RiskLimits`.
-
-Scaffolded but not orchestrated yet:
-
-- `data.provider.MarketDataProvider` defines the historical/live bar contract.
-- `strategy.base.Strategy` and `StrategySignal` define signal generation contracts.
-- `execution.orders.OrderRequest` models order intent.
-- `backtest.engine.BacktestContext` groups a portfolio, risk limits, and fees but does not execute a backtest loop.
+- `app.main` provides CLI entrypoints for `backtest` and a safe `live` preflight mode.
+- `app.services` composes strategy, provider, risk, broker simulator, and portfolio services.
+- `backtest.engine.run_backtest` orchestrates signal -> risk -> broker fill -> portfolio updates -> equity curve.
+- `execution.adapters` maps strategy signals to order requests.
+- `execution.broker` provides deterministic fill/fee/slippage policies and a resilient broker wrapper (retry/timeout/circuit-breaker).
+- `config.settings.load_settings` loads YAML into typed settings with human-friendly validation errors.
+- `core.ops` provides structured logging, redaction, correlation IDs, and reusable resilience helpers.
 
 ## Layer analysis
 
+### App
+
+The app layer now exists and separates CLI argument handling (`app.main`) from service wiring (`app.services`).
+
+- `--mode backtest` executes the deterministic backtest path.
+- `--mode live` currently performs preflight validation only (including required secret checks) and does not submit orders.
+
+This keeps live mode safe while allowing operators to validate runtime inputs.
+
 ### Data
 
-`MarketDataProvider.load_bars()` returns `Iterable[MarketBar]`, which is flexible enough for both backtest and streaming-like adapters. The interface is minimal and clean, but it does not yet capture timeframe, range selection, or multi-symbol loading. Those omissions are reasonable for a scaffold, but they will matter as soon as the backtest engine is implemented.
+`MarketDataProvider` has an `InMemoryMarketDataProvider` implementation suitable for deterministic tests and smoke runs.
+
+Current limitation:
+- No external historical/live provider adapter is implemented yet.
 
 ### Strategy
 
-The strategy layer exposes a single-bar `evaluate(bar)` contract and returns a `StrategySignal` with side, quantity, and reason. This keeps hidden state out of the interface, but it also means any stateful strategy will need explicit internal state management or a richer context object. That design decision should be made before adding a real strategy implementation.
+`MomentumStrategy` provides a deterministic stateful example strategy based on consecutive closes.
+
+Current limitation:
+- No strategy registry/plugin mechanism yet; selection is currently fixed in service composition.
 
 ### Risk
 
-`RiskLimits.allows_order()` is the only domain rule with tests and real decision logic. It currently uses projected position notional as the notional check. That is internally consistent, but it assumes a single-symbol perspective and does not distinguish between gross exposure, net exposure, or per-order notional. Future risk work should keep those concepts explicit to avoid backtest/live drift.
+`RiskLimits` enforces max order size, projected position, and projected notional checks.
+
+Current limitation:
+- Exposure semantics are still single-portfolio and simple (no gross/net portfolio-level policies).
 
 ### Execution
 
-The execution layer stops at `OrderRequest`. There is no broker protocol, no order-to-fill lifecycle, and no mapping from `StrategySignal` to `OrderRequest`. This is the main missing boundary between intent generation and state mutation.
+Execution now has explicit boundaries:
+
+- signal-to-order adapter
+- broker simulator interface
+- policy-based fill/fee/slippage simulation
+- resilience wrapper for external-I/O-like failure handling
+
+Current limitation:
+- No real broker adapter or persistent order lifecycle state machine yet.
 
 ### Portfolio
 
-`PortfolioBook.apply_fill()` correctly moves signed quantity into positions and adjusts cash by `signed_quantity * fill_price`. The model is intentionally small, but it currently has no fee handling, average price tracking, realized/unrealized PnL, or zero-position cleanup. Those gaps are acceptable at this stage, but they limit analytics and backtest realism.
+`PortfolioBook` supports cash/position updates with fee-aware fill application and deterministic behavior.
+
+Current limitation:
+- No average price, realized/unrealized PnL decomposition, or storage persistence yet.
 
 ### Backtest
 
-`BacktestContext` exists only as a container. There is no orchestration loop joining data, strategy, risk, execution, portfolio, and analytics into a deterministic simulation. This is the largest functional gap in the workspace.
+Backtest orchestration is implemented and deterministic for identical inputs.
+
+Current limitation:
+- Multi-symbol portfolio accounting is supported for marking existing positions, but the default app path intentionally restricts runtime to one symbol for safety/simplicity.
 
 ### Analytics
 
-`cumulative_return()` provides one safe, deterministic metric with edge-case handling for empty curves and zero starting equity. No drawdown, trade statistics, turnover, or fee-aware performance metrics exist yet.
+`cumulative_return` is available and integrated into `BacktestResult.total_return`.
 
-## Current flow and missing links
+Current limitation:
+- Drawdown/trade stats/turnover metrics are not yet part of the default report.
 
-The intended flow is visible from the package boundaries:
+## Configuration and examples
 
-1. `MarketDataProvider` yields `MarketBar`.
-2. `Strategy.evaluate()` produces `StrategySignal`.
-3. Risk checks determine whether the desired quantity is allowed.
-4. Execution should convert the signal into `OrderRequest`.
-5. Portfolio should update from fills.
-6. Analytics should consume the resulting equity curve.
+Configuration shape is now aligned for executable baseline fields:
 
-The missing links are:
+- `configs/base.yaml` includes `app`, `market_data`, `risk`, and `backtest` sections compatible with typed settings.
+- `examples/sample_backtest.yaml` includes required risk/backtest fields and remains an operator-facing scenario reference.
 
-- No adapter converts `StrategySignal` into `OrderRequest`.
-- No broker or fill model exists between execution and portfolio.
-- No backtest loop coordinates iteration, state transitions, and fee application.
-- No portfolio-to-analytics bridge produces an equity curve.
+Notes:
+- The example still contains additional strategy metadata that is not yet consumed by the current CLI app composition.
 
-## Config and example consistency
+## Test coverage snapshot
 
-The configuration surface is only partially aligned.
+Coverage includes:
 
-- `config/settings.py` defines `RiskSettings` and `BacktestSettings`, but there is no loader or top-level application settings model.
-- `configs/base.yaml` contains `app` and `market_data` sections that are not represented in typed settings.
-- `examples/sample_backtest.yaml` contains strategy metadata and a `risk.max_order_size`, but omits `risk.max_notional`, which is required by `RiskLimits`.
-- The example file therefore describes a scenario that cannot yet be materialized into the current typed models without extra defaults or translation logic.
+- Unit tests: strategy/risk/portfolio/analytics/config/app/execution adapters and broker behavior.
+- Integration tests: orchestration happy path, deterministic replay, risk rejection, provider failure, broker failure/timeout paths, config loader invalid schema/type paths.
 
-Before implementing config loading, the repository should decide whether examples are intentionally aspirational or expected to be executable fixtures.
+This gives a solid regression baseline for the current deterministic backtest architecture.
 
-## Test coverage assessment
+## Remaining gaps before true live execution
 
-Current test coverage is narrow and focused on one happy path and one rejection case for `RiskLimits`.
-
-Highest-priority missing tests:
-
-1. Risk boundary cases for projected position and projected notional.
-2. Portfolio regression tests covering buys, sells, sign handling, and flatting a position.
-3. Analytics tests for empty, single-point, zero-start, and positive/negative return curves.
-4. Contract-level tests for strategy and execution adapters once those components exist.
-5. A minimal integration test for the future backtest loop.
+1. **Real adapters**: implement external market data and broker adapters behind existing protocols.
+2. **Live orchestration**: add runtime loop, heartbeat, and durable state transitions for order lifecycle.
+3. **Persistence/recovery**: add checkpointing/event storage for restart-safe operation.
+4. **Operational gates**: formalize pre-production checks (runbook drills, key rotation, alert routing).
+5. **Expanded analytics**: add drawdown and trade-level metrics for operational monitoring.
 
 ## Recommended next backlog
 
-### 1. Add a deterministic backtest loop
-
-Implement a small engine that iterates bars, calls a strategy, enforces `RiskLimits`, applies fills to `PortfolioBook`, and records an equity curve. Keep all time progression driven by input bars.
-
-### 2. Introduce execution and fill contracts
-
-Add explicit broker or simulator interfaces plus a fill model so the transition from desired action to portfolio mutation is not implicit.
-
-### 3. Normalize configuration models
-
-Create a typed top-level settings model and align `configs/base.yaml`, `examples/sample_backtest.yaml`, and the settings dataclasses so example configs can be loaded without hidden defaults.
-
-### 4. Expand foundational tests
-
-Add unit tests around portfolio behavior and analytics, then add one integration-style backtest smoke test to lock the orchestration path before strategy complexity grows.
+1. Introduce a real data-provider adapter with strict timeout/retry configuration.
+2. Add a broker adapter contract test suite (happy path + failure path) using fakes.
+3. Extend `live` mode from preflight to paper-trade loop with explicit dry-run guard.
+4. Add release-gate documentation with pass/fail checklist before enabling live order submission.
