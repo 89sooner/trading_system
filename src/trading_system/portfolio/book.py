@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-
 ZERO = Decimal("0")
 
 
@@ -30,11 +29,22 @@ class PortfolioBook:
         self.fees_paid[symbol] = self.fees_paid.get(symbol, ZERO) + fee
 
         if previous_quantity == ZERO or _same_side(previous_quantity, signed_quantity):
-            self._apply_open_or_increase(symbol, previous_quantity, signed_quantity, fill_price, next_quantity)
+            self._apply_open_or_increase(
+                symbol,
+                previous_quantity,
+                signed_quantity,
+                fill_price,
+                next_quantity,
+            )
             return
 
         closed_quantity = min(abs(previous_quantity), abs(signed_quantity))
-        trade_pnl = _realized_trade_pnl(previous_quantity, average_cost, fill_price, closed_quantity)
+        trade_pnl = _realized_trade_pnl(
+            previous_quantity,
+            average_cost,
+            fill_price,
+            closed_quantity,
+        )
         self.realized_pnl[symbol] = self.realized_pnl.get(symbol, ZERO) + trade_pnl
 
         if next_quantity == ZERO:

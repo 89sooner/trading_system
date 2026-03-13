@@ -2,7 +2,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 
-
 ZERO = Decimal("0")
 
 
@@ -83,7 +82,7 @@ def _period_returns(equity_curve: Sequence[Decimal]) -> list[Decimal]:
         return []
 
     returns: list[Decimal] = []
-    for previous, current in zip(equity_curve, equity_curve[1:]):
+    for previous, current in zip(equity_curve, equity_curve[1:], strict=False):
         if previous == ZERO:
             returns.append(ZERO)
             continue

@@ -121,7 +121,9 @@ def test_run_backtest_supports_partial_fill_and_unfilled_order() -> None:
     )
     partial_result = run_backtest(
         _bars([Decimal("100")]),
-        StubStrategy([StrategySignal(side=SignalSide.BUY, quantity=Decimal("2"), reason="partial")]),
+        StubStrategy(
+            [StrategySignal(side=SignalSide.BUY, quantity=Decimal("2"), reason="partial")]
+        ),
         partial_context,
     )
 
@@ -136,7 +138,9 @@ def test_run_backtest_supports_partial_fill_and_unfilled_order() -> None:
     )
     unfilled_result = run_backtest(
         _bars([Decimal("100")]),
-        StubStrategy([StrategySignal(side=SignalSide.BUY, quantity=Decimal("2"), reason="no_fill")]),
+        StubStrategy(
+            [StrategySignal(side=SignalSide.BUY, quantity=Decimal("2"), reason="no_fill")]
+        ),
         unfilled_context,
     )
 
