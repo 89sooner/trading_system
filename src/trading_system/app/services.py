@@ -39,7 +39,7 @@ class AppServices:
         if self.mode != AppMode.BACKTEST:
             raise RuntimeError(f"Unsupported mode '{self.mode}'.")
 
-        symbol = self._single_symbol()
+        symbol = self._single_symbol(mode_name="backtest")
         with correlation_scope():
             bars = self.data_provider.load_bars(symbol)
             context = BacktestContext(
@@ -50,19 +50,27 @@ class AppServices:
             )
             return run_backtest(bars=bars, strategy=self.strategy, context=context)
 
-    def _single_symbol(self) -> str:
+    def preflight_live(self) -> str:
+        if self.mode != AppMode.LIVE:
+            raise RuntimeError(f"Unsupported mode '{self.mode}'.")
+
+        self._single_symbol(mode_name="live")
+        return "Live mode preflight passed (no orders were submitted)."
+
+    def _single_symbol(self, mode_name: str) -> str:
         if len(self.symbols) != 1:
-            raise RuntimeError("Current scaffold supports exactly one symbol for backtest mode.")
+            raise RuntimeError(
+                f"Current scaffold supports exactly one symbol for {mode_name} mode."
+            )
         return self.symbols[0]
 
 
 def build_services(settings: AppSettings) -> AppServices:
-    if settings.mode != AppMode.BACKTEST:
-        raise RuntimeError(f"Mode '{settings.mode}' is not implemented yet.")
-
     ensure_logging()
     logger = StructuredLogger("trading_system", log_format=StructuredLogFormat.JSON)
-    _load_live_api_key_if_present()
+
+    if settings.mode == AppMode.LIVE:
+        _require_live_api_key()
 
     bars_by_symbol = {symbol: build_sample_bars(symbol=symbol) for symbol in settings.symbols}
     return AppServices(
@@ -87,9 +95,6 @@ def build_services(settings: AppSettings) -> AppServices:
     )
 
 
-def _load_live_api_key_if_present() -> None:
+def _require_live_api_key() -> None:
     provider = EnvSecretProvider()
-    try:
-        provider.get_secret("TRADING_SYSTEM_API_KEY")
-    except RuntimeError:
-        return
+    provider.get_secret("TRADING_SYSTEM_API_KEY")

@@ -3,7 +3,7 @@ import sys
 
 from trading_system.app.backtest_demo import format_result
 from trading_system.app.services import build_services
-from trading_system.app.settings import AppSettings, SettingsValidationError
+from trading_system.app.settings import AppMode, AppSettings, SettingsValidationError
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -41,6 +41,10 @@ def run(argv: list[str] | None = None) -> int:
         settings.validate()
 
         services = build_services(settings)
+        if settings.mode == AppMode.LIVE:
+            print(services.preflight_live())
+            return 0
+
         result = services.run()
         print(format_result(result))
         return 0
