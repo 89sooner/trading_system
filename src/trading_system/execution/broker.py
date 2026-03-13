@@ -1,8 +1,15 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import StrEnum
 from typing import Protocol
 
+from trading_system.core.ops import (
+    CircuitBreakerPolicy,
+    CircuitBreakerState,
+    RetryPolicy,
+    TimeoutPolicy,
+    execute_with_resilience,
+)
 from trading_system.core.types import MarketBar
 from trading_system.execution.orders import OrderRequest, OrderSide
 
@@ -39,7 +46,12 @@ class SlippagePolicy(Protocol):
 
 
 class CommissionPolicy(Protocol):
-    def calculate_fee(self, order: OrderRequest, fill_quantity: Decimal, fill_price: Decimal) -> Decimal:
+    def calculate_fee(
+        self,
+        order: OrderRequest,
+        fill_quantity: Decimal,
+        fill_price: Decimal,
+    ) -> Decimal:
         """Return absolute fee for the fill."""
 
 
@@ -67,7 +79,12 @@ class BpsSlippagePolicy:
 class BpsCommissionPolicy:
     bps: Decimal = Decimal("0")
 
-    def calculate_fee(self, order: OrderRequest, fill_quantity: Decimal, fill_price: Decimal) -> Decimal:
+    def calculate_fee(
+        self,
+        order: OrderRequest,
+        fill_quantity: Decimal,
+        fill_price: Decimal,
+    ) -> Decimal:
         del order
         return abs(fill_quantity * fill_price) * self.bps / Decimal("10000")
 
@@ -98,7 +115,11 @@ class PolicyBrokerSimulator:
 
         fill_price = self.slippage_policy.fill_price(order, bar)
         fee = self.commission_policy.calculate_fee(order, filled_quantity, fill_price)
-        status = FillStatus.FILLED if filled_quantity == order.quantity else FillStatus.PARTIALLY_FILLED
+        status = (
+            FillStatus.FILLED
+            if filled_quantity == order.quantity
+            else FillStatus.PARTIALLY_FILLED
+        )
         return FillEvent(
             symbol=order.symbol,
             side=order.side,
@@ -107,4 +128,23 @@ class PolicyBrokerSimulator:
             fill_price=fill_price,
             fee=fee,
             status=status,
+        )
+
+
+@dataclass(slots=True)
+class ResilientBroker:
+    delegate: BrokerSimulator
+    retry_policy: RetryPolicy = field(default_factory=RetryPolicy)
+    timeout_policy: TimeoutPolicy = field(default_factory=TimeoutPolicy)
+    circuit_breaker_policy: CircuitBreakerPolicy = field(default_factory=CircuitBreakerPolicy)
+    _circuit_state: CircuitBreakerState = field(default_factory=CircuitBreakerState, init=False)
+
+    def submit_order(self, order: OrderRequest, bar: MarketBar) -> FillEvent:
+        return execute_with_resilience(
+            operation=f"broker_submit:{order.symbol}",
+            callback=lambda: self.delegate.submit_order(order, bar),
+            retry=self.retry_policy,
+            timeout=self.timeout_policy,
+            circuit_breaker=self.circuit_breaker_policy,
+            circuit_state=self._circuit_state,
         )

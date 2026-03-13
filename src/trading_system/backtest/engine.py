@@ -3,6 +3,15 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from trading_system.analytics.metrics import cumulative_return
+from trading_system.core.ops import (
+    ExceptionEvent,
+    OrderCreatedEvent,
+    OrderFilledEvent,
+    OrderRejectedEvent,
+    RiskRejectedEvent,
+    StructuredLogger,
+    event_payload,
+)
 from trading_system.core.types import MarketBar
 from trading_system.execution.adapters import signal_to_order_request
 from trading_system.execution.broker import BrokerSimulator
@@ -17,6 +26,7 @@ class BacktestContext:
     portfolio: PortfolioBook
     risk_limits: RiskLimits
     broker: BrokerSimulator
+    logger: StructuredLogger | None = None
 
 
 @dataclass(slots=True)

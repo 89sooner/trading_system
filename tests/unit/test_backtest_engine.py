@@ -1,9 +1,12 @@
+import json
+import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
 from trading_system.backtest.engine import BacktestContext, run_backtest
+from trading_system.core.ops import StructuredLogFormat, StructuredLogger
 from trading_system.core.types import MarketBar
 from trading_system.execution.broker import (
     BpsCommissionPolicy,
