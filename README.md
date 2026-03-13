@@ -42,6 +42,18 @@ pytest
 
 ## Run commands
 
+### One-command local run
+
+If you want to run immediately without manually creating a venv or exporting variables:
+
+```bash
+./scripts/run_engine.sh backtest
+./scripts/run_engine.sh live-preflight
+```
+
+- The script auto-creates `.venv` (if missing), installs dependencies, and runs the CLI.
+- `live-preflight` uses `TRADING_SYSTEM_API_KEY` from your environment when present; otherwise it injects a local dummy key for preflight only.
+
 ### Test suites (CI split)
 
 - Fast smoke set: `pytest -m smoke -q`
