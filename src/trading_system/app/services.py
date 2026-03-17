@@ -1,4 +1,6 @@
+import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from trading_system.app.sample_data import build_sample_bars
 from trading_system.app.settings import AppMode, AppSettings
@@ -10,7 +12,11 @@ from trading_system.core.ops import (
     correlation_scope,
     ensure_logging,
 )
-from trading_system.data.provider import InMemoryMarketDataProvider, MarketDataProvider
+from trading_system.data.provider import (
+    CsvMarketDataProvider,
+    InMemoryMarketDataProvider,
+    MarketDataProvider,
+)
 from trading_system.execution.broker import (
     BpsCommissionPolicy,
     BpsSlippagePolicy,
@@ -72,11 +78,10 @@ def build_services(settings: AppSettings) -> AppServices:
     if settings.mode == AppMode.LIVE:
         _require_live_api_key()
 
-    bars_by_symbol = {symbol: build_sample_bars(symbol=symbol) for symbol in settings.symbols}
     return AppServices(
         mode=settings.mode,
         strategy=MomentumStrategy(trade_quantity=settings.backtest.trade_quantity),
-        data_provider=InMemoryMarketDataProvider(bars_by_symbol=bars_by_symbol),
+        data_provider=_build_data_provider(settings),
         risk_limits=RiskLimits(
             max_position=settings.risk.max_position,
             max_notional=settings.risk.max_notional,
@@ -98,3 +103,28 @@ def build_services(settings: AppSettings) -> AppServices:
 def _require_live_api_key() -> None:
     provider = EnvSecretProvider()
     provider.get_secret("TRADING_SYSTEM_API_KEY")
+
+
+def _build_data_provider(settings: AppSettings) -> MarketDataProvider:
+    if settings.provider == "mock":
+        bars_by_symbol = {symbol: build_sample_bars(symbol=symbol) for symbol in settings.symbols}
+        return InMemoryMarketDataProvider(bars_by_symbol=bars_by_symbol)
+
+    csv_dir = Path(os.getenv("TRADING_SYSTEM_CSV_DIR", "data/market"))
+    csv_by_symbol: dict[str, Path] = {}
+    missing_symbols: list[str] = []
+    for symbol in settings.symbols:
+        csv_path = csv_dir / f"{symbol}.csv"
+        if not csv_path.exists():
+            missing_symbols.append(symbol)
+            continue
+        csv_by_symbol[symbol] = csv_path
+
+    if missing_symbols:
+        missing = ", ".join(missing_symbols)
+        raise RuntimeError(
+            "CSV provider requires symbol files under "
+            f"'{csv_dir}' (missing: {missing})."
+        )
+
+    return CsvMarketDataProvider(csv_by_symbol=csv_by_symbol)

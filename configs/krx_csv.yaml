@@ -1,0 +1,22 @@
+app:
+  environment: local
+  timezone: Asia/Seoul
+  mode: backtest
+
+market_data:
+  provider: csv
+  symbols:
+    - "005930"
+
+execution:
+  broker: paper
+
+risk:
+  max_position: 10
+  max_notional: 100000000
+  max_order_size: 5
+
+backtest:
+  starting_cash: 10000000
+  fee_bps: 5
+  trade_quantity: 1
