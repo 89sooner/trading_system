@@ -63,5 +63,27 @@
 ## Remaining risks / unknowns
 - This artifact references a commit-level approved target; if your process requires issue/ADR-level approval linkage, add that ID in a future docs-only follow-up.
 
+## Immediate next actions
+1. Link this verification note to a formal issue or ADR ID for auditability.
+2. Capture CI job URL or artifact path for the three test commands in the next loop report.
+3. Keep this runbook docs-only unless runtime behavior changes.
+
 ## Next loop handoff
-No further loop required.
+Goal:
+- Strengthen approval traceability from commit-level to issue/ADR-level linkage.
+
+Why another loop is needed:
+- Current verification passes technically, but governance traceability is still noted as a remaining unknown.
+
+Files likely in scope:
+- `docs/runbooks/krx-csv-verification-loop.md`
+- `README.md` (only if discovery links need updates)
+- issue/ADR metadata location used by the team
+
+Known issues:
+- Approved target is linked to commit `411b0ca`, not yet to issue/ADR ID.
+
+Validation to rerun:
+- `pytest tests/unit/test_app_services.py -q`
+- `pytest tests/unit/test_app_main.py -q`
+- `pytest -m smoke -q`
