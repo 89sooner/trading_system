@@ -43,3 +43,6 @@ Use repository skills from `.codex/skills/` or `.opencode/skills/` when the task
 - `python-implementer`: implement or refactor Python code safely.
 - `strategy-reviewer`: review strategy, backtest, and risk changes.
 - `docs-maintainer`: update documentation, examples, and operator notes.
+- `verify-loop-inspector`: verify implementation against approved plan, validation evidence, and repository policy, then decide pass/fix/re-plan with next-loop handoff.
+- `build-mode-executor`: implement approved plans with strict scope control, run validation in build/lint/test/smoke priority, and report exact implementation evidence.
+- `plan-mode-orchestrator`: structure requests into implementation-ready plans with explicit scope, risks, assumptions, and build handoff.

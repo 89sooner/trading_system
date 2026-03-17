@@ -1,27 +1,27 @@
-name: mean_reversion_smoke_test
+name: krx_equity_smoke_test
 app:
   environment: local
   timezone: Asia/Seoul
   mode: backtest
 market_data:
-  provider: mock
+  provider: csv
   symbols:
-    - BTCUSDT
+    - "005930"
 execution:
   broker: paper
-timeframe: 1m
+timeframe: 1d
 start: 2024-01-01T00:00:00Z
-end: 2024-01-07T00:00:00Z
+end: 2024-01-31T00:00:00Z
 strategy:
   kind: mean_reversion
   lookback: 20
   zscore_entry: 2.0
   zscore_exit: 0.5
 risk:
-  max_position: 1.0
-  max_notional: 100000.0
-  max_order_size: 0.2
+  max_position: 10
+  max_notional: 100000000
+  max_order_size: 5
 backtest:
-  starting_cash: 10000.0
-  fee_bps: 5.0
-  trade_quantity: 0.1
+  starting_cash: 10000000
+  fee_bps: 5
+  trade_quantity: 1
