@@ -127,6 +127,7 @@ All amount/quantity/fee fields are parsed as `Decimal`. Validation errors return
 - Current workspace analysis: `docs/architecture/workspace-analysis.md`
 - Incident runbook: `docs/runbooks/incident-response.md`
 - Release gates: `docs/runbooks/release-gate-checklist.md`
+- KRX CSV verification loop note: `docs/runbooks/krx-csv-verification-loop.md`
 
 ## Operations baseline
 
