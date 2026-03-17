@@ -18,6 +18,7 @@ src/trading_system/
   core/
   data/
   execution/
+  patterns/
   portfolio/
   risk/
   strategy/
@@ -47,7 +48,7 @@ PYTHONPATH=src python -m trading_system.backtest.example
 
 ## Current status
 
-This repository currently provides a clean package skeleton, a small risk-rule example, a deterministic single-symbol backtest loop, and repository-level skills for planning, implementation, review, and documentation work.
+This repository currently provides a clean package skeleton, a small risk-rule example, a deterministic single-symbol backtest loop, a chart-pattern learning and matching scaffold, and repository-level skills for planning, implementation, review, and documentation work.
 
 ## Analysis docs
 
@@ -68,3 +69,18 @@ It runs a small single-symbol bar sequence through the v1 backtest loop with:
 - close-price immediate fills
 - fee-aware cash updates
 - a printed equity curve and return summary
+
+## Pattern-learning scaffold
+
+The repository now includes a minimal chart-pattern pipeline for:
+
+- storing labeled bar windows as training examples
+- learning per-label pattern prototypes from those examples
+- scoring the current bar window against learned patterns
+- emitting alerts or converting matches into strategy signals
+
+Run the example matcher with:
+
+```bash
+PYTHONPATH=src python -m trading_system.patterns.example
+```
