@@ -134,3 +134,4 @@ All amount/quantity/fee fields are parsed as `Decimal`. Validation errors return
 - Boundary layers (`app`, `data`, `execution`) emit structured logs with a propagated `correlation_id`.
 - Key events use fixed schema names: `order.created`, `order.rejected`, `order.filled`, `risk.rejected`, `exception`.
 - Retry/timeout/circuit-breaker policies are applied only at external I/O boundaries.
+-
