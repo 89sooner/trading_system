@@ -19,6 +19,7 @@ src/trading_system/
   core/
   data/
   execution/
+  patterns/
   portfolio/
   risk/
   strategy/
@@ -54,7 +55,7 @@ If you want to run immediately without manually creating a venv or exporting var
 - The script auto-creates `.venv` (if missing), installs dependencies, and runs the CLI.
 - `live-preflight` uses `TRADING_SYSTEM_API_KEY` from your environment when present; otherwise it injects a local dummy key for preflight only.
 
-### Test suites (CI split)
+This repository currently provides a clean package skeleton, a small risk-rule example, a deterministic single-symbol backtest loop, a chart-pattern learning and matching scaffold, and repository-level skills for planning, implementation, review, and documentation work.
 
 - Fast smoke set: `pytest -m smoke -q`
 - Extended set: `pytest -m "not smoke" -q`
@@ -131,7 +132,22 @@ All amount/quantity/fee fields are parsed as `Decimal`. Validation errors return
 
 ## Operations baseline
 
-- Boundary layers (`app`, `data`, `execution`) emit structured logs with a propagated `correlation_id`.
-- Key events use fixed schema names: `order.created`, `order.rejected`, `order.filled`, `risk.rejected`, `exception`.
-- Retry/timeout/circuit-breaker policies are applied only at external I/O boundaries.
--
+- a built-in stateful `MomentumStrategy`
+- close-price immediate fills
+- fee-aware cash updates
+- a printed equity curve and return summary
+
+## Pattern-learning scaffold
+
+The repository now includes a minimal chart-pattern pipeline for:
+
+- storing labeled bar windows as training examples
+- learning per-label pattern prototypes from those examples
+- scoring the current bar window against learned patterns
+- emitting alerts or converting matches into strategy signals
+
+Run the example matcher with:
+
+```bash
+PYTHONPATH=src python -m trading_system.patterns.example
+```
