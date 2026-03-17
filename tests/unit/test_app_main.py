@@ -46,3 +46,12 @@ def test_cli_returns_runtime_error_for_unsupported_multi_symbol_backtest(capsys)
     assert exit_code == 3
     assert "Runtime error:" in captured.err
     assert "supports exactly one symbol" in captured.err
+
+
+def test_cli_returns_validation_error_for_unsupported_provider(capsys) -> None:
+    exit_code = run(["--mode", "backtest", "--provider", "unknown"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "Configuration error:" in captured.err
+    assert "--provider must be one of: 'mock', 'csv'." in captured.err

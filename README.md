@@ -66,6 +66,21 @@ PYTHONPATH=src TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
 python -m trading_system.app.main --mode backtest --symbols BTCUSDT
 ```
 
+### Backtest mode (KRX CSV example)
+
+```bash
+mkdir -p data/market
+cat > data/market/005930.csv <<'CSV'
+timestamp,open,high,low,close,volume
+2024-01-02T00:00:00+00:00,70000,70500,69900,70400,1000
+2024-01-03T00:00:00+00:00,70400,71000,70300,70900,1200
+CSV
+
+PYTHONPATH=src TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
+TRADING_SYSTEM_CSV_DIR=data/market \
+python -m trading_system.app.main --mode backtest --provider csv --symbols 005930 --trade-quantity 1
+```
+
 ### Live preflight mode (no order submission)
 
 ```bash
@@ -85,6 +100,7 @@ PYTHONPATH=src python -m trading_system.backtest.example
 - `TRADING_SYSTEM_ENV`: logical runtime environment name (for example `local`, `staging`, `prod`).
 - `TRADING_SYSTEM_TIMEZONE`: operator timezone used for runtime context (for example `Asia/Seoul`).
 - `TRADING_SYSTEM_API_KEY`: live adapter credential injected from environment/secret manager only.
+- `TRADING_SYSTEM_CSV_DIR` (optional): directory for CSV backtest files when `--provider csv` is used (default: `data/market`).
 
 ## Configuration schema
 
