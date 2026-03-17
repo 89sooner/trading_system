@@ -82,8 +82,8 @@ class AppSettings:
         if not self.symbols:
             raise SettingsValidationError("At least one symbol is required via --symbols.")
 
-        if self.provider not in {"mock"}:
-            raise SettingsValidationError("--provider must be 'mock' for this scaffold.")
+        if self.provider not in {"mock", "csv"}:
+            raise SettingsValidationError("--provider must be one of: 'mock', 'csv'.")
 
         if self.broker not in {"paper"}:
             raise SettingsValidationError("--broker must be 'paper' for this scaffold.")
