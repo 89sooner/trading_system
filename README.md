@@ -143,7 +143,7 @@ TRADING_SYSTEM_CSV_DIR=data/market \
 python -m trading_system.app.main --mode backtest --provider csv --symbols 005930 --trade-quantity 1
 ```
 
-### 5.5 Live preflight mode (no order submission) / 라이브 프리플라이트 모드 (실주문 없음)
+### 5.5 Live preflight mode (default, no order submission) / 라이브 프리플라이트 모드 (기본값, 실주문 없음)
 
 ```bash
 PYTHONPATH=src TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
@@ -151,7 +151,15 @@ TRADING_SYSTEM_API_KEY=dummy-key \
 python -m trading_system.app.main --mode live --symbols BTCUSDT
 ```
 
-### 5.6 Built-in backtest example / 내장 백테스트 예시
+### 5.6 Live paper mode (explicit opt-in) / 라이브 페이퍼 모드 (명시적 활성화)
+
+```bash
+PYTHONPATH=src TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
+TRADING_SYSTEM_API_KEY=dummy-key \
+python -m trading_system.app.main --mode live --symbols BTCUSDT --live-execution paper
+```
+
+### 5.7 Built-in backtest example / 내장 백테스트 예시
 
 ```bash
 PYTHONPATH=src python -m trading_system.backtest.example
@@ -165,7 +173,7 @@ PYTHONPATH=src python -m trading_system.backtest.example
 This repository is not a fully live-trading product yet. It is a deterministic, test-centered platform that can:
 
 1. Execute end-to-end backtests through CLI.
-2. Run live-mode preflight checks without submitting real orders.
+2. Run live-mode preflight checks (default) or an explicit paper execution loop (`--live-execution paper`) without submitting real orders.
 3. Load market data via in-memory provider (`mock`) or CSV provider (`csv`).
 4. Enforce risk limits (`max_position`, `max_notional`, `max_order_size`).
 5. Simulate fills via fill ratio, slippage (bps), and commission (bps).
@@ -177,7 +185,7 @@ This repository is not a fully live-trading product yet. It is a deterministic, 
 이 저장소는 아직 “완전한 실주문 시스템”은 아니며, 결정성과 테스트 중심의 플랫폼으로 다음을 수행할 수 있습니다.
 
 1. CLI 기반 end-to-end 백테스트 실행.
-2. 실주문 없이 라이브 프리플라이트 검증 수행.
+2. 실주문 없이 라이브 프리플라이트(기본) 또는 명시적 페이퍼 실행 루프(`--live-execution paper`) 수행.
 3. 인메모리(`mock`) 또는 CSV(`csv`) 데이터 공급자 사용.
 4. 리스크 제한(`max_position`, `max_notional`, `max_order_size`) 적용.
 5. 체결 비율/슬리피지(bps)/수수료(bps) 기반 체결 시뮬레이션.
@@ -332,13 +340,13 @@ settings = load_settings("configs/base.yaml")
 ## 12) Operational cautions / 운영 시 주의사항
 
 ### EN
-1. **No real live order submission yet**: `live` mode is currently preflight-only.
+1. **No real live order submission yet**: `live` mode defaults to preflight, and supports paper simulation only when `--live-execution paper` is set.
 2. **Secret handling**: inject credentials via environment/secret manager only.
 3. **Current scaffold limitation**: app composition currently focuses on a single-symbol runtime path for simplicity/safety.
 4. **Determinism first**: any backtest logic change should ship with deterministic regression tests.
 
 ### KO
-1. **실주문 미지원**: 현재 `live` 모드는 preflight 전용입니다.
+1. **실주문 미지원**: 현재 `live` 모드는 기본 preflight이며, `--live-execution paper` 지정 시 페이퍼 시뮬레이션만 지원합니다.
 2. **시크릿 관리**: 인증정보는 환경변수/시크릿 매니저로만 주입하세요.
 3. **현재 스캐폴드 제약**: 단순성과 안전성을 위해 앱 조립 경로는 단일 심볼 중심입니다.
 4. **결정성 우선**: 백테스트 로직 변경 시 결정성 회귀 테스트를 함께 추가하세요.
@@ -397,8 +405,8 @@ PYTHONPATH=src python -m trading_system.patterns.example
 1. **CLI 기반 백테스트 실행**
    - 전략 신호 생성 → 주문 변환 → 리스크 검증 → 체결 시뮬레이션 → 포트폴리오 반영 → 성과 계산을 일괄 수행합니다.
 
-2. **라이브 프리플라이트(preflight) 실행**
-   - `--mode live`는 실제 주문을 보내지 않고 운영 필수 입력(예: API 키)만 사전 검증합니다.
+2. **라이브 실행(preflight/paper) 지원**
+   - `--mode live`는 기본적으로 preflight를 수행하며, `--live-execution paper`를 지정하면 실주문 없이 페이퍼 실행 루프를 수행합니다.
 
 3. **시장 데이터 공급 선택**
    - `mock` 인메모리 데이터(테스트/스모크용)
@@ -455,7 +463,7 @@ PYTHONPATH=src python -m trading_system.patterns.example
 
 ### 3) 아키텍처 레이어별 역할 요약
 
-- **app**: CLI 입력 처리, 서비스 조립, 모드 분기(backtest/live preflight)
+- **app**: CLI 입력 처리, 서비스 조립, 모드 분기(backtest/live preflight/paper)
 - **data**: 데이터 공급자 인터페이스 및 구현(mock/csv)
 - **strategy**: 전략 신호 생성
 - **risk**: 주문 가능 여부 검증
@@ -488,7 +496,7 @@ PYTHONPATH=src python -m trading_system.patterns.example
 ### 6) 운영 시 주의사항
 
 1. **실주문 미지원**
-   - 현재 `live`는 preflight 전용이며 실제 주문 제출은 구현되어 있지 않습니다.
+   - 현재 `live`는 기본 preflight이며, `--live-execution paper`로 페이퍼 실행만 가능합니다(실주문 제출 미구현).
 
 2. **시크릿 관리**
    - API 키는 반드시 환경변수/시크릿 매니저로 주입하고 코드/로그에 직접 남기지 마세요.

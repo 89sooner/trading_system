@@ -3,7 +3,8 @@
 ## Purpose
 
 라이브 주문 전환 전에 필수 운영 게이트를 동일한 기준으로 점검한다.
-현재 저장소 기준으로 `--mode live`는 preflight만 수행하며 주문을 제출하지 않는다.
+현재 저장소 기준으로 `--mode live`는 기본 preflight를 수행하고,
+`--live-execution paper` 지정 시 실주문 없이 페이퍼 실행 루프를 수행한다.
 
 ## Gate 1: Test baseline
 
@@ -20,6 +21,7 @@
 ## Gate 3: Runtime preflight baseline
 
 - [ ] `python -m trading_system.app.main --mode live --symbols BTCUSDT` preflight 성공
+- [ ] `python -m trading_system.app.main --mode live --symbols BTCUSDT --live-execution paper` paper 실행 성공
 - [ ] 잘못된 설정 입력 시 명확한 사용자 오류 메시지 반환 확인
 - [ ] 다중 심볼 제한/현 스캐폴드 제약이 운영자에게 공유됨
 

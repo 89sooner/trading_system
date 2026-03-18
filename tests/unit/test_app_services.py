@@ -21,6 +21,7 @@ def test_build_services_uses_csv_provider_for_domestic_symbol(tmp_path, monkeypa
         symbols="005930",
         provider="csv",
         broker="paper",
+        live_execution="preflight",
         starting_cash="1000000",
         fee_bps="5",
         trade_quantity="1",
@@ -46,6 +47,7 @@ def test_build_services_raises_clear_error_when_csv_file_missing(tmp_path, monke
         symbols="005930",
         provider="csv",
         broker="paper",
+        live_execution="preflight",
         starting_cash="1000000",
         fee_bps="5",
         trade_quantity="1",
@@ -57,3 +59,27 @@ def test_build_services_raises_clear_error_when_csv_file_missing(tmp_path, monke
 
     with pytest.raises(RuntimeError, match="missing: 005930"):
         build_services(settings)
+
+
+def test_live_mode_paper_execution_runs_without_order_submission_error(monkeypatch) -> None:
+    monkeypatch.setenv("TRADING_SYSTEM_API_KEY", "dummy-key")
+
+    settings = AppSettings.from_cli(
+        mode="live",
+        symbols="BTCUSDT",
+        provider="mock",
+        broker="paper",
+        live_execution="paper",
+        starting_cash="10000",
+        fee_bps="5",
+        trade_quantity="0.1",
+        max_position="1",
+        max_notional="100000",
+        max_order_size="0.25",
+    )
+    settings.validate()
+
+    services = build_services(settings)
+    result = services.run_live_paper()
+
+    assert result.processed_bars > 0

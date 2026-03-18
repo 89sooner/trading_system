@@ -19,6 +19,26 @@ def test_cli_live_mode_runs_preflight_when_api_key_is_present(capsys, monkeypatc
     assert "Live mode preflight passed" in captured.out
 
 
+def test_cli_live_mode_runs_paper_loop_when_requested(capsys, monkeypatch) -> None:
+    monkeypatch.setenv("TRADING_SYSTEM_API_KEY", "dummy-key")
+
+    exit_code = run(
+        [
+            "--mode",
+            "live",
+            "--symbols",
+            "BTCUSDT",
+            "--live-execution",
+            "paper",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Live mode preflight passed" in captured.out
+    assert "Smoke backtest result" in captured.out
+
+
 def test_cli_live_mode_fails_when_api_key_is_missing(capsys, monkeypatch) -> None:
     monkeypatch.delenv("TRADING_SYSTEM_API_KEY", raising=False)
 
@@ -55,3 +75,12 @@ def test_cli_returns_validation_error_for_unsupported_provider(capsys) -> None:
     assert exit_code == 2
     assert "Configuration error:" in captured.err
     assert "--provider must be one of: 'mock', 'csv'." in captured.err
+
+
+def test_cli_returns_validation_error_for_invalid_live_execution_mode(capsys) -> None:
+    exit_code = run(["--mode", "live", "--live-execution", "invalid"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "Configuration error:" in captured.err
+    assert "--live-execution must be one of: 'preflight', 'paper'." in captured.err
