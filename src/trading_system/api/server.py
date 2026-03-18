@@ -1,8 +1,10 @@
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
+from trading_system.api.errors import RequestValidationError
 from trading_system.api.routes.backtest import router as backtest_router
 from trading_system.api.schemas import ErrorResponseDTO
+from trading_system.api.security import SecuritySettings, build_security_middleware
 from trading_system.app.settings import SettingsValidationError as AppSettingsValidationError
 from trading_system.config.settings import SettingsValidationError as ConfigSettingsValidationError
 
@@ -10,6 +12,14 @@ from trading_system.config.settings import SettingsValidationError as ConfigSett
 def create_app() -> FastAPI:
     app = FastAPI(title="trading_system API", version="1.0.0")
     app.include_router(backtest_router)
+
+    security_settings = SecuritySettings.from_env()
+    app.middleware("http")(build_security_middleware(security_settings))
+
+    @app.exception_handler(RequestValidationError)
+    async def handle_request_validation(_request: Request, exc: RequestValidationError) -> JSONResponse:
+        body = ErrorResponseDTO(error_code=exc.error_code, message=str(exc))
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=body.model_dump())
 
     @app.exception_handler(AppSettingsValidationError)
     @app.exception_handler(ConfigSettingsValidationError)

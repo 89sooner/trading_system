@@ -9,7 +9,6 @@ from trading_system.core.ops import (
     EnvSecretProvider,
     StructuredLogFormat,
     StructuredLogger,
-    correlation_scope,
     ensure_logging,
 )
 from trading_system.data.provider import (
@@ -46,15 +45,14 @@ class AppServices:
             raise RuntimeError(f"Unsupported mode '{self.mode}'.")
 
         symbol = self._single_symbol(mode_name="backtest")
-        with correlation_scope():
-            bars = self.data_provider.load_bars(symbol)
-            context = BacktestContext(
-                portfolio=self.portfolio,
-                risk_limits=self.risk_limits,
-                broker=self.broker_simulator,
-                logger=self.logger,
-            )
-            return run_backtest(bars=bars, strategy=self.strategy, context=context)
+        bars = self.data_provider.load_bars(symbol)
+        context = BacktestContext(
+            portfolio=self.portfolio,
+            risk_limits=self.risk_limits,
+            broker=self.broker_simulator,
+            logger=self.logger,
+        )
+        return run_backtest(bars=bars, strategy=self.strategy, context=context)
 
     def preflight_live(self) -> str:
         if self.mode != AppMode.LIVE:
@@ -68,15 +66,14 @@ class AppServices:
             raise RuntimeError(f"Unsupported mode '{self.mode}'.")
 
         symbol = self._single_symbol(mode_name="live")
-        with correlation_scope():
-            bars = self.data_provider.load_bars(symbol)
-            context = BacktestContext(
-                portfolio=self.portfolio,
-                risk_limits=self.risk_limits,
-                broker=self.broker_simulator,
-                logger=self.logger,
-            )
-            return run_backtest(bars=bars, strategy=self.strategy, context=context)
+        bars = self.data_provider.load_bars(symbol)
+        context = BacktestContext(
+            portfolio=self.portfolio,
+            risk_limits=self.risk_limits,
+            broker=self.broker_simulator,
+            logger=self.logger,
+        )
+        return run_backtest(bars=bars, strategy=self.strategy, context=context)
 
     def _single_symbol(self, mode_name: str) -> str:
         if len(self.symbols) != 1:

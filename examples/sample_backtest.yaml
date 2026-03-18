@@ -25,3 +25,8 @@ backtest:
   starting_cash: 10000.0
   fee_bps: 5.0
   trade_quantity: 0.1
+
+
+api:
+  cors_allow_origins:
+    - "*"
