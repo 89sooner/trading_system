@@ -73,18 +73,16 @@ examples/
 
 ### EN
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .[dev]
-pytest
+uv venv --python 3.12 --seed .venv
+uv pip install --python .venv/bin/python -e '.[dev]'
+uv run --python .venv/bin/python --no-sync pytest
 ```
 
 ### KO
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .[dev]
-pytest
+uv venv --python 3.12 --seed .venv
+uv pip install --python .venv/bin/python -e '.[dev]'
+uv run --python .venv/bin/python --no-sync pytest
 ```
 
 ---
@@ -99,7 +97,10 @@ pytest
 ./scripts/run_engine.sh live-preflight
 ```
 
-- The script auto-creates `.venv` (if missing), installs dependencies, and runs the CLI.
+- The script auto-creates `.venv` and installs dependencies on first run.
+- Set `TRADING_SYSTEM_SYNC_DEPS=1` to force a dependency resync before running.
+- The workflow assumes `uv` is installed and available on your `PATH` (the scripts also fall back to `~/.local/bin/uv`).
+- The scripts use a project-local `UV_CACHE_DIR=.uv-cache` so they work even when the home cache directory is restricted.
 - `live-preflight` uses `TRADING_SYSTEM_API_KEY` from your environment when available; otherwise it injects a local dummy key for preflight only.
 
 ### KO
@@ -108,24 +109,27 @@ pytest
 ./scripts/run_engine.sh live-preflight
 ```
 
-- 스크립트는 `.venv`가 없으면 자동 생성하고, 의존성을 설치한 뒤 CLI를 실행합니다.
+- 스크립트는 첫 실행 시 `.venv`를 자동 생성하고 의존성을 설치한 뒤 CLI를 실행합니다.
+- 실행 전에 의존성을 다시 동기화하려면 `TRADING_SYSTEM_SYNC_DEPS=1`을 지정하세요.
+- 실행 흐름은 `uv`가 PATH에 있음을 전제로 하며, 없으면 `~/.local/bin/uv`를 대신 찾습니다.
+- 홈 캐시 디렉터리가 제한된 환경에서도 동작하도록 스크립트는 프로젝트 로컬 `UV_CACHE_DIR=.uv-cache`를 사용합니다.
 - `live-preflight`는 환경변수 `TRADING_SYSTEM_API_KEY`가 있으면 사용하고, 없으면 프리플라이트 전용 더미 키를 주입합니다.
 
 ### 5.2 Test subsets / 테스트 세트
 
 ### EN
-- Fast smoke set: `pytest -m smoke -q`
-- Extended set: `pytest -m "not smoke" -q`
+- Fast smoke set: `uv run --python .venv/bin/python --no-sync pytest -m smoke -q`
+- Extended set: `uv run --python .venv/bin/python --no-sync pytest -m "not smoke" -q`
 
 ### KO
-- 빠른 스모크 세트: `pytest -m smoke -q`
-- 확장 세트: `pytest -m "not smoke" -q`
+- 빠른 스모크 세트: `uv run --python .venv/bin/python --no-sync pytest -m smoke -q`
+- 확장 세트: `uv run --python .venv/bin/python --no-sync pytest -m "not smoke" -q`
 
 ### 5.3 Backtest mode / 백테스트 모드
 
 ```bash
-PYTHONPATH=src TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
-python -m trading_system.app.main --mode backtest --symbols BTCUSDT
+TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
+uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode backtest --symbols BTCUSDT
 ```
 
 ### 5.4 Backtest mode (KRX CSV example) / 백테스트 모드 (KRX CSV 예시)
@@ -138,40 +142,50 @@ timestamp,open,high,low,close,volume
 2024-01-03T00:00:00+00:00,70400,71000,70300,70900,1200
 CSV
 
-PYTHONPATH=src TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
+TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
 TRADING_SYSTEM_CSV_DIR=data/market \
-python -m trading_system.app.main --mode backtest --provider csv --symbols 005930 --trade-quantity 1
+uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode backtest --provider csv --symbols 005930 --trade-quantity 1
 ```
 
 ### 5.5 Live preflight mode (default, no order submission) / 라이브 프리플라이트 모드 (기본값, 실주문 없음)
 
 ```bash
-PYTHONPATH=src TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
+TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
 TRADING_SYSTEM_API_KEY=dummy-key \
-python -m trading_system.app.main --mode live --symbols BTCUSDT
+uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode live --symbols BTCUSDT
 ```
 
 ### 5.6 Live paper mode (explicit opt-in) / 라이브 페이퍼 모드 (명시적 활성화)
 
 ```bash
-PYTHONPATH=src TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
+TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
 TRADING_SYSTEM_API_KEY=dummy-key \
-python -m trading_system.app.main --mode live --symbols BTCUSDT --live-execution paper
+uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode live --symbols BTCUSDT --live-execution paper
 ```
 
 ### 5.7 Built-in backtest example / 내장 백테스트 예시
 
 ```bash
-PYTHONPATH=src python -m trading_system.backtest.example
+uv run --python .venv/bin/python --no-sync -m trading_system.backtest.example
 ```
 
 ### 5.8 HTTP API mode / HTTP API 모드
 
 ### EN
+Always run the API through `uv` against the project virtualenv. Avoid calling system `uvicorn` directly because it may use a different Python environment.
+
+Verify your environment first:
+
+```bash
+uv --version
+cat .python-version
+uv pip show --python .venv/bin/python fastapi uvicorn
+```
+
 Run API server:
 
 ```bash
-PYTHONPATH=src uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port 8000
+UV_CACHE_DIR=.uv-cache uv run --python .venv/bin/python --no-sync -m uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port 8000
 ```
 
 Request examples:
@@ -230,10 +244,20 @@ Visualization response example (fixed schema):
 ```
 
 ### KO
+API 서버는 반드시 프로젝트 가상환경을 가리키는 `uv` 경유로 실행하세요. 시스템 전역 `uvicorn`을 직접 호출하면 다른 Python 환경을 타서 의존성을 못 찾을 수 있습니다.
+
+먼저 환경을 확인하세요:
+
+```bash
+uv --version
+cat .python-version
+uv pip show --python .venv/bin/python fastapi uvicorn
+```
+
 API 서버 실행:
 
 ```bash
-PYTHONPATH=src uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port 8000
+UV_CACHE_DIR=.uv-cache uv run --python .venv/bin/python --no-sync -m uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port 8000
 ```
 
 호출 예시:
@@ -304,7 +328,7 @@ Run backend and frontend together in two terminals:
 
 ```bash
 # Terminal A: backend API
-PYTHONPATH=src uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port 8000
+UV_CACHE_DIR=.uv-cache uv run --python .venv/bin/python --no-sync -m uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port 8000
 
 # Terminal B: static frontend
 python -m http.server 5173 -d frontend
@@ -348,7 +372,7 @@ Frontend error handling is separated by path:
 
 ```bash
 # 터미널 A: 백엔드 API
-PYTHONPATH=src uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port 8000
+UV_CACHE_DIR=.uv-cache uv run --python .venv/bin/python --no-sync -m uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port 8000
 
 # 터미널 B: 정적 프론트엔드 서버
 python -m http.server 5173 -d frontend
@@ -544,8 +568,8 @@ settings = load_settings("configs/base.yaml")
 ### EN
 - Use both unit and integration tests to validate domain rules and orchestration behavior.
 - Suggested commands:
-  - `pytest -m smoke -q`
-  - `pytest -m "not smoke" -q`
+  - `uv run --python .venv/bin/python --no-sync pytest -m smoke -q`
+  - `uv run --python .venv/bin/python --no-sync pytest -m "not smoke" -q`
 - Regression coverage includes:
   - compat behavior (`StrEnum`, `UTC`)
   - backtest event emission (`order.created`, `order.filled`, `risk.rejected`)
@@ -553,8 +577,8 @@ settings = load_settings("configs/base.yaml")
 ### KO
 - 단위/통합 테스트를 함께 사용해 도메인 규칙과 오케스트레이션 동작을 검증합니다.
 - 권장 명령:
-  - `pytest -m smoke -q`
-  - `pytest -m "not smoke" -q`
+  - `uv run --python .venv/bin/python --no-sync pytest -m smoke -q`
+  - `uv run --python .venv/bin/python --no-sync pytest -m "not smoke" -q`
 - 회귀 검증 범위:
   - compat 동작 (`StrEnum`, `UTC`)
   - 백테스트 이벤트 방출 (`order.created`, `order.filled`, `risk.rejected`)
@@ -606,14 +630,14 @@ settings = load_settings("configs/base.yaml")
 ## 15) One-line summary / 한 줄 요약
 
 ### EN
-This repository is a reliable deterministic backtest-and-validation foundation, now strengthened with Python 3.10+ compatibility and event-level observability.
+This repository is a reliable deterministic backtest-and-validation foundation, now standardized on uv-managed Python 3.12 environments with event-level observability.
 
 ### KO
-이 저장소는 결정적 백테스트/검증 기반을 제공하며, Python 3.10+ 호환성과 이벤트 단위 관측성 강화를 통해 운영 전 단계 품질을 높인 상태입니다.
+이 저장소는 결정적 백테스트/검증 기반을 제공하며, uv 기반 Python 3.12 실행 환경과 이벤트 단위 관측성 강화를 통해 운영 전 단계 품질을 높인 상태입니다.
 Run the example matcher with:
 
 ```bash
-PYTHONPATH=src python -m trading_system.patterns.example
+uv run --python .venv/bin/python --no-sync -m trading_system.patterns.example
 ```
 
 ---
@@ -661,7 +685,7 @@ PYTHONPATH=src python -m trading_system.patterns.example
 
 ### 2) 최근 핵심 변경 사항 (호환성 + 관측성)
 
-#### A. Python 3.10+ 호환성 강화
+#### A. Python 3.12 표준화
 
 `src/trading_system/core/compat.py`를 추가하여 다음을 제공하도록 개선했습니다.
 
@@ -672,7 +696,7 @@ PYTHONPATH=src python -m trading_system.patterns.example
   - Python 3.11+에서는 `datetime.UTC`
   - 하위 버전에서는 `timezone.utc` 폴백
 
-이로써 실행 환경이 3.10인 경우에도 import 단계에서 즉시 실패하지 않고, 동일한 호출부를 유지하면서 동작할 수 있습니다.
+현재 저장소의 기본 실행 환경은 `uv` 기반 Python 3.12이며, 호환성 유틸은 버전 차이를 흡수하는 안전장치로 유지됩니다.
 
 #### B. 백테스트 관측성(Observability) 강화
 
@@ -711,8 +735,8 @@ PYTHONPATH=src python -m trading_system.patterns.example
 
 - 단위 테스트 + 통합 테스트를 통해 전략/리스크/실행/오케스트레이션을 검증합니다.
 - 대표 실행
-  - `pytest -m smoke -q`
-  - `pytest -m "not smoke" -q`
+  - `uv run --python .venv/bin/python --no-sync pytest -m smoke -q`
+  - `uv run --python .venv/bin/python --no-sync pytest -m "not smoke" -q`
 - 최근 추가된 회귀 검증
   - compat 모듈(`StrEnum`, `UTC`) 동작 확인
   - 백테스트 이벤트 방출(`order.created`, `order.filled`, `risk.rejected`) 확인

@@ -15,24 +15,35 @@ fi
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-if [[ ! -d .venv ]]; then
-  python -m venv .venv
+if command -v uv >/dev/null 2>&1; then
+  UV_BIN="$(command -v uv)"
+elif [[ -x "$HOME/.local/bin/uv" ]]; then
+  UV_BIN="$HOME/.local/bin/uv"
+else
+  echo "uv not found. Install uv first, then rerun this script." >&2
+  exit 127
 fi
 
-# shellcheck disable=SC1091
-source .venv/bin/activate
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$ROOT_DIR/.uv-cache}"
+SYNC_DEPS="${TRADING_SYSTEM_SYNC_DEPS:-0}"
+CREATED_VENV=0
 
-python -m pip install --upgrade pip >/dev/null
-pip install -e .[dev] >/dev/null
+if [[ ! -d .venv ]]; then
+  "$UV_BIN" venv --python 3.12 --seed .venv
+  CREATED_VENV=1
+fi
 
-export PYTHONPATH=src
+if [[ "$CREATED_VENV" -eq 1 || "$SYNC_DEPS" == "1" ]]; then
+  "$UV_BIN" pip install --python .venv/bin/python -e '.[dev]' >/dev/null
+fi
+
 export TRADING_SYSTEM_ENV="${TRADING_SYSTEM_ENV:-local}"
 export TRADING_SYSTEM_TIMEZONE="${TRADING_SYSTEM_TIMEZONE:-Asia/Seoul}"
 
 if [[ "$MODE" == "backtest" ]]; then
-  exec python -m trading_system.app.main --mode backtest --symbols BTCUSDT
+  exec "$UV_BIN" run --python .venv/bin/python --no-sync -m trading_system.app.main --mode backtest --symbols BTCUSDT
 fi
 
 # live-preflight mode
 export TRADING_SYSTEM_API_KEY="${TRADING_SYSTEM_API_KEY:-local-preflight-dummy-key}"
-exec python -m trading_system.app.main --mode live --symbols BTCUSDT
+exec "$UV_BIN" run --python .venv/bin/python --no-sync -m trading_system.app.main --mode live --symbols BTCUSDT
