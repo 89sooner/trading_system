@@ -177,19 +177,22 @@ PYTHONPATH=src uvicorn trading_system.api.server:create_app --factory --host 0.0
 Request examples:
 
 ```bash
+TRADING_SYSTEM_ALLOWED_API_KEYS=dummy-key \
 curl -X POST http://127.0.0.1:8000/api/v1/backtests \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: dummy-key" \
   -d '{"mode":"backtest","symbols":["BTCUSDT"],"provider":"mock","broker":"paper","live_execution":"preflight","risk":{"max_position":"1","max_notional":"100000","max_order_size":"0.25"},"backtest":{"starting_cash":"10000","fee_bps":"5","trade_quantity":"0.1"}}'
 
-curl http://127.0.0.1:8000/api/v1/backtests/<run_id>
+curl http://127.0.0.1:8000/api/v1/backtests/<run_id> -H "X-API-Key: dummy-key"
 
-TRADING_SYSTEM_API_KEY=dummy-key \
+TRADING_SYSTEM_ALLOWED_API_KEYS=dummy-key TRADING_SYSTEM_API_KEY=dummy-key \
 curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: dummy-key" \
   -d '{"mode":"live","symbols":["BTCUSDT"],"provider":"mock","broker":"paper","live_execution":"preflight","risk":{"max_position":"1","max_notional":"100000","max_order_size":"0.25"},"backtest":{"starting_cash":"10000","fee_bps":"5","trade_quantity":"0.1"}}'
 ```
 
-Validation failures are returned as 4xx (`settings_validation_error`), and runtime failures are returned as a structured 5xx body (`runtime_error` or `internal_server_error`).
+Validation failures are returned as 4xx (`settings_validation_error` or `invalid_*`), and runtime failures are returned as a structured 5xx body (`runtime_error` or `internal_server_error`). Authentication failures return `auth_invalid_api_key`, and excessive traffic returns `rate_limit_exceeded`.
 
 Visualization response example (fixed schema):
 
@@ -236,19 +239,22 @@ PYTHONPATH=src uvicorn trading_system.api.server:create_app --factory --host 0.0
 호출 예시:
 
 ```bash
+TRADING_SYSTEM_ALLOWED_API_KEYS=dummy-key \
 curl -X POST http://127.0.0.1:8000/api/v1/backtests \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: dummy-key" \
   -d '{"mode":"backtest","symbols":["BTCUSDT"],"provider":"mock","broker":"paper","live_execution":"preflight","risk":{"max_position":"1","max_notional":"100000","max_order_size":"0.25"},"backtest":{"starting_cash":"10000","fee_bps":"5","trade_quantity":"0.1"}}'
 
-curl http://127.0.0.1:8000/api/v1/backtests/<run_id>
+curl http://127.0.0.1:8000/api/v1/backtests/<run_id> -H "X-API-Key: dummy-key"
 
-TRADING_SYSTEM_API_KEY=dummy-key \
+TRADING_SYSTEM_ALLOWED_API_KEYS=dummy-key TRADING_SYSTEM_API_KEY=dummy-key \
 curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: dummy-key" \
   -d '{"mode":"live","symbols":["BTCUSDT"],"provider":"mock","broker":"paper","live_execution":"preflight","risk":{"max_position":"1","max_notional":"100000","max_order_size":"0.25"},"backtest":{"starting_cash":"10000","fee_bps":"5","trade_quantity":"0.1"}}'
 ```
 
-입력 검증 실패는 4xx(`settings_validation_error`)로, 실행 중 오류는 구조화된 5xx(`runtime_error` 또는 `internal_server_error`)로 반환합니다.
+입력 검증 실패는 4xx(`settings_validation_error` 또는 `invalid_*`)로, 실행 중 오류는 구조화된 5xx(`runtime_error` 또는 `internal_server_error`)로 반환합니다. 인증 실패는 `auth_invalid_api_key`, 과도한 요청은 `rate_limit_exceeded`로 반환됩니다.
 
 시각화 응답 예시(고정 스키마):
 
@@ -361,12 +367,18 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_ENV`: runtime environment label (`local`, `staging`, `prod`, ...)
 - `TRADING_SYSTEM_TIMEZONE`: operator timezone (`Asia/Seoul`, ...)
 - `TRADING_SYSTEM_API_KEY`: credential for live adapter preflight
+- `TRADING_SYSTEM_ALLOWED_API_KEYS`: comma-separated API keys accepted by HTTP middleware (`X-API-Key`)
+- `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` (optional): comma-separated CORS origins; overrides config file value
+- `TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS` / `TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS` (optional): simple per-path rate limit
 - `TRADING_SYSTEM_CSV_DIR` (optional): CSV directory for `--provider csv` (default: `data/market`)
 
 ### KO
 - `TRADING_SYSTEM_ENV`: 런타임 환경 라벨 (`local`, `staging`, `prod` 등)
 - `TRADING_SYSTEM_TIMEZONE`: 운영 타임존 (`Asia/Seoul` 등)
 - `TRADING_SYSTEM_API_KEY`: 라이브 어댑터 프리플라이트용 인증 정보
+- `TRADING_SYSTEM_ALLOWED_API_KEYS`: HTTP 미들웨어가 허용할 API 키 목록(쉼표 구분, `X-API-Key`)
+- `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` (선택): CORS 허용 오리진 목록(쉼표 구분, 설정 파일 값보다 우선)
+- `TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS` / `TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS` (선택): 경로 단위 단순 요청 제한
 - `TRADING_SYSTEM_CSV_DIR` (선택): `--provider csv`용 CSV 디렉터리 (기본값: `data/market`)
 
 ---
@@ -387,6 +399,7 @@ Required root sections:
 - `market_data`: `provider` (str), `symbols` (list[str])
 - `risk`: `max_position`, `max_notional`, `max_order_size` (Decimal, > 0)
 - `backtest`: `starting_cash` (> 0), `fee_bps` (0~1000), `trade_quantity` (> 0)
+- `api` (optional): `cors_allow_origins` (list[str], default `[*]`)
 
 All numeric amount/quantity fields are parsed as `Decimal`.
 
@@ -404,6 +417,7 @@ settings = load_settings("configs/base.yaml")
 - `market_data`: `provider` (str), `symbols` (list[str])
 - `risk`: `max_position`, `max_notional`, `max_order_size` (Decimal, > 0)
 - `backtest`: `starting_cash` (> 0), `fee_bps` (0~1000), `trade_quantity` (> 0)
+- `api` (선택): `cors_allow_origins` (list[str], 기본값 `[*]`)
 
 금액/수량 계열 숫자 필드는 모두 `Decimal`로 파싱됩니다.
 

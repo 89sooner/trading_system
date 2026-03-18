@@ -1,8 +1,10 @@
+from decimal import Decimal
 from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, status
 
+from trading_system.api.errors import RequestValidationError
 from trading_system.api.schemas import (
     BacktestResultDTO,
     BacktestRunAcceptedDTO,
@@ -27,9 +29,38 @@ from trading_system.backtest.repository import InMemoryBacktestRunRepository
 router = APIRouter(prefix="/api/v1", tags=["runtime"])
 
 _RUN_REPOSITORY = InMemoryBacktestRunRepository()
+_MAX_FEE_BPS = Decimal("1000")
+
+
+def _validate_request_payload(payload: BacktestRunRequestDTO | LivePreflightRequestDTO) -> None:
+    if len(payload.symbols) != 1:
+        raise RequestValidationError(
+            error_code="invalid_symbols",
+            message="Exactly one symbol is required for this API runtime.",
+        )
+
+    normalized = payload.symbols[0].strip().upper()
+    if not normalized or not normalized.replace("-", "").isalnum():
+        raise RequestValidationError(
+            error_code="invalid_symbols",
+            message="Symbol must be non-empty and contain only letters, numbers, or '-'.",
+        )
+
+    if payload.backtest.trade_quantity <= 0:
+        raise RequestValidationError(
+            error_code="invalid_trade_quantity",
+            message="trade_quantity must be greater than 0.",
+        )
+
+    if payload.backtest.fee_bps < 0 or payload.backtest.fee_bps > _MAX_FEE_BPS:
+        raise RequestValidationError(
+            error_code="invalid_fee_bps",
+            message="fee_bps must be between 0 and 1000.",
+        )
 
 
 def _to_app_settings(payload: BacktestRunRequestDTO | LivePreflightRequestDTO) -> AppSettings:
+    _validate_request_payload(payload)
     settings = AppSettings(
         mode=AppMode(payload.mode),
         symbols=tuple(symbol.strip().upper() for symbol in payload.symbols if symbol.strip()),

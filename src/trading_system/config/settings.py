@@ -47,11 +47,17 @@ class BacktestSettings:
 
 
 @dataclass(slots=True)
+class ApiSettings:
+    cors_allow_origins: tuple[str, ...]
+
+
+@dataclass(slots=True)
 class Settings:
     app: AppSettings
     market_data: MarketDataSettings
     risk: RiskSettings
     backtest: BacktestSettings
+    api: ApiSettings
 
 
 REQUIRED_ROOT_KEYS = ("app", "market_data", "risk", "backtest")
@@ -77,6 +83,7 @@ def load_settings(path: str | Path) -> Settings:
     market_data_section = _as_dict(payload["market_data"], "market_data")
     risk_section = _as_dict(payload["risk"], "risk")
     backtest_section = _as_dict(payload["backtest"], "backtest")
+    api_section = _as_dict(payload.get("api", {}), "api")
 
     settings = Settings(
         app=AppSettings(
@@ -138,6 +145,12 @@ def load_settings(path: str | Path) -> Settings:
                 minimum=Decimal("0"),
             ),
         ),
+        api=ApiSettings(
+            cors_allow_origins=_as_non_empty_str_list(
+                api_section.get("cors_allow_origins", ["*"]),
+                "api.cors_allow_origins",
+            ),
+        ),
     )
 
     if settings.risk.max_order_size > settings.risk.max_position:
@@ -197,6 +210,21 @@ def _as_symbols(value: Any, path: str) -> tuple[str, ...]:
         )
 
     return tuple(normalized_symbols)
+
+
+def _as_non_empty_str_list(value: Any, path: str) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        raise SettingsValidationError(f"Invalid type for '{path}': expected list of strings.")
+
+    normalized_values: list[str] = []
+    for idx, item in enumerate(value):
+        item_path = f"{path}[{idx}]"
+        normalized_values.append(_as_non_empty_str(item, item_path))
+
+    if not normalized_values:
+        raise SettingsValidationError(f"Invalid value for '{path}': at least one item is required.")
+
+    return tuple(normalized_values)
 
 
 def _as_decimal(
