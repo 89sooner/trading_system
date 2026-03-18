@@ -1,35 +1,76 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from trading_system.analytics.view_models import EventViewModel, build_backtest_analytics_view_model
 from trading_system.backtest.engine import BacktestResult
 
 
 @dataclass(slots=True, frozen=True)
+class SummaryDTO:
+    return_value: str
+    max_drawdown: str
+    volatility: str
+    win_rate: str
+
+
+@dataclass(slots=True, frozen=True)
+class EquityPointDTO:
+    timestamp: str
+    equity: str
+
+
+@dataclass(slots=True, frozen=True)
+class DrawdownPointDTO:
+    timestamp: str
+    drawdown: str
+
+
+@dataclass(slots=True, frozen=True)
+class EventDTO:
+    event: str
+    payload: dict[str, str]
+
+
+@dataclass(slots=True, frozen=True)
 class BacktestResultDTO:
-    processed_bars: int
-    executed_trades: int
-    rejected_signals: int
-    cash: str
-    positions: dict[str, str]
-    total_return: str
-    equity_curve: list[str]
+    summary: SummaryDTO
+    equity_curve: list[EquityPointDTO]
+    drawdown_curve: list[DrawdownPointDTO]
+    orders: list[EventDTO]
+    risk_rejections: list[EventDTO]
 
     @classmethod
     def from_result(cls, result: BacktestResult) -> "BacktestResultDTO":
+        analytics = build_backtest_analytics_view_model(
+            timestamps=result.equity_timestamps,
+            equity_curve=result.equity_curve,
+            orders=[_event_to_view_model(event) for event in result.orders],
+            risk_rejections=[_event_to_view_model(event) for event in result.risk_rejections],
+        )
         return cls(
-            processed_bars=result.processed_bars,
-            executed_trades=result.executed_trades,
-            rejected_signals=result.rejected_signals,
-            cash=_decimal_to_json(result.final_portfolio.cash),
-            positions={
-                symbol: _decimal_to_json(quantity)
-                for symbol, quantity in result.final_portfolio.positions.items()
-            },
-            total_return=_decimal_to_json(result.total_return),
-            equity_curve=[_decimal_to_json(point) for point in result.equity_curve],
+            summary=SummaryDTO(
+                return_value=_decimal_to_json(analytics.summary.return_value),
+                max_drawdown=_decimal_to_json(analytics.summary.max_drawdown),
+                volatility=_decimal_to_json(analytics.summary.volatility),
+                win_rate=_decimal_to_json(analytics.summary.win_rate),
+            ),
+            equity_curve=[
+                EquityPointDTO(timestamp=point.timestamp, equity=_decimal_to_json(point.equity))
+                for point in analytics.equity_curve
+            ],
+            drawdown_curve=[
+                DrawdownPointDTO(
+                    timestamp=point.timestamp,
+                    drawdown=_decimal_to_json(point.drawdown),
+                )
+                for point in analytics.drawdown_curve
+            ],
+            orders=[_event_to_dto(event) for event in analytics.orders],
+            risk_rejections=[_event_to_dto(event) for event in analytics.risk_rejections],
         )
 
 
@@ -68,6 +109,29 @@ class BacktestRunDTO:
 
 def _decimal_to_json(value: Decimal) -> str:
     return format(value, "f")
+
+
+def _event_to_view_model(event: dict[str, object]) -> EventViewModel:
+    raw_payload = event.get("payload", {})
+    if not isinstance(raw_payload, Mapping):
+        raw_payload = {}
+    return EventViewModel(
+        event=str(event["event"]),
+        payload={str(key): value for key, value in raw_payload.items()},
+    )
+
+
+def _event_to_dto(event: EventViewModel) -> EventDTO:
+    return EventDTO(
+        event=event.event,
+        payload={key: _value_to_json(value) for key, value in event.payload.items()},
+    )
+
+
+def _value_to_json(value: object) -> str:
+    if isinstance(value, Decimal):
+        return _decimal_to_json(value)
+    return str(value)
 
 
 def _datetime_to_json(value: datetime) -> str:

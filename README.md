@@ -191,6 +191,41 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
 
 Validation failures are returned as 4xx (`settings_validation_error`), and runtime failures are returned as a structured 5xx body (`runtime_error` or `internal_server_error`).
 
+Visualization response example (fixed schema):
+
+```json
+{
+  "result": {
+    "summary": {
+      "return": "0.0125",
+      "max_drawdown": "-0.0340",
+      "volatility": "0.0217",
+      "win_rate": "0.5714"
+    },
+    "equity_curve": [
+      {"timestamp": "2024-01-01T00:00:00Z", "equity": "10000"},
+      {"timestamp": "2024-01-02T00:00:00Z", "equity": "10125"}
+    ],
+    "drawdown_curve": [
+      {"timestamp": "2024-01-01T00:00:00Z", "drawdown": "0"},
+      {"timestamp": "2024-01-02T00:00:00Z", "drawdown": "0"}
+    ],
+    "orders": [
+      {
+        "event": "order.filled",
+        "payload": {"symbol": "BTCUSDT", "filled_quantity": "0.1", "status": "filled"}
+      }
+    ],
+    "risk_rejections": [
+      {
+        "event": "risk.rejected",
+        "payload": {"symbol": "BTCUSDT", "requested_quantity": "0.5"}
+      }
+    ]
+  }
+}
+```
+
 ### KO
 API 서버 실행:
 
@@ -214,6 +249,41 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
 ```
 
 입력 검증 실패는 4xx(`settings_validation_error`)로, 실행 중 오류는 구조화된 5xx(`runtime_error` 또는 `internal_server_error`)로 반환합니다.
+
+시각화 응답 예시(고정 스키마):
+
+```json
+{
+  "result": {
+    "summary": {
+      "return": "0.0125",
+      "max_drawdown": "-0.0340",
+      "volatility": "0.0217",
+      "win_rate": "0.5714"
+    },
+    "equity_curve": [
+      {"timestamp": "2024-01-01T00:00:00Z", "equity": "10000"},
+      {"timestamp": "2024-01-02T00:00:00Z", "equity": "10125"}
+    ],
+    "drawdown_curve": [
+      {"timestamp": "2024-01-01T00:00:00Z", "drawdown": "0"},
+      {"timestamp": "2024-01-02T00:00:00Z", "drawdown": "0"}
+    ],
+    "orders": [
+      {
+        "event": "order.filled",
+        "payload": {"symbol": "BTCUSDT", "filled_quantity": "0.1", "status": "filled"}
+      }
+    ],
+    "risk_rejections": [
+      {
+        "event": "risk.rejected",
+        "payload": {"symbol": "BTCUSDT", "requested_quantity": "0.5"}
+      }
+    ]
+  }
+}
+```
 
 ---
 

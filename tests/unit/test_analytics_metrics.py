@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from trading_system.analytics.metrics import (
@@ -8,6 +9,7 @@ from trading_system.analytics.metrics import (
     volatility,
     win_rate,
 )
+from trading_system.analytics.view_models import EventViewModel, build_backtest_analytics_view_model
 
 
 def test_metrics_for_standard_equity_curve() -> None:
@@ -57,3 +59,42 @@ def test_metrics_handle_zero_or_negative_starting_equity_deterministically() -> 
     assert max_drawdown(negative_curve) == Decimal("-0.2222222222222222222222222222")
     assert volatility(negative_curve) == Decimal("0.1611111111111111111111111111")
     assert win_rate(negative_curve) == Decimal("0.5")
+
+
+def test_view_model_includes_metrics_and_drawdown_curves_for_api_schema() -> None:
+    timestamps = [
+        datetime(2024, 1, 1, tzinfo=UTC),
+        datetime(2024, 1, 2, tzinfo=UTC),
+        datetime(2024, 1, 3, tzinfo=UTC),
+    ]
+    equity_curve = [Decimal("100"), Decimal("120"), Decimal("90")]
+
+    view_model = build_backtest_analytics_view_model(
+        timestamps=timestamps,
+        equity_curve=equity_curve,
+        orders=[
+            EventViewModel(
+                event="order.created",
+                payload={"symbol": "BTCUSDT", "quantity": Decimal("1")},
+            )
+        ],
+        risk_rejections=[
+            EventViewModel(
+                event="risk.rejected",
+                payload={"symbol": "BTCUSDT", "requested_quantity": Decimal("2")},
+            )
+        ],
+    )
+
+    assert view_model.summary.return_value == Decimal("-0.1")
+    assert view_model.summary.max_drawdown == Decimal("-0.25")
+    assert view_model.summary.volatility == Decimal("0.225")
+    assert view_model.summary.win_rate == Decimal("0.5")
+    assert view_model.equity_curve[0].timestamp == "2024-01-01T00:00:00Z"
+    assert [point.drawdown for point in view_model.drawdown_curve] == [
+        Decimal("0"),
+        Decimal("0"),
+        Decimal("-0.25"),
+    ]
+    assert [event.event for event in view_model.orders] == ["order.created"]
+    assert [event.event for event in view_model.risk_rejections] == ["risk.rejected"]
