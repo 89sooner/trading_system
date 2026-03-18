@@ -51,7 +51,10 @@ def test_run_backtest_executes_buy_at_close_and_records_return() -> None:
     assert result.rejected_signals == 0
     assert result.final_portfolio.positions["BTCUSDT"] == Decimal("2")
     assert result.final_portfolio.cash == Decimal("800")
+    assert len(result.equity_timestamps) == 2
     assert result.equity_curve == [Decimal("1000"), Decimal("1020")]
+    assert [event["event"] for event in result.orders] == ["order.created", "order.filled"]
+    assert result.risk_rejections == []
     assert result.total_return == Decimal("0.02")
 
 
@@ -74,6 +77,7 @@ def test_run_backtest_executes_sell_using_negative_signed_quantity() -> None:
     assert result.final_portfolio.positions["BTCUSDT"] == Decimal("0.5")
     assert result.final_portfolio.cash == Decimal("650")
     assert result.equity_curve == [Decimal("700")]
+    assert [event["event"] for event in result.orders] == ["order.created", "order.filled"]
 
 
 def test_run_backtest_rejects_signal_when_risk_limits_fail() -> None:
@@ -97,6 +101,8 @@ def test_run_backtest_rejects_signal_when_risk_limits_fail() -> None:
     assert result.final_portfolio.positions == {}
     assert result.final_portfolio.cash == Decimal("1000")
     assert result.equity_curve == [Decimal("1000")]
+    assert [event["event"] for event in result.orders] == ["order.created"]
+    assert [event["event"] for event in result.risk_rejections] == ["risk.rejected"]
 
 
 def test_run_backtest_applies_commission_fee() -> None:
@@ -133,6 +139,7 @@ def test_run_backtest_supports_partial_fill_and_unfilled_order() -> None:
     assert partial_result.executed_trades == 1
     assert partial_result.final_portfolio.positions["BTCUSDT"] == Decimal("1")
     assert partial_result.final_portfolio.cash == Decimal("900")
+    assert [event["event"] for event in partial_result.orders] == ["order.created", "order.filled"]
 
     unfilled_context = BacktestContext(
         portfolio=PortfolioBook(cash=Decimal("1000")),
@@ -150,6 +157,7 @@ def test_run_backtest_supports_partial_fill_and_unfilled_order() -> None:
     assert unfilled_result.executed_trades == 0
     assert unfilled_result.final_portfolio.positions == {}
     assert unfilled_result.final_portfolio.cash == Decimal("1000")
+    assert [event["event"] for event in unfilled_result.orders] == ["order.created", "order.rejected"]
 
 
 def test_run_backtest_applies_slippage_to_fill_price() -> None:

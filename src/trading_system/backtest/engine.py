@@ -1,5 +1,6 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -32,10 +33,13 @@ class BacktestContext:
 @dataclass(slots=True)
 class BacktestResult:
     final_portfolio: PortfolioBook
+    equity_timestamps: list[datetime]
     equity_curve: list[Decimal]
     processed_bars: int
     executed_trades: int
     rejected_signals: int
+    orders: list[dict[str, Any]]
+    risk_rejections: list[dict[str, Any]]
 
     @property
     def total_return(self) -> Decimal:
@@ -47,11 +51,14 @@ def run_backtest(
     strategy: Strategy,
     context: BacktestContext,
 ) -> BacktestResult:
+    equity_timestamps: list[datetime] = []
     equity_curve: list[Decimal] = []
     processed_bars = 0
     executed_trades = 0
     rejected_signals = 0
     last_prices: dict[str, Decimal] = {}
+    orders: list[dict[str, Any]] = []
+    risk_rejections: list[dict[str, Any]] = []
 
     for bar in bars:
         processed_bars += 1
@@ -59,17 +66,19 @@ def run_backtest(
         order = signal_to_order_request(bar.symbol, signal)
 
         if order is not None:
+            order_created_payload = event_payload(
+                OrderCreatedEvent(
+                    symbol=order.symbol,
+                    side=order.side.value,
+                    quantity=order.quantity,
+                )
+            )
             _emit_event(
                 context.logger,
                 "order.created",
-                event_payload(
-                    OrderCreatedEvent(
-                        symbol=order.symbol,
-                        side=order.side.value,
-                        quantity=order.quantity,
-                    )
-                ),
+                order_created_payload,
             )
+            _record_event(orders, "order.created", order_created_payload)
             signed_quantity = order.quantity if order.side == OrderSide.BUY else -order.quantity
             current_position = context.portfolio.positions.get(bar.symbol, Decimal("0"))
             if context.risk_limits.allows_order(current_position, signed_quantity, bar.close):
@@ -97,9 +106,36 @@ def run_backtest(
                             )
                         ),
                     )
+                    _record_event(
+                        orders,
+                        "order.filled",
+                        event_payload(
+                            OrderFilledEvent(
+                                symbol=fill.symbol,
+                                side=fill.side.value,
+                                requested_quantity=fill.requested_quantity,
+                                filled_quantity=fill.filled_quantity,
+                                fill_price=fill.fill_price,
+                                fee=fill.fee,
+                                status=fill.status.value,
+                            )
+                        ),
+                    )
                 else:
                     _emit_event(
                         context.logger,
+                        "order.rejected",
+                        event_payload(
+                            OrderRejectedEvent(
+                                symbol=order.symbol,
+                                side=order.side.value,
+                                quantity=order.quantity,
+                                reason="unfilled",
+                            )
+                        ),
+                    )
+                    _record_event(
+                        orders,
                         "order.rejected",
                         event_payload(
                             OrderRejectedEvent(
@@ -124,16 +160,32 @@ def run_backtest(
                         )
                     ),
                 )
+                _record_event(
+                    risk_rejections,
+                    "risk.rejected",
+                    event_payload(
+                        RiskRejectedEvent(
+                            symbol=order.symbol,
+                            requested_quantity=signed_quantity,
+                            current_position=current_position,
+                            price=bar.close,
+                        )
+                    ),
+                )
 
         last_prices[bar.symbol] = bar.close
+        equity_timestamps.append(bar.timestamp)
         equity_curve.append(_equity_for_portfolio(context.portfolio, last_prices))
 
     return BacktestResult(
         final_portfolio=context.portfolio,
+        equity_timestamps=equity_timestamps,
         equity_curve=equity_curve,
         processed_bars=processed_bars,
         executed_trades=executed_trades,
         rejected_signals=rejected_signals,
+        orders=orders,
+        risk_rejections=risk_rejections,
     )
 
 
@@ -155,3 +207,7 @@ def _emit_event(
     if logger is None:
         return
     logger.emit(event_name, severity=20, payload=payload)
+
+
+def _record_event(target: list[dict[str, Any]], event_name: str, payload: dict[str, Any]) -> None:
+    target.append({"event": event_name, "payload": payload})

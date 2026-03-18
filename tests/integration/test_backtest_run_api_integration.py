@@ -45,9 +45,21 @@ def test_create_then_get_backtest_run_returns_serialized_result_and_metadata() -
     assert body["finished_at"].endswith("Z")
 
     result = body["result"]
-    assert isinstance(result["cash"], str)
-    assert isinstance(result["total_return"], str)
-    assert all(isinstance(point, str) for point in result["equity_curve"])
+    assert set(result.keys()) == {
+        "summary",
+        "equity_curve",
+        "drawdown_curve",
+        "orders",
+        "risk_rejections",
+    }
+    assert isinstance(result["summary"]["return"], str)
+    assert isinstance(result["summary"]["max_drawdown"], str)
+    assert isinstance(result["summary"]["volatility"], str)
+    assert isinstance(result["summary"]["win_rate"], str)
+    assert all(isinstance(point["timestamp"], str) for point in result["equity_curve"])
+    assert all(isinstance(point["equity"], str) for point in result["equity_curve"])
+    assert all(isinstance(point["timestamp"], str) for point in result["drawdown_curve"])
+    assert all(isinstance(point["drawdown"], str) for point in result["drawdown_curve"])
 
 
 def test_get_backtest_run_returns_404_for_unknown_run_id() -> None:

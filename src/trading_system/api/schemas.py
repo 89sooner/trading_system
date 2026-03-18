@@ -37,13 +37,31 @@ class LivePreflightRequestDTO(BaseModel):
 
 
 class BacktestResultDTO(BaseModel):
-    processed_bars: int
-    executed_trades: int
-    rejected_signals: int
-    cash: str
-    positions: dict[str, str]
-    total_return: str
-    equity_curve: list[str]
+    class SummaryDTO(BaseModel):
+        return_value: str = Field(alias="return")
+        max_drawdown: str
+        volatility: str
+        win_rate: str
+
+        model_config = ConfigDict(populate_by_name=True)
+
+    class EquityPointDTO(BaseModel):
+        timestamp: str
+        equity: str
+
+    class DrawdownPointDTO(BaseModel):
+        timestamp: str
+        drawdown: str
+
+    class EventDTO(BaseModel):
+        event: str
+        payload: dict[str, str]
+
+    summary: SummaryDTO
+    equity_curve: list[EquityPointDTO]
+    drawdown_curve: list[DrawdownPointDTO]
+    orders: list[EventDTO]
+    risk_rejections: list[EventDTO]
 
 
 class BacktestRunAcceptedDTO(BaseModel):

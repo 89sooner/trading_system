@@ -57,13 +57,16 @@ def _to_serialized_result(result: BacktestResult) -> SerializedBacktestResultDTO
 
 def _to_api_result_dto(result: SerializedBacktestResultDTO) -> BacktestResultDTO:
     return BacktestResultDTO(
-        processed_bars=result.processed_bars,
-        executed_trades=result.executed_trades,
-        rejected_signals=result.rejected_signals,
-        cash=result.cash,
-        positions=result.positions,
-        total_return=result.total_return,
+        summary={
+            "return": result.summary.return_value,
+            "max_drawdown": result.summary.max_drawdown,
+            "volatility": result.summary.volatility,
+            "win_rate": result.summary.win_rate,
+        },
         equity_curve=result.equity_curve,
+        drawdown_curve=result.drawdown_curve,
+        orders=result.orders,
+        risk_rejections=result.risk_rejections,
     )
 
 
