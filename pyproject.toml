@@ -9,11 +9,14 @@ description = "Starter scaffold for a modular Python trading system"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+  "fastapi>=0.116",
   "PyYAML>=6.0",
+  "uvicorn>=0.34",
 ]
 
 [project.optional-dependencies]
 dev = [
+  "httpx>=0.28",
   "pytest>=8.0",
   "ruff>=0.6",
 ]

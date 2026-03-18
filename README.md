@@ -165,6 +165,56 @@ python -m trading_system.app.main --mode live --symbols BTCUSDT --live-execution
 PYTHONPATH=src python -m trading_system.backtest.example
 ```
 
+### 5.8 HTTP API mode / HTTP API 모드
+
+### EN
+Run API server:
+
+```bash
+PYTHONPATH=src uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port 8000
+```
+
+Request examples:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/backtests \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"backtest","symbols":["BTCUSDT"],"provider":"mock","broker":"paper","live_execution":"preflight","risk":{"max_position":"1","max_notional":"100000","max_order_size":"0.25"},"backtest":{"starting_cash":"10000","fee_bps":"5","trade_quantity":"0.1"}}'
+
+curl http://127.0.0.1:8000/api/v1/backtests/<run_id>
+
+TRADING_SYSTEM_API_KEY=dummy-key \
+curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"live","symbols":["BTCUSDT"],"provider":"mock","broker":"paper","live_execution":"preflight","risk":{"max_position":"1","max_notional":"100000","max_order_size":"0.25"},"backtest":{"starting_cash":"10000","fee_bps":"5","trade_quantity":"0.1"}}'
+```
+
+Validation failures are returned as 4xx (`settings_validation_error`), and runtime failures are returned as a structured 5xx body (`runtime_error` or `internal_server_error`).
+
+### KO
+API 서버 실행:
+
+```bash
+PYTHONPATH=src uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port 8000
+```
+
+호출 예시:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/backtests \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"backtest","symbols":["BTCUSDT"],"provider":"mock","broker":"paper","live_execution":"preflight","risk":{"max_position":"1","max_notional":"100000","max_order_size":"0.25"},"backtest":{"starting_cash":"10000","fee_bps":"5","trade_quantity":"0.1"}}'
+
+curl http://127.0.0.1:8000/api/v1/backtests/<run_id>
+
+TRADING_SYSTEM_API_KEY=dummy-key \
+curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"live","symbols":["BTCUSDT"],"provider":"mock","broker":"paper","live_execution":"preflight","risk":{"max_position":"1","max_notional":"100000","max_order_size":"0.25"},"backtest":{"starting_cash":"10000","fee_bps":"5","trade_quantity":"0.1"}}'
+```
+
+입력 검증 실패는 4xx(`settings_validation_error`)로, 실행 중 오류는 구조화된 5xx(`runtime_error` 또는 `internal_server_error`)로 반환합니다.
+
 ---
 
 ## 6) What this system can do now / 현재 시스템으로 할 수 있는 것
