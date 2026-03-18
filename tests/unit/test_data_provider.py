@@ -3,7 +3,12 @@ from decimal import Decimal
 from pathlib import Path
 
 from trading_system.core.types import MarketBar
-from trading_system.data.provider import CsvMarketDataProvider, InMemoryMarketDataProvider
+from trading_system.data.provider import (
+    CsvMarketDataProvider,
+    InMemoryMarketDataProvider,
+    KisQuoteMarketDataProvider,
+)
+from trading_system.integrations.kis import KisQuote
 
 
 def test_in_memory_provider_loads_symbol_bars() -> None:
@@ -31,6 +36,17 @@ def test_csv_provider_loads_bars(tmp_path: Path) -> None:
     assert loaded[0].timestamp == datetime(2024, 1, 1, tzinfo=timezone.utc)
 
 
+def test_kis_quote_provider_maps_quote_to_single_live_like_bar() -> None:
+    provider = KisQuoteMarketDataProvider(client=_FakeKisClient())
+
+    loaded = list(provider.load_bars("005930"))
+
+    assert len(loaded) == 1
+    assert loaded[0].symbol == "005930"
+    assert loaded[0].close == Decimal("70100")
+    assert loaded[0].volume == Decimal("1500")
+
+
 def _bar(close: Decimal) -> MarketBar:
     return MarketBar(
         symbol="BTCUSDT",
@@ -41,3 +57,13 @@ def _bar(close: Decimal) -> MarketBar:
         close=close,
         volume=Decimal("1"),
     )
+
+
+class _FakeKisClient:
+    def preflight_symbol(self, symbol: str) -> KisQuote:
+        return KisQuote(
+            symbol=symbol,
+            price=Decimal("70100"),
+            volume=Decimal("1500"),
+            as_of=datetime(2024, 1, 2, tzinfo=timezone.utc),
+        )

@@ -83,3 +83,43 @@ def test_live_mode_paper_execution_runs_without_order_submission_error(monkeypat
     result = services.run_live_paper()
 
     assert result.processed_bars > 0
+
+
+def test_live_mode_kis_preflight_uses_kis_quote(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "trading_system.app.services.KisApiClient.from_env",
+        lambda: _StubKisClient(),
+    )
+
+    settings = AppSettings.from_cli(
+        mode="live",
+        symbols="005930",
+        provider="kis",
+        broker="kis",
+        live_execution="preflight",
+        starting_cash="1000000",
+        fee_bps="5",
+        trade_quantity="1",
+        max_position="10",
+        max_notional="100000000",
+        max_order_size="5",
+    )
+    settings.validate()
+
+    services = build_services(settings)
+
+    assert services.preflight_live() == (
+        "KIS live preflight passed (symbol=005930, price=70200, volume=1200). "
+        "No orders were submitted."
+    )
+
+
+class _StubKisClient:
+    def preflight_symbol(self, symbol: str):
+        class Quote:
+            def __init__(self, quote_symbol: str) -> None:
+                self.symbol = quote_symbol
+                self.price = Decimal("70200")
+                self.volume = Decimal("1200")
+
+        return Quote(symbol)

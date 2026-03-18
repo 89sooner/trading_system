@@ -74,7 +74,7 @@ def test_cli_returns_validation_error_for_unsupported_provider(capsys) -> None:
     captured = capsys.readouterr()
     assert exit_code == 2
     assert "Configuration error:" in captured.err
-    assert "--provider must be one of: 'mock', 'csv'." in captured.err
+    assert "--provider must be one of: 'mock', 'csv', 'kis'." in captured.err
 
 
 def test_cli_returns_validation_error_for_invalid_live_execution_mode(capsys) -> None:

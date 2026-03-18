@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from trading_system.app.sample_data import build_sample_bars
 from trading_system.app.settings import AppMode, AppSettings
@@ -14,6 +15,7 @@ from trading_system.core.ops import (
 from trading_system.data.provider import (
     CsvMarketDataProvider,
     InMemoryMarketDataProvider,
+    KisQuoteMarketDataProvider,
     MarketDataProvider,
 )
 from trading_system.execution.broker import (
@@ -27,6 +29,7 @@ from trading_system.portfolio.book import PortfolioBook
 from trading_system.risk.limits import RiskLimits
 from trading_system.strategy.base import Strategy
 from trading_system.strategy.example import MomentumStrategy
+from trading_system.integrations.kis import KisApiClient
 
 
 @dataclass(slots=True)
@@ -39,6 +42,7 @@ class AppServices:
     portfolio: PortfolioBook
     symbols: tuple[str, ...]
     logger: StructuredLogger
+    live_preflight_check: Callable[[str], str] | None = None
 
     def run(self) -> BacktestResult:
         if self.mode != AppMode.BACKTEST:
@@ -58,7 +62,9 @@ class AppServices:
         if self.mode != AppMode.LIVE:
             raise RuntimeError(f"Unsupported mode '{self.mode}'.")
 
-        self._single_symbol(mode_name="live")
+        symbol = self._single_symbol(mode_name="live")
+        if self.live_preflight_check is not None:
+            return self.live_preflight_check(symbol)
         return "Live mode preflight passed (no orders were submitted)."
 
     def run_live_paper(self) -> BacktestResult:
@@ -86,14 +92,15 @@ class AppServices:
 def build_services(settings: AppSettings) -> AppServices:
     ensure_logging()
     logger = StructuredLogger("trading_system", log_format=StructuredLogFormat.JSON)
+    kis_client = _build_kis_client_if_needed(settings)
 
     if settings.mode == AppMode.LIVE:
-        _require_live_api_key()
+        _require_live_credentials(settings)
 
     return AppServices(
         mode=settings.mode,
         strategy=MomentumStrategy(trade_quantity=settings.backtest.trade_quantity),
-        data_provider=_build_data_provider(settings),
+        data_provider=_build_data_provider(settings, kis_client=kis_client),
         risk_limits=RiskLimits(
             max_position=settings.risk.max_position,
             max_notional=settings.risk.max_notional,
@@ -109,18 +116,31 @@ def build_services(settings: AppSettings) -> AppServices:
         portfolio=PortfolioBook(cash=settings.backtest.starting_cash),
         symbols=settings.symbols,
         logger=logger,
+        live_preflight_check=_build_live_preflight(settings, kis_client=kis_client),
     )
 
 
-def _require_live_api_key() -> None:
+def _require_live_credentials(settings: AppSettings) -> None:
+    if settings.provider == "kis" or settings.broker == "kis":
+        KisApiClient.from_env()
+        return
+
     provider = EnvSecretProvider()
     provider.get_secret("TRADING_SYSTEM_API_KEY")
 
 
-def _build_data_provider(settings: AppSettings) -> MarketDataProvider:
+def _build_data_provider(
+    settings: AppSettings,
+    *,
+    kis_client: KisApiClient | None,
+) -> MarketDataProvider:
     if settings.provider == "mock":
         bars_by_symbol = {symbol: build_sample_bars(symbol=symbol) for symbol in settings.symbols}
         return InMemoryMarketDataProvider(bars_by_symbol=bars_by_symbol)
+    if settings.provider == "kis":
+        if kis_client is None:
+            raise RuntimeError("KIS provider requires KIS API credentials.")
+        return KisQuoteMarketDataProvider(client=kis_client)
 
     csv_dir = Path(os.getenv("TRADING_SYSTEM_CSV_DIR", "data/market"))
     csv_by_symbol: dict[str, Path] = {}
@@ -140,3 +160,28 @@ def _build_data_provider(settings: AppSettings) -> MarketDataProvider:
         )
 
     return CsvMarketDataProvider(csv_by_symbol=csv_by_symbol)
+
+
+def _build_kis_client_if_needed(settings: AppSettings) -> KisApiClient | None:
+    if settings.provider != "kis" and settings.broker != "kis":
+        return None
+    return KisApiClient.from_env()
+
+
+def _build_live_preflight(
+    settings: AppSettings,
+    *,
+    kis_client: KisApiClient | None,
+) -> Callable[[str], str] | None:
+    if settings.mode != AppMode.LIVE or kis_client is None:
+        return None
+
+    def preflight(symbol: str) -> str:
+        quote = kis_client.preflight_symbol(symbol)
+        return (
+            "KIS live preflight passed "
+            f"(symbol={quote.symbol}, price={quote.price}, volume={quote.volume}). "
+            "No orders were submitted."
+        )
+
+    return preflight

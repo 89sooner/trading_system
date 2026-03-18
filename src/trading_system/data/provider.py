@@ -15,6 +15,7 @@ from trading_system.core.ops import (
     execute_with_resilience,
 )
 from trading_system.core.types import MarketBar
+from trading_system.integrations.kis import KisApiClient
 
 
 class MarketDataProvider(Protocol):
@@ -76,3 +77,22 @@ class CsvMarketDataProvider:
             close=Decimal(row["close"]),
             volume=Decimal(row["volume"]),
         )
+
+
+@dataclass(slots=True)
+class KisQuoteMarketDataProvider:
+    client: KisApiClient
+
+    def load_bars(self, symbol: str) -> Iterable[MarketBar]:
+        quote = self.client.preflight_symbol(symbol)
+        return [
+            MarketBar(
+                symbol=symbol,
+                timestamp=quote.as_of,
+                open=quote.price,
+                high=quote.price,
+                low=quote.price,
+                close=quote.price,
+                volume=quote.volume,
+            )
+        ]
