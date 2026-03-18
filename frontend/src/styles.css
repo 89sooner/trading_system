@@ -49,6 +49,13 @@ body {
   gap: 0.8rem;
 }
 
+.api-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.8rem;
+  align-items: end;
+}
+
 label {
   display: flex;
   flex-direction: column;

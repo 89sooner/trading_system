@@ -17,6 +17,18 @@
 
     <main class="container">
       <section class="card">
+        <h2>API Endpoint</h2>
+        <div class="api-row">
+          <label>
+            API Base URL
+            <input id="api-base-url" name="apiBaseUrl" value="http://127.0.0.1:8000/api/v1" />
+          </label>
+          <button id="save-api-base-url" type="button">Save API URL</button>
+        </div>
+        <p id="api-base-message" class="message" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="card">
         <h2>Create Run</h2>
         <form id="backtest-form" class="form-grid">
           <label>

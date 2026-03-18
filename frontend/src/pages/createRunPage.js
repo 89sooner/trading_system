@@ -1,4 +1,5 @@
 import { createBacktestRun, userMessageForError } from "../api/client.js";
+import { initApiBaseControl } from "./apiBaseControl.js";
 import { saveRun } from "../state/runStore.js";
 
 const form = document.getElementById("backtest-form");
@@ -54,3 +55,5 @@ form.addEventListener("submit", async (event) => {
     submitButton.disabled = false;
   }
 });
+
+initApiBaseControl();

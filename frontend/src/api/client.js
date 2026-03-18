@@ -1,4 +1,5 @@
 const DEFAULT_BASE_URL = "http://127.0.0.1:8000/api/v1";
+const STORAGE_KEY = "ts_api_base_url";
 
 export class ApiError extends Error {
   constructor(kind, message, status = null, payload = null) {
@@ -10,9 +11,27 @@ export class ApiError extends Error {
   }
 }
 
+function normalizeBaseUrl(baseUrl) {
+  const trimmed = String(baseUrl).trim();
+  if (trimmed.length === 0) {
+    return DEFAULT_BASE_URL;
+  }
+  return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+}
+
+export function getConfiguredApiBaseUrl() {
+  const configured = window.localStorage.getItem(STORAGE_KEY);
+  return normalizeBaseUrl(configured || DEFAULT_BASE_URL);
+}
+
+export function setConfiguredApiBaseUrl(baseUrl) {
+  const normalized = normalizeBaseUrl(baseUrl);
+  window.localStorage.setItem(STORAGE_KEY, normalized);
+  return normalized;
+}
+
 function resolveBaseUrl() {
-  const configured = window.localStorage.getItem("ts_api_base_url");
-  return configured || DEFAULT_BASE_URL;
+  return getConfiguredApiBaseUrl();
 }
 
 async function requestJson(path, options = {}) {

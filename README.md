@@ -312,6 +312,12 @@ python -m http.server 5173 -d frontend
 
 Open `http://127.0.0.1:5173/index.html`.
 
+If your backend runs on a different port (for example `9000`), set the **API Base URL** field in the frontend UI to:
+
+```text
+http://127.0.0.1:9000/api/v1
+```
+
 Local development flow:
 
 1. Start backend API server.
@@ -349,6 +355,12 @@ python -m http.server 5173 -d frontend
 ```
 
 브라우저에서 `http://127.0.0.1:5173/index.html`를 열면 됩니다.
+
+백엔드 포트를 다르게 쓴다면(예: `9000`), 프론트 화면의 **API Base URL** 입력값을 아래처럼 바꿔 저장하세요.
+
+```text
+http://127.0.0.1:9000/api/v1
+```
 
 로컬 개발 흐름:
 

@@ -1,4 +1,5 @@
 import { getBacktestRun, userMessageForError } from "../api/client.js";
+import { initApiBaseControl } from "./apiBaseControl.js";
 import { renderTimeSeriesChart } from "../utils/charts.js";
 import {
   formatDecimal,
@@ -122,4 +123,5 @@ async function loadDetail() {
 }
 
 refreshButton.addEventListener("click", loadDetail);
+initApiBaseControl();
 loadDetail();

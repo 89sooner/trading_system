@@ -1,4 +1,5 @@
 import { getBacktestRun, userMessageForError } from "../api/client.js";
+import { initApiBaseControl } from "./apiBaseControl.js";
 import { formatUtcTimestamp } from "../utils/formatters.js";
 import { listRuns, updateRunStatus } from "../state/runStore.js";
 
@@ -57,4 +58,5 @@ async function refreshStatuses() {
 }
 
 refreshButton.addEventListener("click", refreshStatuses);
+initApiBaseControl();
 refreshStatuses();
