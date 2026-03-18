@@ -285,6 +285,84 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
 }
 ```
 
+### 5.9 Frontend + backend local development / 프론트엔드 + 백엔드 로컬 개발
+
+### EN
+The repository now includes a minimal static frontend under `frontend/` with three pages:
+
+- `frontend/index.html`: backtest run form (symbol/risk/fee inputs)
+- `frontend/runs.html`: run list and status refresh
+- `frontend/run.html?run_id=<id>`: result details with equity/drawdown time-series charts and fill/rejection event table
+
+Run backend and frontend together in two terminals:
+
+```bash
+# Terminal A: backend API
+PYTHONPATH=src uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port 8000
+
+# Terminal B: static frontend
+python -m http.server 5173 -d frontend
+```
+
+Open `http://127.0.0.1:5173/index.html`.
+
+Local development flow:
+
+1. Start backend API server.
+2. Start frontend static server.
+3. Submit a run from `index.html`.
+4. Check run status in `runs.html`.
+5. Inspect charts/events in `run.html?run_id=<id>`.
+
+API endpoint contract used by frontend client:
+
+- `POST /api/v1/backtests` → create run
+- `GET /api/v1/backtests/{run_id}` → fetch run status/result
+
+Frontend error handling is separated by path:
+
+- Network failure: backend not reachable
+- 4xx failure: validation/input issue from API
+- 5xx failure: runtime/internal server issue
+
+### KO
+저장소에는 `frontend/` 경로에 최소 정적 프론트엔드가 포함되어 있으며, 다음 3개 페이지를 제공합니다.
+
+- `frontend/index.html`: 백테스트 실행 폼 (심볼/리스크/수수료 입력)
+- `frontend/runs.html`: 실행 목록 및 상태 갱신
+- `frontend/run.html?run_id=<id>`: Equity/Drawdown 시계열 차트 + 체결/거절 이벤트 테이블 상세
+
+백엔드와 프론트를 각각 다른 터미널에서 실행하세요:
+
+```bash
+# 터미널 A: 백엔드 API
+PYTHONPATH=src uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port 8000
+
+# 터미널 B: 정적 프론트엔드 서버
+python -m http.server 5173 -d frontend
+```
+
+브라우저에서 `http://127.0.0.1:5173/index.html`를 열면 됩니다.
+
+로컬 개발 흐름:
+
+1. 백엔드 API 서버 실행
+2. 프론트 정적 서버 실행
+3. `index.html`에서 실행 요청 제출
+4. `runs.html`에서 상태 확인
+5. `run.html?run_id=<id>`에서 차트/이벤트 상세 확인
+
+프론트 클라이언트가 사용하는 API 계약:
+
+- `POST /api/v1/backtests` → 실행 생성
+- `GET /api/v1/backtests/{run_id}` → 실행 상태/결과 조회
+
+프론트 오류 메시지는 다음 경로로 구분해 표시합니다.
+
+- 네트워크 오류: 백엔드 미접속
+- 4xx 오류: API 입력/검증 문제
+- 5xx 오류: 런타임/서버 내부 문제
+
 ---
 
 ## 6) What this system can do now / 현재 시스템으로 할 수 있는 것
