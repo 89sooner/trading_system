@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 
 from trading_system.analytics.view_models import EventViewModel, build_backtest_analytics_view_model
 from trading_system.backtest.engine import BacktestResult
+from trading_system.core.compat import UTC
 
 
 @dataclass(slots=True, frozen=True)

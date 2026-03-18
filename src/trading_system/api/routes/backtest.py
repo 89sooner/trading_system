@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -25,6 +25,7 @@ from trading_system.backtest.dto import BacktestResultDTO as SerializedBacktestR
 from trading_system.backtest.dto import BacktestRunDTO
 from trading_system.backtest.engine import BacktestResult
 from trading_system.backtest.repository import InMemoryBacktestRunRepository
+from trading_system.core.compat import UTC
 
 router = APIRouter(prefix="/api/v1", tags=["runtime"])
 

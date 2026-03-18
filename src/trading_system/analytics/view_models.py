@@ -1,8 +1,9 @@
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 
 from trading_system.analytics.metrics import drawdown_series, performance_metrics
+from trading_system.core.compat import UTC
 
 
 @dataclass(slots=True, frozen=True)
