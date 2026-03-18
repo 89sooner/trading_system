@@ -40,10 +40,10 @@ class BacktestResultDTO(BaseModel):
     processed_bars: int
     executed_trades: int
     rejected_signals: int
-    cash: Decimal
-    positions: dict[str, Decimal]
-    total_return: Decimal
-    equity_curve: list[Decimal]
+    cash: str
+    positions: dict[str, str]
+    total_return: str
+    equity_curve: list[str]
 
 
 class BacktestRunAcceptedDTO(BaseModel):
@@ -54,6 +54,10 @@ class BacktestRunAcceptedDTO(BaseModel):
 class BacktestRunStatusDTO(BaseModel):
     run_id: str
     status: Literal["running", "succeeded", "failed"]
+    started_at: str
+    finished_at: str
+    input_symbols: list[str]
+    mode: Literal["backtest", "live"]
     result: BacktestResultDTO | None = None
     error: str | None = None
 

@@ -5,7 +5,7 @@ from trading_system.api.server import create_app
 
 
 def _build_client() -> TestClient:
-    backtest_routes._RUNS.clear()
+    backtest_routes._RUN_REPOSITORY.clear()
     return TestClient(create_app())
 
 
@@ -41,6 +41,8 @@ def test_post_backtests_and_get_run_result() -> None:
     assert run_response.status_code == 200
     body = run_response.json()
     assert body["status"] == "succeeded"
+    assert body["mode"] == "backtest"
+    assert body["input_symbols"] == ["BTCUSDT"]
     assert body["result"]["processed_bars"] > 0
 
 

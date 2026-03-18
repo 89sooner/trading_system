@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, status
@@ -19,19 +19,14 @@ from trading_system.app.settings import (
     LiveExecutionMode,
     RiskSettings,
 )
+from trading_system.backtest.dto import BacktestResultDTO as SerializedBacktestResultDTO
+from trading_system.backtest.dto import BacktestRunDTO
 from trading_system.backtest.engine import BacktestResult
+from trading_system.backtest.repository import InMemoryBacktestRunRepository
 
 router = APIRouter(prefix="/api/v1", tags=["runtime"])
 
-
-@dataclass(slots=True)
-class StoredRun:
-    status: str
-    result: BacktestResult | None = None
-    error: str | None = None
-
-
-_RUNS: dict[str, StoredRun] = {}
+_RUN_REPOSITORY = InMemoryBacktestRunRepository()
 
 
 def _to_app_settings(payload: BacktestRunRequestDTO | LivePreflightRequestDTO) -> AppSettings:
@@ -56,13 +51,17 @@ def _to_app_settings(payload: BacktestRunRequestDTO | LivePreflightRequestDTO) -
     return settings
 
 
-def _to_result_dto(result: BacktestResult) -> BacktestResultDTO:
+def _to_serialized_result(result: BacktestResult) -> SerializedBacktestResultDTO:
+    return SerializedBacktestResultDTO.from_result(result)
+
+
+def _to_api_result_dto(result: SerializedBacktestResultDTO) -> BacktestResultDTO:
     return BacktestResultDTO(
         processed_bars=result.processed_bars,
         executed_trades=result.executed_trades,
         rejected_signals=result.rejected_signals,
-        cash=result.final_portfolio.cash,
-        positions=dict(result.final_portfolio.positions),
+        cash=result.cash,
+        positions=result.positions,
         total_return=result.total_return,
         equity_curve=result.equity_curve,
     )
@@ -76,23 +75,37 @@ def _to_result_dto(result: BacktestResult) -> BacktestResultDTO:
 def create_backtest_run(payload: BacktestRunRequestDTO) -> BacktestRunAcceptedDTO:
     settings = _to_app_settings(payload)
     run_id = str(uuid4())
+    started_at = datetime.now(UTC)
     services = build_services(settings)
     result = services.run()
-    _RUNS[run_id] = StoredRun(status="succeeded", result=result)
+    finished_at = datetime.now(UTC)
+
+    stored_run = BacktestRunDTO.succeeded(
+        run_id=run_id,
+        started_at=started_at,
+        finished_at=finished_at,
+        input_symbols=settings.symbols,
+        mode=settings.mode.value,
+        result=result,
+    )
+    _RUN_REPOSITORY.save(stored_run)
     return BacktestRunAcceptedDTO(run_id=run_id, status="succeeded")
 
 
 @router.get("/backtests/{run_id}", response_model=BacktestRunStatusDTO)
 def get_backtest_run(run_id: str) -> BacktestRunStatusDTO:
-    run = _RUNS.get(run_id)
+    run = _RUN_REPOSITORY.get(run_id)
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backtest run not found")
 
-    result_dto = _to_result_dto(run.result) if run.result is not None else None
     return BacktestRunStatusDTO(
-        run_id=run_id,
+        run_id=run.run_id,
         status=run.status,
-        result=result_dto,
+        started_at=run.started_at,
+        finished_at=run.finished_at,
+        input_symbols=run.input_symbols,
+        mode=run.mode,
+        result=_to_api_result_dto(run.result) if run.result is not None else None,
         error=run.error,
     )
 
@@ -104,5 +117,5 @@ def run_live_preflight(payload: LivePreflightRequestDTO) -> LivePreflightRespons
     message = services.preflight_live()
     paper_result = None
     if settings.live_execution == LiveExecutionMode.PAPER:
-        paper_result = _to_result_dto(services.run_live_paper())
+        paper_result = _to_api_result_dto(_to_serialized_result(services.run_live_paper()))
     return LivePreflightResponseDTO(message=message, paper_result=paper_result)
