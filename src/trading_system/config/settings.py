@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from enum import StrEnum
+from trading_system.core.compat import StrEnum
 from pathlib import Path
 from typing import Any
 

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from decimal import Decimal
-from enum import StrEnum
+from trading_system.core.compat import StrEnum
 from typing import Protocol
 
 from trading_system.core.types import MarketBar
