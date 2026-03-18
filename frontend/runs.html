@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Backtest Runs</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <header class="page-header">
+      <h1>Backtest Runs</h1>
+      <nav>
+        <a href="./index.html">Run Form</a>
+        <a href="./runs.html">Runs</a>
+      </nav>
+    </header>
+
+    <main class="container">
+      <section class="card">
+        <div class="row-between">
+          <h2>Run List / Status</h2>
+          <button id="refresh-runs" type="button">Refresh</button>
+        </div>
+        <p id="runs-message" class="message" role="status" aria-live="polite"></p>
+        <table>
+          <thead>
+            <tr>
+              <th>Run ID</th>
+              <th>Symbol</th>
+              <th>Status</th>
+              <th>Created (UTC)</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="runs-table-body"></tbody>
+        </table>
+      </section>
+    </main>
+
+    <script type="module" src="./src/pages/runsPage.js"></script>
+  </body>
+</html>
