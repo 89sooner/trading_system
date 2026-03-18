@@ -1,4 +1,3 @@
-from dataclasses import asdict
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
@@ -95,10 +94,19 @@ def _to_api_result_dto(result: SerializedBacktestResultDTO) -> BacktestResultDTO
             "volatility": result.summary.volatility,
             "win_rate": result.summary.win_rate,
         },
-        equity_curve=[asdict(point) for point in result.equity_curve],
-        drawdown_curve=[asdict(point) for point in result.drawdown_curve],
-        orders=[asdict(event) for event in result.orders],
-        risk_rejections=[asdict(event) for event in result.risk_rejections],
+        equity_curve=[
+            {"timestamp": point.timestamp, "equity": point.equity}
+            for point in result.equity_curve
+        ],
+        drawdown_curve=[
+            {"timestamp": point.timestamp, "drawdown": point.drawdown}
+            for point in result.drawdown_curve
+        ],
+        orders=[{"event": event.event, "payload": event.payload} for event in result.orders],
+        risk_rejections=[
+            {"event": event.event, "payload": event.payload}
+            for event in result.risk_rejections
+        ],
     )
 
 
