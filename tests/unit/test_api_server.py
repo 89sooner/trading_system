@@ -43,7 +43,7 @@ def test_post_backtests_and_get_run_result() -> None:
     assert body["status"] == "succeeded"
     assert body["mode"] == "backtest"
     assert body["input_symbols"] == ["BTCUSDT"]
-    assert body["result"]["processed_bars"] > 0
+    assert len(body["result"]["equity_curve"]) > 0
 
 
 def test_live_preflight_returns_ok_message(monkeypatch) -> None:
