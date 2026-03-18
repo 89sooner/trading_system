@@ -1,0 +1,144 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f6f7fb;
+  color: #1f2937;
+}
+
+.page-header {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.page-header nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.page-header a {
+  color: #bae6fd;
+  text-decoration: none;
+}
+
+.container {
+  max-width: 1000px;
+  margin: 1.5rem auto;
+  padding: 0 1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.6rem;
+  padding: 1rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.8rem;
+}
+
+.api-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.8rem;
+  align-items: end;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+input,
+button {
+  border-radius: 0.4rem;
+  border: 1px solid #cbd5e1;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.95rem;
+}
+
+button {
+  background: #0ea5e9;
+  color: white;
+  border-color: #0284c7;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.message {
+  min-height: 1.25rem;
+  margin-top: 0.6rem;
+  color: #0f766e;
+}
+
+.message.error {
+  color: #b91c1c;
+}
+
+.row-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.6rem;
+}
+
+th,
+td {
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  padding: 0.45rem;
+  font-size: 0.88rem;
+}
+
+svg {
+  width: 100%;
+  height: 260px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.4rem;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.6rem;
+}
+
+.summary-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.4rem;
+  padding: 0.6rem;
+}
+
+.summary-item .label {
+  font-size: 0.76rem;
+  color: #475569;
+}
+
+.summary-item .value {
+  font-weight: 700;
+  margin-top: 0.3rem;
+}
