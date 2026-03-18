@@ -9,6 +9,11 @@ class AppMode(StrEnum):
     LIVE = "live"
 
 
+class LiveExecutionMode(StrEnum):
+    PREFLIGHT = "preflight"
+    PAPER = "paper"
+
+
 class SettingsValidationError(ValueError):
     """Raised when user-provided application settings are invalid."""
 
@@ -33,6 +38,7 @@ class AppSettings:
     symbols: tuple[str, ...]
     provider: str
     broker: str
+    live_execution: LiveExecutionMode
     risk: RiskSettings
     backtest: BacktestSettings
 
@@ -43,6 +49,7 @@ class AppSettings:
         symbols: str,
         provider: str,
         broker: str,
+        live_execution: str,
         starting_cash: str,
         fee_bps: str,
         trade_quantity: str,
@@ -67,6 +74,7 @@ class AppSettings:
             symbols=parsed_symbols,
             provider=provider.strip().lower(),
             broker=broker.strip().lower(),
+            live_execution=_parse_live_execution_mode(live_execution),
             risk=RiskSettings(
                 max_position=_to_decimal(max_position, "max_position"),
                 max_notional=_to_decimal(max_notional, "max_notional"),
@@ -88,6 +96,11 @@ class AppSettings:
 
         if self.broker not in {"paper"}:
             raise SettingsValidationError("--broker must be 'paper' for this scaffold.")
+
+        if self.live_execution not in {LiveExecutionMode.PREFLIGHT, LiveExecutionMode.PAPER}:
+            raise SettingsValidationError(
+                "--live-execution must be one of: 'preflight', 'paper'."
+            )
 
         if self.backtest.starting_cash <= 0:
             raise SettingsValidationError("--starting-cash must be greater than 0.")
@@ -116,3 +129,13 @@ def _to_decimal(value: str, field_name: str) -> Decimal:
         return Decimal(value)
     except InvalidOperation as exc:
         raise SettingsValidationError(f"{field_name} must be a valid decimal value.") from exc
+
+
+def _parse_live_execution_mode(value: str) -> LiveExecutionMode:
+    normalized = value.strip().lower()
+    try:
+        return LiveExecutionMode(normalized)
+    except ValueError as exc:
+        raise SettingsValidationError(
+            "--live-execution must be one of: 'preflight', 'paper'."
+        ) from exc

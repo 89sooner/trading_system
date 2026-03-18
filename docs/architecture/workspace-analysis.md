@@ -1,6 +1,6 @@
 # Workspace Analysis
 
-This document captures the current implementation state of the trading-system workspace as of March 13, 2026.
+This document captures the current implementation state of the trading-system workspace as of March 18, 2026.
 
 ## Repository state
 
@@ -8,7 +8,7 @@ The repository is no longer only a scaffold. It now includes a deterministic end
 
 Implemented behavior today:
 
-- `app.main` provides CLI entrypoints for `backtest` and a safe `live` preflight mode.
+- `app.main` provides CLI entrypoints for `backtest` and a safe `live` mode with `preflight` (default) and explicit `paper` execution options.
 - `app.services` composes strategy, provider, risk, broker simulator, and portfolio services.
 - `backtest.engine.run_backtest` orchestrates signal -> risk -> broker fill -> portfolio updates -> equity curve.
 - `execution.adapters` maps strategy signals to order requests.
@@ -23,9 +23,9 @@ Implemented behavior today:
 The app layer now exists and separates CLI argument handling (`app.main`) from service wiring (`app.services`).
 
 - `--mode backtest` executes the deterministic backtest path.
-- `--mode live` currently performs preflight validation only (including required secret checks) and does not submit orders.
+- `--mode live` performs preflight validation by default (including required secret checks), and can run a deterministic paper loop when `--live-execution paper` is provided.
 
-This keeps live mode safe while allowing operators to validate runtime inputs.
+This keeps live mode safe by default while allowing operators to validate runtime flow without real order submission.
 
 ### Data
 
@@ -112,5 +112,5 @@ This gives a solid regression baseline for the current deterministic backtest ar
 
 1. Introduce a real data-provider adapter with strict timeout/retry configuration.
 2. Add a broker adapter contract test suite (happy path + failure path) using fakes.
-3. Extend `live` mode from preflight to paper-trade loop with explicit dry-run guard.
+3. Add a dedicated live formatter/status model for paper execution output (currently reuses backtest formatting).
 4. Add release-gate documentation with pass/fail checklist before enabling live order submission.

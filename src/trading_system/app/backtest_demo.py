@@ -3,7 +3,13 @@ from decimal import Decimal
 
 from trading_system.app.sample_data import build_sample_bars as _build_sample_bars
 from trading_system.app.services import build_services
-from trading_system.app.settings import AppMode, AppSettings, BacktestSettings, RiskSettings
+from trading_system.app.settings import (
+    AppMode,
+    AppSettings,
+    BacktestSettings,
+    LiveExecutionMode,
+    RiskSettings,
+)
 from trading_system.backtest.engine import BacktestResult
 from trading_system.core.types import MarketBar
 
@@ -32,6 +38,7 @@ def run_smoke_backtest(config: SmokeBacktestConfig | None = None) -> BacktestRes
         symbols=(config.symbol,),
         provider="mock",
         broker="paper",
+        live_execution=LiveExecutionMode.PREFLIGHT,
         risk=RiskSettings(
             max_position=config.max_position,
             max_notional=config.max_notional,
