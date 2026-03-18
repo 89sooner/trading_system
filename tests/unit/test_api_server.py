@@ -43,7 +43,15 @@ def test_post_backtests_and_get_run_result() -> None:
     assert body["status"] == "succeeded"
     assert body["mode"] == "backtest"
     assert body["input_symbols"] == ["BTCUSDT"]
-    assert body["result"]["processed_bars"] > 0
+    result = body["result"]
+    assert set(result.keys()) == {
+        "summary",
+        "equity_curve",
+        "drawdown_curve",
+        "orders",
+        "risk_rejections",
+    }
+    assert len(result["equity_curve"]) > 0
 
 
 def test_live_preflight_returns_ok_message(monkeypatch) -> None:
@@ -69,16 +77,16 @@ def test_settings_validation_errors_return_422() -> None:
     assert "--max-order-size cannot exceed --max-position." in body["message"]
 
 
-def test_runtime_errors_return_structured_500() -> None:
+def test_invalid_symbols_return_standardized_400() -> None:
     client = _build_client()
     payload = _base_payload(mode="backtest")
     payload["symbols"] = ["BTCUSDT", "ETHUSDT"]
 
     response = client.post("/api/v1/backtests", json=payload)
 
-    assert response.status_code == 500
+    assert response.status_code == 400
     body = response.json()
     assert body == {
-        "error_code": "runtime_error",
-        "message": "Current scaffold supports exactly one symbol for backtest mode.",
+        "error_code": "invalid_symbols",
+        "message": "Exactly one symbol is required for this API runtime.",
     }
