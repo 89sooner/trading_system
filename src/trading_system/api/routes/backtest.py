@@ -1,5 +1,5 @@
-from decimal import Decimal
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, status
@@ -94,10 +94,19 @@ def _to_api_result_dto(result: SerializedBacktestResultDTO) -> BacktestResultDTO
             "volatility": result.summary.volatility,
             "win_rate": result.summary.win_rate,
         },
-        equity_curve=result.equity_curve,
-        drawdown_curve=result.drawdown_curve,
-        orders=result.orders,
-        risk_rejections=result.risk_rejections,
+        equity_curve=[
+            {"timestamp": point.timestamp, "equity": point.equity}
+            for point in result.equity_curve
+        ],
+        drawdown_curve=[
+            {"timestamp": point.timestamp, "drawdown": point.drawdown}
+            for point in result.drawdown_curve
+        ],
+        orders=[{"event": event.event, "payload": event.payload} for event in result.orders],
+        risk_rejections=[
+            {"event": event.event, "payload": event.payload}
+            for event in result.risk_rejections
+        ],
     )
 
 
