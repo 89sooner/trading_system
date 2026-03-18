@@ -155,6 +155,16 @@ TRADING_SYSTEM_API_KEY=dummy-key \
 uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode live --symbols BTCUSDT
 ```
 
+```bash
+TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
+TRADING_SYSTEM_KIS_ENV=prod \
+TRADING_SYSTEM_KIS_APP_KEY=your-app-key \
+TRADING_SYSTEM_KIS_APP_SECRET=your-app-secret \
+TRADING_SYSTEM_KIS_CANO=12345678 \
+TRADING_SYSTEM_KIS_ACNT_PRDT_CD=01 \
+uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode live --provider kis --broker kis --symbols 005930
+```
+
 ### 5.6 Live paper mode (explicit opt-in) / 라이브 페이퍼 모드 (명시적 활성화)
 
 ```bash
@@ -481,6 +491,11 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_ENV`: runtime environment label (`local`, `staging`, `prod`, ...)
 - `TRADING_SYSTEM_TIMEZONE`: operator timezone (`Asia/Seoul`, ...)
 - `TRADING_SYSTEM_API_KEY`: credential for live adapter preflight
+- `TRADING_SYSTEM_KIS_ENV` (optional): KIS environment selector (`prod` default, `mock` available)
+- `TRADING_SYSTEM_KIS_APP_KEY` / `TRADING_SYSTEM_KIS_APP_SECRET`: KIS Open API app credentials
+- `TRADING_SYSTEM_KIS_CANO` / `TRADING_SYSTEM_KIS_ACNT_PRDT_CD`: KIS account number and product code
+- `TRADING_SYSTEM_KIS_BASE_URL` (optional): override KIS REST base URL
+- `TRADING_SYSTEM_KIS_PRICE_TR_ID` (optional): override domestic quote TR id for preflight quote checks
 - `TRADING_SYSTEM_ALLOWED_API_KEYS`: comma-separated API keys accepted by HTTP middleware (`X-API-Key`)
 - `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` (optional): comma-separated CORS origins; overrides config file value
 - `TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS` / `TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS` (optional): simple per-path rate limit
@@ -490,6 +505,11 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_ENV`: 런타임 환경 라벨 (`local`, `staging`, `prod` 등)
 - `TRADING_SYSTEM_TIMEZONE`: 운영 타임존 (`Asia/Seoul` 등)
 - `TRADING_SYSTEM_API_KEY`: 라이브 어댑터 프리플라이트용 인증 정보
+- `TRADING_SYSTEM_KIS_ENV` (선택): 한국투자 Open API 환경 선택 (`prod` 기본값, `mock` 가능)
+- `TRADING_SYSTEM_KIS_APP_KEY` / `TRADING_SYSTEM_KIS_APP_SECRET`: 한국투자 Open API 앱 인증정보
+- `TRADING_SYSTEM_KIS_CANO` / `TRADING_SYSTEM_KIS_ACNT_PRDT_CD`: 한국투자 계좌번호와 상품코드
+- `TRADING_SYSTEM_KIS_BASE_URL` (선택): 한국투자 REST 기본 URL 재정의
+- `TRADING_SYSTEM_KIS_PRICE_TR_ID` (선택): 프리플라이트 현재가 조회용 TR ID 재정의
 - `TRADING_SYSTEM_ALLOWED_API_KEYS`: HTTP 미들웨어가 허용할 API 키 목록(쉼표 구분, `X-API-Key`)
 - `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` (선택): CORS 허용 오리진 목록(쉼표 구분, 설정 파일 값보다 우선)
 - `TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS` / `TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS` (선택): 경로 단위 단순 요청 제한
@@ -659,6 +679,7 @@ uv run --python .venv/bin/python --no-sync -m trading_system.patterns.example
 3. **시장 데이터 공급 선택**
    - `mock` 인메모리 데이터(테스트/스모크용)
    - `csv` 데이터(심볼별 CSV 파일 로딩, KRX 심볼 포함)
+   - `kis` 데이터(한국투자 Open API 현재가 기반 라이브 프리플라이트)
 
 4. **리스크 가드레일 적용**
    - `max_position`, `max_notional`, `max_order_size` 제약으로 비정상 주문을 차단합니다.

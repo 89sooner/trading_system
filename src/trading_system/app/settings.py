@@ -91,11 +91,11 @@ class AppSettings:
         if not self.symbols:
             raise SettingsValidationError("At least one symbol is required via --symbols.")
 
-        if self.provider not in {"mock", "csv"}:
-            raise SettingsValidationError("--provider must be one of: 'mock', 'csv'.")
+        if self.provider not in {"mock", "csv", "kis"}:
+            raise SettingsValidationError("--provider must be one of: 'mock', 'csv', 'kis'.")
 
-        if self.broker not in {"paper"}:
-            raise SettingsValidationError("--broker must be 'paper' for this scaffold.")
+        if self.broker not in {"paper", "kis"}:
+            raise SettingsValidationError("--broker must be one of: 'paper', 'kis'.")
 
         if self.live_execution not in {LiveExecutionMode.PREFLIGHT, LiveExecutionMode.PAPER}:
             raise SettingsValidationError(
