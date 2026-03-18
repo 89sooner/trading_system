@@ -8,10 +8,11 @@ import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
-from enum import StrEnum
 from typing import Any, Protocol
+
+from trading_system.core.compat import UTC, StrEnum
 
 _CORRELATION_ID: ContextVar[str | None] = ContextVar("correlation_id", default=None)
 _SENSITIVE_KEYWORDS = ("secret", "token", "password", "api_key", "apikey")

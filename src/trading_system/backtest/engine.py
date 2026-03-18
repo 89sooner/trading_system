@@ -1,10 +1,10 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Any
 
 from trading_system.analytics.metrics import cumulative_return
 from trading_system.core.ops import (
-    ExceptionEvent,
     OrderCreatedEvent,
     OrderFilledEvent,
     OrderRejectedEvent,
@@ -59,6 +59,17 @@ def run_backtest(
         order = signal_to_order_request(bar.symbol, signal)
 
         if order is not None:
+            _emit_event(
+                context.logger,
+                "order.created",
+                event_payload(
+                    OrderCreatedEvent(
+                        symbol=order.symbol,
+                        side=order.side.value,
+                        quantity=order.quantity,
+                    )
+                ),
+            )
             signed_quantity = order.quantity if order.side == OrderSide.BUY else -order.quantity
             current_position = context.portfolio.positions.get(bar.symbol, Decimal("0"))
             if context.risk_limits.allows_order(current_position, signed_quantity, bar.close):
@@ -71,8 +82,48 @@ def run_backtest(
                         fee=fill.fee,
                     )
                     executed_trades += 1
+                    _emit_event(
+                        context.logger,
+                        "order.filled",
+                        event_payload(
+                            OrderFilledEvent(
+                                symbol=fill.symbol,
+                                side=fill.side.value,
+                                requested_quantity=fill.requested_quantity,
+                                filled_quantity=fill.filled_quantity,
+                                fill_price=fill.fill_price,
+                                fee=fill.fee,
+                                status=fill.status.value,
+                            )
+                        ),
+                    )
+                else:
+                    _emit_event(
+                        context.logger,
+                        "order.rejected",
+                        event_payload(
+                            OrderRejectedEvent(
+                                symbol=order.symbol,
+                                side=order.side.value,
+                                quantity=order.quantity,
+                                reason="unfilled",
+                            )
+                        ),
+                    )
             else:
                 rejected_signals += 1
+                _emit_event(
+                    context.logger,
+                    "risk.rejected",
+                    event_payload(
+                        RiskRejectedEvent(
+                            symbol=order.symbol,
+                            requested_quantity=signed_quantity,
+                            current_position=current_position,
+                            price=bar.close,
+                        )
+                    ),
+                )
 
         last_prices[bar.symbol] = bar.close
         equity_curve.append(_equity_for_portfolio(context.portfolio, last_prices))
@@ -94,3 +145,13 @@ def _equity_for_portfolio(portfolio: PortfolioBook, marks: dict[str, Decimal]) -
             continue
         equity += quantity * mark_price
     return equity
+
+
+def _emit_event(
+    logger: StructuredLogger | None,
+    event_name: str,
+    payload: dict[str, Any],
+) -> None:
+    if logger is None:
+        return
+    logger.emit(event_name, severity=20, payload=payload)

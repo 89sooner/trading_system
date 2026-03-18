@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from enum import StrEnum
+
+from trading_system.core.compat import StrEnum
 
 
 class AppMode(StrEnum):
