@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 from decimal import Decimal
-from trading_system.core.compat import StrEnum
 from typing import Protocol
 
+from trading_system.core.compat import StrEnum
 from trading_system.core.ops import (
     CircuitBreakerPolicy,
     CircuitBreakerState,

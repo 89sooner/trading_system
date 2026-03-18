@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from trading_system.core.compat import StrEnum, UTC
+from trading_system.core.compat import UTC, StrEnum
 
 
 class _DemoMode(StrEnum):
