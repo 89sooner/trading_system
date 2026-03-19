@@ -162,4 +162,6 @@ def run_live_preflight(payload: LivePreflightRequestDTO) -> LivePreflightRespons
     paper_result = None
     if settings.live_execution == LiveExecutionMode.PAPER:
         paper_result = _to_api_result_dto(_to_serialized_result(services.run_live_paper()))
+    if settings.live_execution == LiveExecutionMode.LIVE:
+        paper_result = _to_api_result_dto(_to_serialized_result(services.run_live_execution()))
     return LivePreflightResponseDTO(message=message, paper_result=paper_result)

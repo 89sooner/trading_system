@@ -12,6 +12,7 @@ class AppMode(StrEnum):
 class LiveExecutionMode(StrEnum):
     PREFLIGHT = "preflight"
     PAPER = "paper"
+    LIVE = "live"
 
 
 class SettingsValidationError(ValueError):
@@ -97,9 +98,13 @@ class AppSettings:
         if self.broker not in {"paper", "kis"}:
             raise SettingsValidationError("--broker must be one of: 'paper', 'kis'.")
 
-        if self.live_execution not in {LiveExecutionMode.PREFLIGHT, LiveExecutionMode.PAPER}:
+        if self.live_execution not in {
+            LiveExecutionMode.PREFLIGHT,
+            LiveExecutionMode.PAPER,
+            LiveExecutionMode.LIVE,
+        }:
             raise SettingsValidationError(
-                "--live-execution must be one of: 'preflight', 'paper'."
+                "--live-execution must be one of: 'preflight', 'paper', 'live'."
             )
 
         if self.backtest.starting_cash <= 0:
@@ -137,5 +142,5 @@ def _parse_live_execution_mode(value: str) -> LiveExecutionMode:
         return LiveExecutionMode(normalized)
     except ValueError as exc:
         raise SettingsValidationError(
-            "--live-execution must be one of: 'preflight', 'paper'."
+            "--live-execution must be one of: 'preflight', 'paper', 'live'."
         ) from exc

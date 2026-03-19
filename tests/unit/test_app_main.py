@@ -83,4 +83,42 @@ def test_cli_returns_validation_error_for_invalid_live_execution_mode(capsys) ->
     captured = capsys.readouterr()
     assert exit_code == 2
     assert "Configuration error:" in captured.err
-    assert "--live-execution must be one of: 'preflight', 'paper'." in captured.err
+    assert "--live-execution must be one of: 'preflight', 'paper', 'live'." in captured.err
+
+
+def test_cli_live_mode_rejects_live_execution_without_opt_in(capsys, monkeypatch) -> None:
+    class _StubServicesKisClient:
+        def preflight_symbol(self, symbol: str):
+            class Quote:
+                def __init__(self, quote_symbol: str) -> None:
+                    self.symbol = quote_symbol
+                    self.price = "70000"
+                    self.volume = "1000"
+
+            return Quote(symbol)
+
+    monkeypatch.setattr(
+        "trading_system.app.services.KisApiClient.from_env",
+        lambda: _StubServicesKisClient(),
+    )
+    monkeypatch.setenv("TRADING_SYSTEM_ENABLE_LIVE_ORDERS", "false")
+
+    exit_code = run(
+        [
+            "--mode",
+            "live",
+            "--symbols",
+            "005930",
+            "--provider",
+            "kis",
+            "--broker",
+            "kis",
+            "--live-execution",
+            "live",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 3
+    assert "Runtime error:" in captured.err
+    assert "TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true" in captured.err

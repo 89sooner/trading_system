@@ -21,7 +21,7 @@ class BacktestRunRequestDTO(BaseModel):
     symbols: list[str] = Field(min_length=1)
     provider: Literal["mock", "csv", "kis"] = "mock"
     broker: Literal["paper", "kis"] = "paper"
-    live_execution: Literal["preflight", "paper"] = "preflight"
+    live_execution: Literal["preflight", "paper", "live"] = "preflight"
     risk: RiskSettingsDTO
     backtest: BacktestSettingsDTO
 
@@ -31,7 +31,7 @@ class LivePreflightRequestDTO(BaseModel):
     symbols: list[str] = Field(min_length=1)
     provider: Literal["mock", "csv", "kis"] = "mock"
     broker: Literal["paper", "kis"] = "paper"
-    live_execution: Literal["preflight", "paper"] = "preflight"
+    live_execution: Literal["preflight", "paper", "live"] = "preflight"
     risk: RiskSettingsDTO
     backtest: BacktestSettingsDTO
 

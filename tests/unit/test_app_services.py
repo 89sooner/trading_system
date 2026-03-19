@@ -141,6 +141,62 @@ def test_build_services_uses_kis_broker_adapter_when_broker_is_kis(monkeypatch) 
     assert isinstance(services.broker_simulator.delegate, KisBrokerAdapter)
 
 
+def test_live_execution_requires_opt_in_flag(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "trading_system.app.services.KisApiClient.from_env",
+        lambda: _StubKisClient(),
+    )
+    monkeypatch.setenv("TRADING_SYSTEM_ENABLE_LIVE_ORDERS", "false")
+
+    settings = AppSettings.from_cli(
+        mode="live",
+        symbols="005930",
+        provider="kis",
+        broker="kis",
+        live_execution="live",
+        starting_cash="1000000",
+        fee_bps="5",
+        trade_quantity="1",
+        max_position="10",
+        max_notional="100000000",
+        max_order_size="5",
+    )
+    settings.validate()
+
+    services = build_services(settings)
+
+    with pytest.raises(RuntimeError, match="TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true"):
+        services.run_live_execution()
+
+
+def test_live_execution_runs_when_opted_in(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "trading_system.app.services.KisApiClient.from_env",
+        lambda: _StubKisClient(),
+    )
+    monkeypatch.setenv("TRADING_SYSTEM_ENABLE_LIVE_ORDERS", "true")
+
+    settings = AppSettings.from_cli(
+        mode="live",
+        symbols="005930",
+        provider="kis",
+        broker="kis",
+        live_execution="live",
+        starting_cash="1000000",
+        fee_bps="5",
+        trade_quantity="1",
+        max_position="10",
+        max_notional="100000000",
+        max_order_size="5",
+    )
+    settings.validate()
+
+    services = build_services(settings)
+    result = services.run_live_execution()
+
+    assert result.processed_bars == 1
+
+
 
 class _StubKisClient:
     def preflight_symbol(self, symbol: str):
@@ -149,5 +205,6 @@ class _StubKisClient:
                 self.symbol = quote_symbol
                 self.price = Decimal("70200")
                 self.volume = Decimal("1200")
+                self.as_of = datetime(2024, 1, 2, tzinfo=timezone.utc)
 
         return Quote(symbol)
