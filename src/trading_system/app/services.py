@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Callable
 
 from trading_system.app.sample_data import build_sample_bars
-from trading_system.app.settings import AppMode, AppSettings
+from trading_system.app.settings import AppMode, AppSettings, LiveExecutionMode
 from trading_system.backtest.engine import BacktestContext, BacktestResult, run_backtest
 from trading_system.core.ops import (
     EnvSecretProvider,
@@ -27,16 +27,19 @@ from trading_system.execution.broker import (
     ResilientBroker,
 )
 from trading_system.execution.kis_adapter import KisBrokerAdapter
+from trading_system.integrations.kis import KisApiClient
 from trading_system.portfolio.book import PortfolioBook
 from trading_system.risk.limits import RiskLimits
 from trading_system.strategy.base import Strategy
 from trading_system.strategy.example import MomentumStrategy
-from trading_system.integrations.kis import KisApiClient
 
 
 @dataclass(slots=True)
 class AppServices:
     mode: AppMode
+    provider: str
+    broker: str
+    live_execution: LiveExecutionMode
     strategy: Strategy
     data_provider: MarketDataProvider
     risk_limits: RiskLimits
@@ -83,6 +86,24 @@ class AppServices:
         )
         return run_backtest(bars=bars, strategy=self.strategy, context=context)
 
+    def run_live_execution(self) -> BacktestResult:
+        if self.mode != AppMode.LIVE:
+            raise RuntimeError(f"Unsupported mode '{self.mode}'.")
+        if self.live_execution != LiveExecutionMode.LIVE:
+            raise RuntimeError(
+                "run_live_execution requires --live-execution live."
+            )
+        if self.provider != "kis" or self.broker != "kis":
+            raise RuntimeError(
+                "Live order submission requires '--provider kis --broker kis'."
+            )
+        if not _is_live_orders_enabled():
+            raise RuntimeError(
+                "Live order submission is disabled. "
+                "Set TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true to enable."
+            )
+        return self.run_live_paper()
+
     def _single_symbol(self, mode_name: str) -> str:
         if len(self.symbols) != 1:
             raise RuntimeError(
@@ -101,6 +122,9 @@ def build_services(settings: AppSettings) -> AppServices:
 
     return AppServices(
         mode=settings.mode,
+        provider=settings.provider,
+        broker=settings.broker,
+        live_execution=settings.live_execution,
         strategy=MomentumStrategy(trade_quantity=settings.backtest.trade_quantity),
         data_provider=_build_data_provider(settings, kis_client=kis_client),
         risk_limits=RiskLimits(
@@ -198,3 +222,7 @@ def _build_live_preflight(
         )
 
     return preflight
+
+
+def _is_live_orders_enabled() -> bool:
+    return os.getenv("TRADING_SYSTEM_ENABLE_LIVE_ORDERS", "").strip().lower() == "true"
