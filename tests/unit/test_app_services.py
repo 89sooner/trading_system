@@ -5,6 +5,7 @@ import pytest
 
 from trading_system.app.services import build_services
 from trading_system.app.settings import AppSettings
+from trading_system.execution.kis_adapter import KisBrokerAdapter
 
 
 def test_build_services_uses_csv_provider_for_domestic_symbol(tmp_path, monkeypatch) -> None:
@@ -112,6 +113,33 @@ def test_live_mode_kis_preflight_uses_kis_quote(monkeypatch) -> None:
         "KIS live preflight passed (symbol=005930, price=70200, volume=1200). "
         "No orders were submitted."
     )
+
+
+def test_build_services_uses_kis_broker_adapter_when_broker_is_kis(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "trading_system.app.services.KisApiClient.from_env",
+        lambda: _StubKisClient(),
+    )
+
+    settings = AppSettings.from_cli(
+        mode="live",
+        symbols="005930",
+        provider="mock",
+        broker="kis",
+        live_execution="preflight",
+        starting_cash="1000000",
+        fee_bps="5",
+        trade_quantity="1",
+        max_position="10",
+        max_notional="100000000",
+        max_order_size="5",
+    )
+    settings.validate()
+
+    services = build_services(settings)
+
+    assert isinstance(services.broker_simulator.delegate, KisBrokerAdapter)
+
 
 
 class _StubKisClient:

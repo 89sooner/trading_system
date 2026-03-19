@@ -21,10 +21,12 @@ from trading_system.data.provider import (
 from trading_system.execution.broker import (
     BpsCommissionPolicy,
     BpsSlippagePolicy,
+    BrokerSimulator,
     FixedRatioFillPolicy,
     PolicyBrokerSimulator,
     ResilientBroker,
 )
+from trading_system.execution.kis_adapter import KisBrokerAdapter
 from trading_system.portfolio.book import PortfolioBook
 from trading_system.risk.limits import RiskLimits
 from trading_system.strategy.base import Strategy
@@ -107,11 +109,7 @@ def build_services(settings: AppSettings) -> AppServices:
             max_order_size=settings.risk.max_order_size,
         ),
         broker_simulator=ResilientBroker(
-            delegate=PolicyBrokerSimulator(
-                fill_quantity_policy=FixedRatioFillPolicy(),
-                slippage_policy=BpsSlippagePolicy(),
-                commission_policy=BpsCommissionPolicy(bps=settings.backtest.fee_bps),
-            )
+            delegate=_build_broker(settings, kis_client=kis_client),
         ),
         portfolio=PortfolioBook(cash=settings.backtest.starting_cash),
         symbols=settings.symbols,
@@ -160,6 +158,21 @@ def _build_data_provider(
         )
 
     return CsvMarketDataProvider(csv_by_symbol=csv_by_symbol)
+def _build_broker(
+    settings: AppSettings,
+    *,
+    kis_client: KisApiClient | None,
+) -> BrokerSimulator:
+    if settings.broker == "kis":
+        if kis_client is None:
+            raise RuntimeError("KIS broker requires KIS API credentials.")
+        return KisBrokerAdapter(client=kis_client)
+
+    return PolicyBrokerSimulator(
+        fill_quantity_policy=FixedRatioFillPolicy(),
+        slippage_policy=BpsSlippagePolicy(),
+        commission_policy=BpsCommissionPolicy(bps=settings.backtest.fee_bps),
+    )
 
 
 def _build_kis_client_if_needed(settings: AppSettings) -> KisApiClient | None:
