@@ -47,6 +47,11 @@ class BacktestSettings:
 
 
 @dataclass(slots=True)
+class ExecutionSettings:
+    broker: str
+
+
+@dataclass(slots=True)
 class ApiSettings:
     cors_allow_origins: tuple[str, ...]
 
@@ -55,12 +60,13 @@ class ApiSettings:
 class Settings:
     app: AppSettings
     market_data: MarketDataSettings
+    execution: ExecutionSettings
     risk: RiskSettings
     backtest: BacktestSettings
     api: ApiSettings
 
 
-REQUIRED_ROOT_KEYS = ("app", "market_data", "risk", "backtest")
+REQUIRED_ROOT_KEYS = ("app", "market_data", "execution", "risk", "backtest")
 
 
 def load_settings(path: str | Path) -> Settings:
@@ -81,6 +87,7 @@ def load_settings(path: str | Path) -> Settings:
 
     app_section = _as_dict(payload["app"], "app")
     market_data_section = _as_dict(payload["market_data"], "market_data")
+    execution_section = _as_dict(payload["execution"], "execution")
     risk_section = _as_dict(payload["risk"], "risk")
     backtest_section = _as_dict(payload["backtest"], "backtest")
     api_section = _as_dict(payload.get("api", {}), "api")
@@ -108,6 +115,12 @@ def load_settings(path: str | Path) -> Settings:
             symbols=_as_symbols(
                 _require_key(market_data_section, "symbols", "market_data.symbols"),
                 "market_data.symbols",
+            ),
+        ),
+        execution=ExecutionSettings(
+            broker=_as_execution_broker(
+                _require_key(execution_section, "broker", "execution.broker"),
+                "execution.broker",
             ),
         ),
         risk=RiskSettings(
@@ -192,6 +205,17 @@ def _as_mode(value: Any, path: str) -> AppMode:
         raise SettingsValidationError(
             f"Invalid value for '{path}': expected one of [{allowed}]."
         ) from exc
+
+
+def _as_execution_broker(value: Any, path: str) -> str:
+    parsed = _as_non_empty_str(value, path).lower()
+    allowed_brokers = ("paper", "kis")
+    if parsed not in allowed_brokers:
+        allowed = ", ".join(allowed_brokers)
+        raise SettingsValidationError(
+            f"Invalid value for '{path}': expected one of [{allowed}]."
+        )
+    return parsed
 
 
 def _as_symbols(value: Any, path: str) -> tuple[str, ...]:
