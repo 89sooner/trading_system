@@ -18,6 +18,8 @@ market_data:
   provider: mock
   symbols:
     - BTCUSDT
+execution:
+  broker: paper
 risk:
   max_position: 1.0
   max_notional: 100000.0
@@ -49,6 +51,8 @@ market_data:
   provider: mock
   symbols:
     - BTCUSDT
+execution:
+  broker: paper
 risk:
   max_position: 1.0
   max_notional: 100000.0

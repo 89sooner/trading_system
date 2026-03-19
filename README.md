@@ -531,6 +531,7 @@ settings = load_settings("configs/base.yaml")
 Required root sections:
 - `app`: `environment` (str), `timezone` (str), `mode` (`backtest`|`live`)
 - `market_data`: `provider` (str), `symbols` (list[str])
+- `execution`: `broker` (`paper`|`kis`)
 - `risk`: `max_position`, `max_notional`, `max_order_size` (Decimal, > 0)
 - `backtest`: `starting_cash` (> 0), `fee_bps` (0~1000), `trade_quantity` (> 0)
 - `api` (optional): `cors_allow_origins` (list[str], default `[*]`)
@@ -549,6 +550,7 @@ settings = load_settings("configs/base.yaml")
 필수 루트 섹션:
 - `app`: `environment` (str), `timezone` (str), `mode` (`backtest`|`live`)
 - `market_data`: `provider` (str), `symbols` (list[str])
+- `execution`: `broker` (`paper`|`kis`)
 - `risk`: `max_position`, `max_notional`, `max_order_size` (Decimal, > 0)
 - `backtest`: `starting_cash` (> 0), `fee_bps` (0~1000), `trade_quantity` (> 0)
 - `api` (선택): `cors_allow_origins` (list[str], 기본값 `[*]`)
@@ -748,6 +750,7 @@ uv run --python .venv/bin/python --no-sync -m trading_system.patterns.example
 - 주요 섹션
   - `app`: 실행 환경/타임존/모드
   - `market_data`: 공급자/심볼 목록
+  - `execution`: 주문 제출 브로커 선택(`paper`/`kis`)
   - `risk`: 포지션/노셔널/주문량 제한
   - `backtest`: 시작자금/수수료/거래수량
 - 수치형 값은 `Decimal`로 파싱되어 금액 계산 오차를 줄입니다.
