@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from decimal import Decimal
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -24,6 +25,41 @@ def test_kis_api_client_preflight_symbol_fetches_token_and_quote() -> None:
     assert quote.symbol == "005930"
     assert quote.price == Decimal("70300")
     assert quote.volume == Decimal("123456")
+
+
+def test_kis_api_client_inquire_price_uses_default_market_div_code() -> None:
+    client = KisApiClient.from_env(
+        secret_provider=_StubSecretProvider(),
+        transport=_PriceTransport(expected_market_div="J"),
+    )
+
+    quote = client.preflight_symbol("005930")
+
+    assert quote.symbol == "005930"
+
+
+def test_kis_api_client_inquire_price_applies_custom_market_div_code(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TRADING_SYSTEM_KIS_MARKET_DIV", "W")
+    client = KisApiClient.from_env(
+        secret_provider=_StubSecretProvider(),
+        transport=_PriceTransport(expected_market_div="W"),
+    )
+
+    quote = client.preflight_symbol("005930")
+
+    assert quote.symbol == "005930"
+
+
+def test_kis_api_client_inquire_price_rejects_invalid_domestic_symbol() -> None:
+    client = KisApiClient.from_env(
+        secret_provider=_StubSecretProvider(),
+        transport=_StubTransport(),
+    )
+
+    with pytest.raises(KisResponseError, match="input='5930'.*6-digit numeric code"):
+        client.preflight_symbol("5930")
 
 
 def test_kis_api_client_requires_access_token_in_response() -> None:
@@ -107,6 +143,7 @@ class _StubTransport:
 
         assert headers["authorization"] == "Bearer kis-access-token"
         assert "FID_INPUT_ISCD=005930" in url
+        assert "FID_COND_MRKT_DIV_CODE=J" in url
         return HttpResponse(
             status_code=200,
             body={"output": {"stck_prpr": "70300", "acml_vol": "123456"}},
@@ -162,6 +199,25 @@ class _OrderRejectedTransport:
         return HttpResponse(
             status_code=200,
             body={"rt_cd": "1", "msg_cd": "ERROR", "msg1": "주문 가능 수량 부족"},
+        )
+
+
+class _PriceTransport:
+    def __init__(self, *, expected_market_div: str) -> None:
+        self.expected_market_div = expected_market_div
+
+    def request(self, method: str, url: str, *, headers: dict[str, str], body=None) -> HttpResponse:
+        if method == "POST" and url.endswith("/oauth2/tokenP"):
+            return HttpResponse(status_code=200, body={"access_token": "kis-access-token"})
+
+        assert method == "GET"
+        assert headers["authorization"] == "Bearer kis-access-token"
+        query = parse_qs(urlparse(url).query)
+        assert query["FID_COND_MRKT_DIV_CODE"] == [self.expected_market_div]
+        assert query["FID_INPUT_ISCD"] == ["005930"]
+        return HttpResponse(
+            status_code=200,
+            body={"output": {"stck_prpr": "70300", "acml_vol": "123456"}},
         )
 
 

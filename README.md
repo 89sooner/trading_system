@@ -158,6 +158,7 @@ uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode liv
 ```bash
 TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
 TRADING_SYSTEM_KIS_ENV=prod \
+TRADING_SYSTEM_KIS_MARKET_DIV=J \
 TRADING_SYSTEM_KIS_APP_KEY=your-app-key \
 TRADING_SYSTEM_KIS_APP_SECRET=your-app-secret \
 TRADING_SYSTEM_KIS_CANO=12345678 \
@@ -496,6 +497,7 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_KIS_CANO` / `TRADING_SYSTEM_KIS_ACNT_PRDT_CD`: KIS account number and product code
 - `TRADING_SYSTEM_KIS_BASE_URL` (optional): override KIS REST base URL
 - `TRADING_SYSTEM_KIS_PRICE_TR_ID` (optional): override domestic quote TR id for preflight quote checks
+- `TRADING_SYSTEM_KIS_MARKET_DIV` (optional): override quote market division code (`J` default for domestic stock)
 - `TRADING_SYSTEM_ALLOWED_API_KEYS`: comma-separated API keys accepted by HTTP middleware (`X-API-Key`)
 - `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` (optional): comma-separated CORS origins; overrides config file value
 - `TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS` / `TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS` (optional): simple per-path rate limit
@@ -510,6 +512,7 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_KIS_CANO` / `TRADING_SYSTEM_KIS_ACNT_PRDT_CD`: 한국투자 계좌번호와 상품코드
 - `TRADING_SYSTEM_KIS_BASE_URL` (선택): 한국투자 REST 기본 URL 재정의
 - `TRADING_SYSTEM_KIS_PRICE_TR_ID` (선택): 프리플라이트 현재가 조회용 TR ID 재정의
+- `TRADING_SYSTEM_KIS_MARKET_DIV` (선택): 현재가 조회 시장 구분 코드 재정의 (기본값 `J`, 국내주식)
 - `TRADING_SYSTEM_ALLOWED_API_KEYS`: HTTP 미들웨어가 허용할 API 키 목록(쉼표 구분, `X-API-Key`)
 - `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` (선택): CORS 허용 오리진 목록(쉼표 구분, 설정 파일 값보다 우선)
 - `TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS` / `TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS` (선택): 경로 단위 단순 요청 제한

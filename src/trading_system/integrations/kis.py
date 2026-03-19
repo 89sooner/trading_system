@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -117,6 +118,8 @@ class KisApiClient:
     _MOCK_BASE_URL = "https://openapivts.koreainvestment.com:29443"
     _PRICE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price"
     _ORDER_PATH = "/uapi/domestic-stock/v1/trading/order-cash"
+    _DEFAULT_MARKET_DIV = "J"
+    _SYMBOL_PATTERN = re.compile(r"^\d{6}$")
 
     def __init__(
         self,
@@ -158,10 +161,11 @@ class KisApiClient:
         return self.inquire_price(symbol=symbol, access_token=access_token)
 
     def inquire_price(self, symbol: str, *, access_token: str) -> KisQuote:
+        validated_symbol = _validate_domestic_symbol(symbol)
         params = urlencode(
             {
-                "FID_COND_MRKT_DIV_CODE": "J",
-                "FID_INPUT_ISCD": symbol,
+                "FID_COND_MRKT_DIV_CODE": self._market_div_code(),
+                "FID_INPUT_ISCD": validated_symbol,
             }
         )
         response = self._transport.request(
@@ -178,11 +182,15 @@ class KisApiClient:
         current_price = _as_decimal(output.get("stck_prpr"), "stck_prpr")
         volume = _as_decimal(output.get("acml_vol"), "acml_vol", default=Decimal("0"))
         return KisQuote(
-            symbol=symbol,
+            symbol=validated_symbol,
             price=current_price,
             volume=volume,
             as_of=datetime.now(tz=UTC),
         )
+
+    def _market_div_code(self) -> str:
+        configured = os.getenv("TRADING_SYSTEM_KIS_MARKET_DIV", self._DEFAULT_MARKET_DIV)
+        return configured.strip() or self._DEFAULT_MARKET_DIV
 
     def submit_order(self, order: OrderRequest) -> KisOrderResult:
         access_token = self.issue_access_token()
@@ -287,3 +295,13 @@ def _as_decimal(value: Any, field_name: str, *, default: Decimal | None = None) 
         return Decimal(str(value))
     except Exception as exc:  # pragma: no cover - defensive parser path
         raise KisResponseError(f"KIS response field '{field_name}' was not numeric.") from exc
+
+
+def _validate_domestic_symbol(symbol: str) -> str:
+    normalized_symbol = symbol.strip()
+    if KisApiClient._SYMBOL_PATTERN.match(normalized_symbol):
+        return normalized_symbol
+    raise KisResponseError(
+        "KIS domestic symbol format invalid "
+        f"(input={symbol!r}, expected='6-digit numeric code, e.g. 005930')."
+    )
