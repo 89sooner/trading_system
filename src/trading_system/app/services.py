@@ -185,6 +185,8 @@ def _build_data_provider(
         )
 
     return CsvMarketDataProvider(csv_by_symbol=csv_by_symbol)
+
+
 def _build_broker(
     settings: AppSettings,
     *,

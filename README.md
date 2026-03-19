@@ -233,6 +233,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
 ```
 
 Validation failures are returned as 4xx (`settings_validation_error` or `invalid_*`), and runtime failures are returned as a structured 5xx body (`runtime_error` or `internal_server_error`). Authentication failures return `auth_invalid_api_key`, and excessive traffic returns `rate_limit_exceeded`.
+The same endpoint accepts `live_execution=live` when KIS runtime guards are satisfied.
 
 Visualization response example (fixed schema):
 
@@ -305,6 +306,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
 ```
 
 입력 검증 실패는 4xx(`settings_validation_error` 또는 `invalid_*`)로, 실행 중 오류는 구조화된 5xx(`runtime_error` 또는 `internal_server_error`)로 반환합니다. 인증 실패는 `auth_invalid_api_key`, 과도한 요청은 `rate_limit_exceeded`로 반환됩니다.
+동일 엔드포인트에서 KIS 가드 조건을 만족하면 `live_execution=live`도 허용됩니다.
 
 시각화 응답 예시(고정 스키마):
 

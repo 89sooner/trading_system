@@ -258,7 +258,6 @@ def test_live_execution_rejects_invalid_live_sample_env(monkeypatch) -> None:
         build_services(settings)
 
 
-
 class _StubKisClient:
     def preflight_symbol(self, symbol: str):
         class Quote:

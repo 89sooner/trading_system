@@ -5,6 +5,7 @@ name: kis_live_preflight_smoke
 #   TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true
 # Optional:
 #   TRADING_SYSTEM_LIVE_BAR_SAMPLES=2
+# API mode also accepts live_execution=live under the same guard conditions.
 app:
   environment: local
   timezone: Asia/Seoul
