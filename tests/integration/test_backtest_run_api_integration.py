@@ -49,6 +49,7 @@ def test_create_then_get_backtest_run_returns_serialized_result_and_metadata() -
         "summary",
         "equity_curve",
         "drawdown_curve",
+        "signals",
         "orders",
         "risk_rejections",
     }

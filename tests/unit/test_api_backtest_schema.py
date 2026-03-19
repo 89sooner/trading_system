@@ -38,6 +38,7 @@ def test_backtest_result_schema_is_stable_for_visualization_clients() -> None:
         "summary",
         "equity_curve",
         "drawdown_curve",
+        "signals",
         "orders",
         "risk_rejections",
     }
@@ -48,6 +49,7 @@ def test_backtest_result_schema_is_stable_for_visualization_clients() -> None:
     )
     assert all(set(event.keys()) == {"event", "payload"} for event in result["orders"])
     assert all(set(event.keys()) == {"event", "payload"} for event in result["risk_rejections"])
+    assert all(set(event.keys()) == {"event", "payload"} for event in result["signals"])
 
 
 def test_backtest_result_schema_has_matching_curve_lengths() -> None:

@@ -93,6 +93,43 @@ export async function getBacktestRun(runId) {
   return requestJson(`/backtests/${encodeURIComponent(runId)}`);
 }
 
+export async function trainPatterns(payload) {
+  return requestJson("/patterns/train", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function savePatternSet(payload) {
+  return requestJson("/patterns", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listPatternSets() {
+  return requestJson("/patterns");
+}
+
+export async function getPatternSet(patternSetId) {
+  return requestJson(`/patterns/${encodeURIComponent(patternSetId)}`);
+}
+
+export async function createStrategyProfile(payload) {
+  return requestJson("/strategies", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listStrategyProfiles() {
+  return requestJson("/strategies");
+}
+
+export async function getStrategyProfile(strategyId) {
+  return requestJson(`/strategies/${encodeURIComponent(strategyId)}`);
+}
+
 export function userMessageForError(error) {
   if (!(error instanceof ApiError)) {
     return "Unexpected error occurred in client.";

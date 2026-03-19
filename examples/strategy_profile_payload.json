@@ -1,0 +1,15 @@
+{
+  "strategy_id": "bullish-profile",
+  "name": "Bullish Profile",
+  "strategy": {
+    "type": "pattern_signal",
+    "pattern_set_id": "sample_bullish_reversal",
+    "label_to_side": {
+      "bullish_reversal": "buy"
+    },
+    "trade_quantity": "0.2",
+    "threshold_overrides": {
+      "bullish_reversal": 0.82
+    }
+  }
+}

@@ -11,6 +11,8 @@
       <h1>Backtest Detail</h1>
       <nav>
         <a href="./index.html">Run Form</a>
+        <a href="./patterns.html">Patterns</a>
+        <a href="./strategies.html">Strategies</a>
         <a href="./runs.html">Runs</a>
       </nav>
     </header>
@@ -45,6 +47,22 @@
       <section class="card">
         <h3>Drawdown Curve (time axis)</h3>
         <div id="drawdown-chart"></div>
+      </section>
+
+      <section class="card">
+        <h3>Strategy Signals</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Event</th>
+              <th>Symbol</th>
+              <th>Side</th>
+              <th>Quantity</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody id="signals-table-body"></tbody>
+        </table>
       </section>
 
       <section class="card">

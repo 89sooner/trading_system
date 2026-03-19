@@ -12,6 +12,7 @@ const message = document.getElementById("detail-message");
 const summary = document.getElementById("summary");
 const equityChart = document.getElementById("equity-chart");
 const drawdownChart = document.getElementById("drawdown-chart");
+const signalsBody = document.getElementById("signals-table-body");
 const eventsBody = document.getElementById("events-table-body");
 const refreshButton = document.getElementById("refresh-detail");
 
@@ -84,6 +85,33 @@ function renderEvents(detail) {
   }
 }
 
+function renderSignals(detail) {
+  const signals = detail.result?.signals ?? [];
+  signalsBody.innerHTML = "";
+  for (const signal of signals) {
+    const tr = document.createElement("tr");
+    const cells = [
+      signal.event,
+      signal.payload.symbol ?? "-",
+      signal.payload.side ?? "-",
+      formatDecimal(signal.payload.quantity ?? "-"),
+      signal.payload.reason ?? "-",
+    ];
+    for (const value of cells) {
+      const td = document.createElement("td");
+      td.textContent = value;
+      tr.append(td);
+    }
+    signalsBody.append(tr);
+  }
+
+  if (signals.length === 0) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = '<td colspan="5">No strategy signal events.</td>';
+    signalsBody.append(tr);
+  }
+}
+
 function renderCharts(detail) {
   const result = detail.result;
   if (!result) {
@@ -116,6 +144,7 @@ async function loadDetail() {
     setMessage(`Status: ${detail.status}`, false);
     renderSummary(detail);
     renderCharts(detail);
+    renderSignals(detail);
     renderEvents(detail);
   } catch (error) {
     setMessage(userMessageForError(error), true);

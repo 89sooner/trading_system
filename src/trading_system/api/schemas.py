@@ -16,6 +16,15 @@ class BacktestSettingsDTO(BaseModel):
     trade_quantity: Decimal
 
 
+class StrategyConfigDTO(BaseModel):
+    type: Literal["pattern_signal"] = "pattern_signal"
+    profile_id: str | None = None
+    pattern_set_id: str | None = None
+    label_to_side: dict[str, Literal["buy", "sell", "hold"]] = Field(default_factory=dict)
+    trade_quantity: Decimal | None = None
+    threshold_overrides: dict[str, float] = Field(default_factory=dict)
+
+
 class BacktestRunRequestDTO(BaseModel):
     mode: Literal["backtest"] = "backtest"
     symbols: list[str] = Field(min_length=1)
@@ -24,6 +33,7 @@ class BacktestRunRequestDTO(BaseModel):
     live_execution: Literal["preflight", "paper", "live"] = "preflight"
     risk: RiskSettingsDTO
     backtest: BacktestSettingsDTO
+    strategy: StrategyConfigDTO | None = None
 
 
 class LivePreflightRequestDTO(BaseModel):
@@ -34,6 +44,7 @@ class LivePreflightRequestDTO(BaseModel):
     live_execution: Literal["preflight", "paper", "live"] = "preflight"
     risk: RiskSettingsDTO
     backtest: BacktestSettingsDTO
+    strategy: StrategyConfigDTO | None = None
 
 
 class BacktestResultDTO(BaseModel):
@@ -60,6 +71,7 @@ class BacktestResultDTO(BaseModel):
     summary: SummaryDTO
     equity_curve: list[EquityPointDTO]
     drawdown_curve: list[DrawdownPointDTO]
+    signals: list[EventDTO]
     orders: list[EventDTO]
     risk_rejections: list[EventDTO]
 
@@ -91,3 +103,62 @@ class ErrorResponseDTO(BaseModel):
 
     error_code: str
     message: str
+
+
+class PatternBarDTO(BaseModel):
+    timestamp: str
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: Decimal
+
+
+class PatternTrainingExampleDTO(BaseModel):
+    label: str = Field(min_length=1)
+    bars: list[PatternBarDTO] = Field(min_length=2)
+
+
+class PatternTrainRequestDTO(BaseModel):
+    name: str = Field(min_length=1)
+    symbol: str = Field(min_length=1)
+    default_threshold: float = Field(ge=0, le=1)
+    examples: list[PatternTrainingExampleDTO] = Field(min_length=1)
+
+
+class LearnedPatternDTO(BaseModel):
+    label: str
+    lookback: int
+    sample_size: int
+    threshold: float
+    prototype: list[float]
+
+
+class PatternSetDTO(BaseModel):
+    pattern_set_id: str
+    name: str
+    symbol: str
+    default_threshold: float
+    examples_count: int
+    patterns: list[LearnedPatternDTO]
+
+
+class PatternSetSaveRequestDTO(BaseModel):
+    pattern_set_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    symbol: str = Field(min_length=1)
+    default_threshold: float = Field(ge=0, le=1)
+    examples_count: int = Field(ge=1)
+    patterns: list[LearnedPatternDTO] = Field(min_length=1)
+
+
+class StrategyProfileCreateDTO(BaseModel):
+    strategy_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    strategy: StrategyConfigDTO
+
+
+class StrategyProfileDTO(BaseModel):
+    strategy_id: str
+    name: str
+    strategy: StrategyConfigDTO

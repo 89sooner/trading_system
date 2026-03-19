@@ -12,6 +12,7 @@ from trading_system.api.schemas import (
     BacktestRunStatusDTO,
     LivePreflightRequestDTO,
     LivePreflightResponseDTO,
+    StrategyConfigDTO,
 )
 from trading_system.app.services import build_services
 from trading_system.app.settings import (
@@ -19,6 +20,7 @@ from trading_system.app.settings import (
     AppSettings,
     BacktestSettings,
     LiveExecutionMode,
+    PatternSignalStrategySettings,
     RiskSettings,
 )
 from trading_system.backtest.dto import BacktestResultDTO as SerializedBacktestResultDTO
@@ -26,6 +28,7 @@ from trading_system.backtest.dto import BacktestRunDTO
 from trading_system.backtest.engine import BacktestResult
 from trading_system.backtest.repository import InMemoryBacktestRunRepository
 from trading_system.core.compat import UTC
+from trading_system.strategy.base import SignalSide
 
 router = APIRouter(prefix="/api/v1", tags=["runtime"])
 
@@ -59,6 +62,39 @@ def _validate_request_payload(payload: BacktestRunRequestDTO | LivePreflightRequ
             message="fee_bps must be between 0 and 1000.",
         )
 
+    _validate_strategy_payload(payload.strategy)
+
+
+def _validate_strategy_payload(strategy: StrategyConfigDTO | None) -> None:
+    if strategy is None:
+        return
+    if strategy.profile_id is not None:
+        if (
+            strategy.pattern_set_id is not None
+            or strategy.label_to_side
+            or strategy.threshold_overrides
+        ):
+            raise RequestValidationError(
+                error_code="invalid_strategy",
+                message=(
+                    "strategy.profile_id cannot be combined with "
+                    "inline pattern strategy fields."
+                ),
+            )
+        return
+
+    if strategy.pattern_set_id is None or not strategy.pattern_set_id.strip():
+        raise RequestValidationError(
+            error_code="invalid_strategy",
+            message="strategy.pattern_set_id is required for inline pattern strategy runs.",
+        )
+
+    if not strategy.label_to_side:
+        raise RequestValidationError(
+            error_code="invalid_strategy",
+            message="strategy.label_to_side must contain at least one mapping.",
+        )
+
 
 def _to_app_settings(payload: BacktestRunRequestDTO | LivePreflightRequestDTO) -> AppSettings:
     _validate_request_payload(payload)
@@ -78,9 +114,31 @@ def _to_app_settings(payload: BacktestRunRequestDTO | LivePreflightRequestDTO) -
             fee_bps=payload.backtest.fee_bps,
             trade_quantity=payload.backtest.trade_quantity,
         ),
+        strategy=_to_strategy_settings(payload.strategy),
     )
     settings.validate()
     return settings
+
+
+def _to_strategy_settings(
+    strategy: StrategyConfigDTO | None,
+) -> PatternSignalStrategySettings | None:
+    if strategy is None:
+        return None
+    return PatternSignalStrategySettings(
+        type=strategy.type,
+        profile_id=strategy.profile_id,
+        pattern_set_id=strategy.pattern_set_id,
+        label_to_side={
+            label: SignalSide(side)
+            for label, side in sorted(strategy.label_to_side.items())
+        },
+        trade_quantity=strategy.trade_quantity,
+        threshold_overrides={
+            label: float(threshold)
+            for label, threshold in sorted(strategy.threshold_overrides.items())
+        },
+    )
 
 
 def _to_serialized_result(result: BacktestResult) -> SerializedBacktestResultDTO:
@@ -103,6 +161,7 @@ def _to_api_result_dto(result: SerializedBacktestResultDTO) -> BacktestResultDTO
             {"timestamp": point.timestamp, "drawdown": point.drawdown}
             for point in result.drawdown_curve
         ],
+        signals=[{"event": event.event, "payload": event.payload} for event in result.signals],
         orders=[{"event": event.event, "payload": event.payload} for event in result.orders],
         risk_rejections=[
             {"event": event.event, "payload": event.payload}

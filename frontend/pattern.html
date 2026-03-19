@@ -3,12 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Backtest Runs</title>
+    <title>Pattern Set Detail</title>
     <link rel="stylesheet" href="./src/styles.css" />
   </head>
   <body>
     <header class="page-header">
-      <h1>Backtest Runs</h1>
+      <h1>Pattern Set Detail</h1>
       <nav>
         <a href="./index.html">Run Form</a>
         <a href="./patterns.html">Patterns</a>
@@ -31,26 +31,27 @@
       </section>
 
       <section class="card">
-        <div class="row-between">
-          <h2>Run List / Status</h2>
-          <button id="refresh-runs" type="button">Refresh</button>
-        </div>
-        <p id="runs-message" class="message" role="status" aria-live="polite"></p>
+        <h2 id="pattern-title">Pattern Set</h2>
+        <p id="pattern-detail-message" class="message" role="status" aria-live="polite"></p>
+        <div id="pattern-summary"></div>
+      </section>
+
+      <section class="card">
+        <h3>Patterns</h3>
         <table>
           <thead>
             <tr>
-              <th>Run ID</th>
-              <th>Symbol</th>
-              <th>Status</th>
-              <th>Created (UTC)</th>
-              <th>Action</th>
+              <th>Label</th>
+              <th>Lookback</th>
+              <th>Sample Size</th>
+              <th>Threshold</th>
             </tr>
           </thead>
-          <tbody id="runs-table-body"></tbody>
+          <tbody id="pattern-detail-body"></tbody>
         </table>
       </section>
     </main>
 
-    <script type="module" src="./src/pages/runsPage.js"></script>
+    <script type="module" src="./src/pages/patternDetailPage.js"></script>
   </body>
 </html>

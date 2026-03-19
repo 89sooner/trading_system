@@ -11,6 +11,8 @@
       <h1>Backtest Runner</h1>
       <nav>
         <a href="./index.html">Run Form</a>
+        <a href="./patterns.html">Patterns</a>
+        <a href="./strategies.html">Strategies</a>
         <a href="./runs.html">Runs</a>
       </nav>
     </header>
@@ -54,6 +56,12 @@
           <label>
             Fee (bps)
             <input id="fee-bps" name="feeBps" type="number" step="0.01" min="0" value="5" required />
+          </label>
+          <label>
+            Strategy Profile
+            <select id="strategy-profile" name="strategyProfile">
+              <option value="">Default Momentum</option>
+            </select>
           </label>
           <button id="submit-button" type="submit">Start Backtest</button>
         </form>

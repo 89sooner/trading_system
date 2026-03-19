@@ -1,0 +1,13 @@
+{
+  "label_to_side": {
+    "bullish_reversal": "buy"
+  },
+  "name": "Sample Bullish Profile",
+  "pattern_set_id": "sample_bullish_reversal",
+  "strategy_id": "sample_bullish_profile",
+  "strategy_type": "pattern_signal",
+  "threshold_overrides": {
+    "bullish_reversal": 0.82
+  },
+  "trade_quantity": "0.2"
+}
