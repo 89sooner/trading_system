@@ -11,6 +11,7 @@ from trading_system.execution.broker import (
     PolicyBrokerSimulator,
     ResilientBroker,
 )
+from trading_system.execution.kis_adapter import KisBrokerAdapter
 from trading_system.execution.orders import OrderRequest, OrderSide
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "FillEvent",
     "FillStatus",
     "FixedRatioFillPolicy",
+    "KisBrokerAdapter",
     "OrderRequest",
     "OrderSide",
     "PolicyBrokerSimulator",

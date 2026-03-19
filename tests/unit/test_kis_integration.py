@@ -1,8 +1,16 @@
+from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
 
-from trading_system.integrations.kis import HttpResponse, KisApiClient
+from trading_system.core.types import MarketBar
+from trading_system.execution.kis_adapter import KisBrokerAdapter
+from trading_system.execution.orders import OrderRequest, OrderSide
+from trading_system.integrations.kis import (
+    HttpResponse,
+    KisApiClient,
+    KisResponseError,
+)
 
 
 def test_kis_api_client_preflight_symbol_fetches_token_and_quote() -> None:
@@ -24,8 +32,55 @@ def test_kis_api_client_requires_access_token_in_response() -> None:
         transport=_MissingTokenTransport(),
     )
 
-    with pytest.raises(RuntimeError, match="access_token"):
+    with pytest.raises(KisResponseError, match="access_token"):
         client.preflight_symbol("005930")
+
+
+def test_kis_broker_adapter_maps_successful_order_to_fill_event() -> None:
+    client = KisApiClient.from_env(
+        secret_provider=_StubSecretProvider(),
+        transport=_OrderSuccessTransport(),
+    )
+    adapter = KisBrokerAdapter(client=client)
+
+    fill = adapter.submit_order(
+        OrderRequest(symbol="005930", side=OrderSide.BUY, quantity=Decimal("3")),
+        _bar(),
+    )
+
+    assert fill.symbol == "005930"
+    assert fill.requested_quantity == Decimal("3")
+    assert fill.filled_quantity == Decimal("3")
+    assert fill.fill_price == Decimal("70100")
+    assert fill.status.value == "filled"
+
+
+def test_kis_broker_adapter_maps_partial_fill_status() -> None:
+    client = KisApiClient.from_env(
+        secret_provider=_StubSecretProvider(),
+        transport=_OrderPartialFillTransport(),
+    )
+    adapter = KisBrokerAdapter(client=client)
+
+    fill = adapter.submit_order(
+        OrderRequest(symbol="005930", side=OrderSide.SELL, quantity=Decimal("5")),
+        _bar(),
+    )
+
+    assert fill.filled_quantity == Decimal("2")
+    assert fill.status.value == "partially_filled"
+
+
+def test_kis_api_client_submit_order_raises_response_error_on_rejection() -> None:
+    client = KisApiClient.from_env(
+        secret_provider=_StubSecretProvider(),
+        transport=_OrderRejectedTransport(),
+    )
+
+    with pytest.raises(KisResponseError, match="order rejected"):
+        client.submit_order(
+            OrderRequest(symbol="005930", side=OrderSide.BUY, quantity=Decimal("1"))
+        )
 
 
 class _StubSecretProvider:
@@ -62,3 +117,61 @@ class _MissingTokenTransport:
     def request(self, method: str, url: str, *, headers: dict[str, str], body=None) -> HttpResponse:
         del method, url, headers, body
         return HttpResponse(status_code=200, body={})
+
+
+class _OrderSuccessTransport:
+    def request(self, method: str, url: str, *, headers: dict[str, str], body=None) -> HttpResponse:
+        if method == "POST" and url.endswith("/oauth2/tokenP"):
+            return HttpResponse(status_code=200, body={"access_token": "kis-access-token"})
+
+        assert method == "POST"
+        assert url.endswith("/uapi/domestic-stock/v1/trading/order-cash")
+        assert headers["tr_id"] == "TTTC0802U"
+        assert body["PDNO"] == "005930"
+        return HttpResponse(
+            status_code=200,
+            body={
+                "rt_cd": "0",
+                "msg_cd": "APBK0013",
+                "msg1": "정상처리",
+                "output": {"ODNO": "12345", "ORD_QTY": "3", "ORD_UNPR": "70100"},
+            },
+        )
+
+
+class _OrderPartialFillTransport:
+    def request(self, method: str, url: str, *, headers: dict[str, str], body=None) -> HttpResponse:
+        if method == "POST" and url.endswith("/oauth2/tokenP"):
+            return HttpResponse(status_code=200, body={"access_token": "kis-access-token"})
+
+        assert headers["tr_id"] == "TTTC0801U"
+        return HttpResponse(
+            status_code=200,
+            body={
+                "rt_cd": "0",
+                "output": {"ODNO": "12346", "ORD_QTY": "2", "ORD_UNPR": "70000"},
+            },
+        )
+
+
+class _OrderRejectedTransport:
+    def request(self, method: str, url: str, *, headers: dict[str, str], body=None) -> HttpResponse:
+        if method == "POST" and url.endswith("/oauth2/tokenP"):
+            return HttpResponse(status_code=200, body={"access_token": "kis-access-token"})
+
+        return HttpResponse(
+            status_code=200,
+            body={"rt_cd": "1", "msg_cd": "ERROR", "msg1": "주문 가능 수량 부족"},
+        )
+
+
+def _bar() -> MarketBar:
+    return MarketBar(
+        symbol="005930",
+        timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        open=Decimal("70000"),
+        high=Decimal("70500"),
+        low=Decimal("69900"),
+        close=Decimal("70200"),
+        volume=Decimal("1000"),
+    )

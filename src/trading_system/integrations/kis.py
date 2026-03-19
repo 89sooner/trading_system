@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 
 from trading_system.core.compat import UTC
 from trading_system.core.ops import EnvSecretProvider, SecretProvider
+from trading_system.execution.orders import OrderRequest, OrderSide
 
 
 @dataclass(slots=True)
@@ -31,9 +32,36 @@ class KisQuote:
 
 
 @dataclass(slots=True)
+class KisOrderResult:
+    order_id: str
+    symbol: str
+    side: OrderSide
+    requested_quantity: Decimal
+    filled_quantity: Decimal
+    fill_price: Decimal
+    fee: Decimal
+
+
+@dataclass(slots=True)
 class HttpResponse:
     status_code: int
     body: dict[str, Any]
+
+
+class KisApiError(RuntimeError):
+    """Base error for KIS API failures."""
+
+
+class KisTransportError(KisApiError):
+    """Raised when the transport layer cannot reach KIS."""
+
+
+class KisHttpError(KisApiError):
+    """Raised when KIS returns a non-success HTTP status."""
+
+
+class KisResponseError(KisApiError):
+    """Raised when KIS returns an invalid or failed payload."""
 
 
 class HttpTransport(Protocol):
@@ -77,16 +105,18 @@ class UrllibHttpTransport:
         except HTTPError as exc:
             payload = exc.read().decode("utf-8")
             parsed = json.loads(payload) if payload else {}
-            raise RuntimeError(
+            raise KisHttpError(
                 f"KIS HTTP error {exc.code}: {parsed.get('msg1', exc.reason)}"
             ) from exc
         except URLError as exc:
-            raise OSError(f"KIS transport unavailable: {exc.reason}") from exc
+            raise KisTransportError(f"KIS transport unavailable: {exc.reason}") from exc
 
 
 class KisApiClient:
     _PROD_BASE_URL = "https://openapi.koreainvestment.com:9443"
     _MOCK_BASE_URL = "https://openapivts.koreainvestment.com:29443"
+    _PRICE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price"
+    _ORDER_PATH = "/uapi/domestic-stock/v1/trading/order-cash"
 
     def __init__(
         self,
@@ -124,7 +154,7 @@ class KisApiClient:
         return cls(credentials=credentials, transport=transport, base_url=default_base_url)
 
     def preflight_symbol(self, symbol: str) -> KisQuote:
-        access_token = self._issue_access_token()
+        access_token = self.issue_access_token()
         return self.inquire_price(symbol=symbol, access_token=access_token)
 
     def inquire_price(self, symbol: str, *, access_token: str) -> KisQuote:
@@ -136,12 +166,12 @@ class KisApiClient:
         )
         response = self._transport.request(
             "GET",
-            f"{self._base_url}/uapi/domestic-stock/v1/quotations/inquire-price?{params}",
+            f"{self._base_url}{self._PRICE_PATH}?{params}",
             headers={
                 "authorization": f"Bearer {access_token}",
                 "appkey": self._credentials.app_key,
                 "appsecret": self._credentials.app_secret,
-                "tr_id": os.getenv("TRADING_SYSTEM_KIS_PRICE_TR_ID", "FHKST01010100"),
+                "tr_id": self._price_tr_id(),
             },
         )
         output = _as_dict(response.body.get("output"), "output")
@@ -154,7 +184,17 @@ class KisApiClient:
             as_of=datetime.now(tz=UTC),
         )
 
-    def _issue_access_token(self) -> str:
+    def submit_order(self, order: OrderRequest) -> KisOrderResult:
+        access_token = self.issue_access_token()
+        response = self._transport.request(
+            "POST",
+            f"{self._base_url}{self._ORDER_PATH}",
+            headers=self._order_headers(access_token=access_token, side=order.side),
+            body=self._order_payload(order),
+        )
+        return self._parse_order_response(order=order, response=response)
+
+    def issue_access_token(self) -> str:
         response = self._transport.request(
             "POST",
             f"{self._base_url}/oauth2/tokenP",
@@ -167,13 +207,74 @@ class KisApiClient:
         )
         access_token = response.body.get("access_token")
         if not isinstance(access_token, str) or not access_token.strip():
-            raise RuntimeError("KIS token response did not include a usable access_token.")
+            raise KisResponseError("KIS token response did not include a usable access_token.")
         return access_token
+
+    def _price_tr_id(self) -> str:
+        return os.getenv("TRADING_SYSTEM_KIS_PRICE_TR_ID", "FHKST01010100")
+
+    def _order_tr_id(self, side: OrderSide) -> str:
+        default = "TTTC0802U" if side == OrderSide.BUY else "TTTC0801U"
+        return os.getenv("TRADING_SYSTEM_KIS_ORDER_TR_ID", default)
+
+    def _order_headers(self, *, access_token: str, side: OrderSide) -> dict[str, str]:
+        return {
+            "authorization": f"Bearer {access_token}",
+            "appkey": self._credentials.app_key,
+            "appsecret": self._credentials.app_secret,
+            "tr_id": self._order_tr_id(side),
+            "custtype": "P",
+            "content-type": "application/json",
+        }
+
+    def _order_payload(self, order: OrderRequest) -> dict[str, str]:
+        return {
+            "CANO": self._credentials.account_number,
+            "ACNT_PRDT_CD": self._credentials.product_code,
+            "PDNO": order.symbol,
+            "ORD_DVSN": "00",
+            "ORD_QTY": str(order.quantity),
+            "ORD_UNPR": str(order.limit_price or Decimal("0")),
+        }
+
+    def _parse_order_response(self, *, order: OrderRequest, response: HttpResponse) -> KisOrderResult:
+        result_code = str(response.body.get("rt_cd", ""))
+        message = str(response.body.get("msg1", "unknown error"))
+        if response.status_code >= 400:
+            raise KisHttpError(
+                f"KIS order request failed with status={response.status_code}: {message}"
+            )
+        if result_code and result_code != "0":
+            raise KisResponseError(
+                "KIS order rejected "
+                f"(rt_cd={result_code}, msg_cd={response.body.get('msg_cd', '')}, msg1={message})."
+            )
+
+        output = _as_dict(response.body.get("output"), "output")
+        order_id = str(output.get("ODNO") or "")
+        if not order_id:
+            raise KisResponseError("KIS order response field 'ODNO' was missing.")
+
+        filled_quantity = _as_decimal(output.get("ORD_QTY"), "ORD_QTY", default=Decimal("0"))
+        fill_price = _as_decimal(
+            output.get("ORD_UNPR") or order.limit_price,
+            "ORD_UNPR",
+            default=Decimal("0"),
+        )
+        return KisOrderResult(
+            order_id=order_id,
+            symbol=order.symbol,
+            side=order.side,
+            requested_quantity=order.quantity,
+            filled_quantity=filled_quantity,
+            fill_price=fill_price,
+            fee=Decimal("0"),
+        )
 
 
 def _as_dict(value: Any, field_name: str) -> dict[str, Any]:
     if not isinstance(value, dict):
-        raise RuntimeError(f"KIS response field '{field_name}' was missing or invalid.")
+        raise KisResponseError(f"KIS response field '{field_name}' was missing or invalid.")
     return value
 
 
@@ -181,8 +282,8 @@ def _as_decimal(value: Any, field_name: str, *, default: Decimal | None = None) 
     if value in (None, ""):
         if default is not None:
             return default
-        raise RuntimeError(f"KIS response field '{field_name}' was missing.")
+        raise KisResponseError(f"KIS response field '{field_name}' was missing.")
     try:
         return Decimal(str(value))
     except Exception as exc:  # pragma: no cover - defensive parser path
-        raise RuntimeError(f"KIS response field '{field_name}' was not numeric.") from exc
+        raise KisResponseError(f"KIS response field '{field_name}' was not numeric.") from exc
