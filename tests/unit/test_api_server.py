@@ -9,12 +9,12 @@ def _build_client() -> TestClient:
     return TestClient(create_app())
 
 
-def _base_payload(mode: str) -> dict:
+def _base_payload(mode: str, *, provider: str = "mock", broker: str = "paper") -> dict:
     return {
         "mode": mode,
         "symbols": ["BTCUSDT"],
-        "provider": "mock",
-        "broker": "paper",
+        "provider": provider,
+        "broker": broker,
         "live_execution": "preflight",
         "risk": {
             "max_position": "1",
@@ -90,3 +90,30 @@ def test_invalid_symbols_return_standardized_400() -> None:
         "error_code": "invalid_symbols",
         "message": "Exactly one symbol is required for this API runtime.",
     }
+
+
+def test_live_execution_requires_opt_in_flag(monkeypatch) -> None:
+    class _StubServicesKisClient:
+        def preflight_symbol(self, symbol: str):
+            class Quote:
+                def __init__(self, quote_symbol: str) -> None:
+                    self.symbol = quote_symbol
+                    self.price = "70000"
+                    self.volume = "1000"
+
+            return Quote(symbol)
+
+    monkeypatch.setattr(
+        "trading_system.app.services.KisApiClient.from_env",
+        lambda: _StubServicesKisClient(),
+    )
+    monkeypatch.setenv("TRADING_SYSTEM_ENABLE_LIVE_ORDERS", "false")
+    client = _build_client()
+    payload = _base_payload(mode="live", provider="kis", broker="kis")
+    payload["symbols"] = ["005930"]
+    payload["live_execution"] = "live"
+
+    response = client.post("/api/v1/live/preflight", json=payload)
+
+    assert response.status_code == 500
+    assert response.json()["error_code"] == "runtime_error"

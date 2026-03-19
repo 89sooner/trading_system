@@ -82,17 +82,22 @@ class CsvMarketDataProvider:
 @dataclass(slots=True)
 class KisQuoteMarketDataProvider:
     client: KisApiClient
+    bars_per_load: int = 1
 
     def load_bars(self, symbol: str) -> Iterable[MarketBar]:
-        quote = self.client.preflight_symbol(symbol)
-        return [
-            MarketBar(
-                symbol=symbol,
-                timestamp=quote.as_of,
-                open=quote.price,
-                high=quote.price,
-                low=quote.price,
-                close=quote.price,
-                volume=quote.volume,
+        sample_size = max(self.bars_per_load, 1)
+        bars: list[MarketBar] = []
+        for _ in range(sample_size):
+            quote = self.client.preflight_symbol(symbol)
+            bars.append(
+                MarketBar(
+                    symbol=symbol,
+                    timestamp=quote.as_of,
+                    open=quote.price,
+                    high=quote.price,
+                    low=quote.price,
+                    close=quote.price,
+                    volume=quote.volume,
+                )
             )
-        ]
+        return bars

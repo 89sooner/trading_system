@@ -57,6 +57,9 @@ def run(argv: list[str] | None = None) -> int:
             if settings.live_execution == LiveExecutionMode.PAPER:
                 result = services.run_live_paper()
                 print(format_result(result))
+            if settings.live_execution == LiveExecutionMode.LIVE:
+                result = services.run_live_execution()
+                print(format_result(result))
             return 0
 
         result = services.run()

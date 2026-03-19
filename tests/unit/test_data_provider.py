@@ -47,6 +47,15 @@ def test_kis_quote_provider_maps_quote_to_single_live_like_bar() -> None:
     assert loaded[0].volume == Decimal("1500")
 
 
+def test_kis_quote_provider_can_sample_multiple_live_bars() -> None:
+    provider = KisQuoteMarketDataProvider(client=_FakeKisClient(), bars_per_load=2)
+
+    loaded = list(provider.load_bars("005930"))
+
+    assert len(loaded) == 2
+    assert all(bar.symbol == "005930" for bar in loaded)
+
+
 def _bar(close: Decimal) -> MarketBar:
     return MarketBar(
         symbol="BTCUSDT",
