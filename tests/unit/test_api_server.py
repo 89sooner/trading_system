@@ -48,6 +48,7 @@ def test_post_backtests_and_get_run_result() -> None:
         "summary",
         "equity_curve",
         "drawdown_curve",
+        "signals",
         "orders",
         "risk_rejections",
     }

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pattern Sets</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <header class="page-header">
+      <h1>Pattern Training</h1>
+      <nav>
+        <a href="./index.html">Run Form</a>
+        <a href="./patterns.html">Patterns</a>
+        <a href="./strategies.html">Strategies</a>
+        <a href="./runs.html">Runs</a>
+      </nav>
+    </header>
+
+    <main class="container">
+      <section class="card">
+        <h2>API Endpoint</h2>
+        <div class="api-row">
+          <label>
+            API Base URL
+            <input id="api-base-url" name="apiBaseUrl" value="http://127.0.0.1:8000/api/v1" />
+          </label>
+          <button id="save-api-base-url" type="button">Save API URL</button>
+        </div>
+        <p id="api-base-message" class="message" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="card">
+        <h2>Train Pattern Set</h2>
+        <form id="pattern-form" class="form-grid">
+          <label>
+            Pattern Set Name
+            <input id="pattern-name" name="patternName" value="Bullish Reversal" required />
+          </label>
+          <label>
+            Symbol
+            <input id="pattern-symbol" name="patternSymbol" value="BTCUSDT" required />
+          </label>
+          <label>
+            Default Threshold
+            <input id="pattern-threshold" name="patternThreshold" type="number" min="0" max="1" step="0.01" value="0.8" required />
+          </label>
+          <label class="full-span">
+            Example Blocks
+            <textarea id="pattern-examples" name="patternExamples" rows="16">label=bullish_reversal
+2024-01-01T00:00:00Z,100,101,99,100,1
+2024-01-01T00:01:00Z,100,101,97,98,1
+2024-01-01T00:02:00Z,98,102,97,101,1
+2024-01-01T00:03:00Z,101,105,100,104,1
+
+label=bullish_reversal
+2024-01-02T00:00:00Z,200,201,199,200,1
+2024-01-02T00:01:00Z,200,201,196,197,1
+2024-01-02T00:02:00Z,197,203,196,202,1
+2024-01-02T00:03:00Z,202,208,201,207,1</textarea>
+          </label>
+          <button id="train-pattern-button" type="submit">Train Preview</button>
+          <button id="save-pattern-button" type="button" disabled>Save Pattern Set</button>
+        </form>
+        <p id="pattern-message" class="message" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="card">
+        <div class="row-between">
+          <h2>Preview</h2>
+          <a id="pattern-detail-link" href="#" hidden>Open Detail</a>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Label</th>
+              <th>Lookback</th>
+              <th>Sample Size</th>
+              <th>Threshold</th>
+            </tr>
+          </thead>
+          <tbody id="pattern-preview-body"></tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <div class="row-between">
+          <h2>Saved Pattern Sets</h2>
+          <button id="refresh-patterns" type="button">Refresh</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Symbol</th>
+              <th>Patterns</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="pattern-sets-body"></tbody>
+        </table>
+      </section>
+    </main>
+
+    <script type="module" src="./src/pages/patternsPage.js"></script>
+  </body>
+</html>

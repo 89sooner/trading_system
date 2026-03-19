@@ -41,6 +41,7 @@ class BacktestResultDTO:
     summary: SummaryDTO
     equity_curve: list[EquityPointDTO]
     drawdown_curve: list[DrawdownPointDTO]
+    signals: list[EventDTO]
     orders: list[EventDTO]
     risk_rejections: list[EventDTO]
 
@@ -70,6 +71,7 @@ class BacktestResultDTO:
                 )
                 for point in analytics.drawdown_curve
             ],
+            signals=[_event_to_dto(_event_to_view_model(event)) for event in result.signal_events],
             orders=[_event_to_dto(event) for event in analytics.orders],
             risk_rejections=[_event_to_dto(event) for event in analytics.risk_rejections],
         )

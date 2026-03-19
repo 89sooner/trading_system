@@ -64,11 +64,19 @@ label {
 }
 
 input,
+select,
+textarea,
 button {
   border-radius: 0.4rem;
   border: 1px solid #cbd5e1;
   padding: 0.45rem 0.65rem;
   font-size: 0.95rem;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 7rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 button {
@@ -125,6 +133,10 @@ svg {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 0.6rem;
+}
+
+.full-span {
+  grid-column: 1 / -1;
 }
 
 .summary-item {

@@ -28,10 +28,12 @@ from trading_system.execution.broker import (
 )
 from trading_system.execution.kis_adapter import KisBrokerAdapter
 from trading_system.integrations.kis import KisApiClient
+from trading_system.patterns.repository import PatternSetRepository
 from trading_system.portfolio.book import PortfolioBook
 from trading_system.risk.limits import RiskLimits
 from trading_system.strategy.base import Strategy
-from trading_system.strategy.example import MomentumStrategy
+from trading_system.strategy.factory import build_strategy
+from trading_system.strategy.repository import StrategyProfileRepository
 
 
 @dataclass(slots=True)
@@ -116,6 +118,8 @@ def build_services(settings: AppSettings) -> AppServices:
     ensure_logging()
     logger = StructuredLogger("trading_system", log_format=StructuredLogFormat.JSON)
     kis_client = _build_kis_client_if_needed(settings)
+    pattern_repository = PatternSetRepository(_resolve_pattern_dir())
+    strategy_repository = StrategyProfileRepository(_resolve_strategy_dir())
 
     if settings.mode == AppMode.LIVE:
         _require_live_credentials(settings)
@@ -125,7 +129,11 @@ def build_services(settings: AppSettings) -> AppServices:
         provider=settings.provider,
         broker=settings.broker,
         live_execution=settings.live_execution,
-        strategy=MomentumStrategy(trade_quantity=settings.backtest.trade_quantity),
+        strategy=build_strategy(
+            settings,
+            pattern_repository=pattern_repository,
+            strategy_repository=strategy_repository,
+        ),
         data_provider=_build_data_provider(settings, kis_client=kis_client),
         risk_limits=RiskLimits(
             max_position=settings.risk.max_position,
@@ -244,3 +252,11 @@ def _resolve_kis_live_sample_size(settings: AppSettings) -> int:
         raise RuntimeError(
             "TRADING_SYSTEM_LIVE_BAR_SAMPLES must be an integer value greater than or equal to 2."
         ) from exc
+
+
+def _resolve_pattern_dir() -> Path:
+    return Path(os.getenv("TRADING_SYSTEM_PATTERN_DIR", "configs/patterns"))
+
+
+def _resolve_strategy_dir() -> Path:
+    return Path(os.getenv("TRADING_SYSTEM_STRATEGY_DIR", "configs/strategies"))

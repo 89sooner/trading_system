@@ -1,7 +1,8 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 
 from trading_system.core.compat import StrEnum
+from trading_system.strategy.base import SignalSide
 
 
 class AppMode(StrEnum):
@@ -34,6 +35,16 @@ class BacktestSettings:
 
 
 @dataclass(slots=True)
+class PatternSignalStrategySettings:
+    type: str = "pattern_signal"
+    profile_id: str | None = None
+    pattern_set_id: str | None = None
+    label_to_side: dict[str, SignalSide] = field(default_factory=dict)
+    trade_quantity: Decimal | None = None
+    threshold_overrides: dict[str, float] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
 class AppSettings:
     mode: AppMode
     symbols: tuple[str, ...]
@@ -42,6 +53,7 @@ class AppSettings:
     live_execution: LiveExecutionMode
     risk: RiskSettings
     backtest: BacktestSettings
+    strategy: PatternSignalStrategySettings | None = None
 
     @classmethod
     def from_cli(
@@ -86,6 +98,7 @@ class AppSettings:
                 fee_bps=_to_decimal(fee_bps, "fee_bps"),
                 trade_quantity=_to_decimal(trade_quantity, "trade_quantity"),
             ),
+            strategy=None,
         )
 
     def validate(self) -> None:
@@ -127,6 +140,38 @@ class AppSettings:
 
         if self.risk.max_order_size > self.risk.max_position:
             raise SettingsValidationError("--max-order-size cannot exceed --max-position.")
+
+        if self.strategy is None:
+            return
+
+        if self.strategy.type != "pattern_signal":
+            raise SettingsValidationError("strategy.type must be 'pattern_signal'.")
+
+        if self.strategy.profile_id is not None and self.strategy.profile_id.strip() == "":
+            raise SettingsValidationError("strategy.profile_id must be a non-empty string.")
+
+        if self.strategy.profile_id is None:
+            if self.strategy.pattern_set_id is None or not self.strategy.pattern_set_id.strip():
+                raise SettingsValidationError(
+                    "strategy.pattern_set_id is required when strategy.profile_id is not set."
+                )
+            if not self.strategy.label_to_side:
+                raise SettingsValidationError(
+                    "strategy.label_to_side must contain at least one pattern label mapping."
+                )
+
+        if self.strategy.trade_quantity is not None and self.strategy.trade_quantity <= 0:
+            raise SettingsValidationError("strategy.trade_quantity must be greater than 0.")
+
+        for label, threshold in self.strategy.threshold_overrides.items():
+            if not label.strip():
+                raise SettingsValidationError(
+                    "strategy.threshold_overrides keys must be non-empty labels."
+                )
+            if threshold < 0 or threshold > 1:
+                raise SettingsValidationError(
+                    "strategy.threshold_overrides values must be between 0 and 1."
+                )
 
 
 def _to_decimal(value: str, field_name: str) -> Decimal:

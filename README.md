@@ -346,11 +346,13 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
 ### 5.10 Frontend + backend local development / 프론트엔드 + 백엔드 로컬 개발
 
 ### EN
-The repository now includes a minimal static frontend under `frontend/` with three pages:
+The repository now includes a minimal static frontend under `frontend/` with five pages:
 
-- `frontend/index.html`: backtest run form (symbol/risk/fee inputs)
-- `frontend/runs.html`: run list and status refresh
-- `frontend/run.html?run_id=<id>`: result details with equity/drawdown time-series charts and fill/rejection event table
+- `frontend/index.html`: backtest run form with optional strategy profile selection
+- `frontend/patterns.html`: label-based pattern training, preview, and save flow
+- `frontend/pattern.html?pattern_set_id=<id>`: saved pattern set detail
+- `frontend/strategies.html`: strategy profile creation from saved pattern sets
+- `frontend/runs.html` and `frontend/run.html?run_id=<id>`: run list plus result details with equity/drawdown charts, strategy signals, and order/risk events
 
 Run backend and frontend together in two terminals:
 
@@ -374,14 +376,21 @@ Local development flow:
 
 1. Start backend API server.
 2. Start frontend static server.
-3. Submit a run from `index.html`.
-4. Check run status in `runs.html`.
-5. Inspect charts/events in `run.html?run_id=<id>`.
+3. Train and save a pattern set from `patterns.html`.
+4. Create a strategy profile from `strategies.html`.
+5. Submit a run from `index.html`.
+6. Check run status in `runs.html`.
+7. Inspect charts/events in `run.html?run_id=<id>`.
 
 API endpoint contract used by frontend client:
 
 - `POST /api/v1/backtests` → create run
 - `GET /api/v1/backtests/{run_id}` → fetch run status/result
+- `POST /api/v1/patterns/train` → train preview from labeled examples
+- `POST /api/v1/patterns` → save trained pattern set
+- `GET /api/v1/patterns` and `GET /api/v1/patterns/{pattern_set_id}` → list/detail pattern sets
+- `POST /api/v1/strategies` → save strategy profile
+- `GET /api/v1/strategies` and `GET /api/v1/strategies/{strategy_id}` → list/detail strategy profiles
 
 Frontend error handling is separated by path:
 
@@ -390,11 +399,13 @@ Frontend error handling is separated by path:
 - 5xx failure: runtime/internal server issue
 
 ### KO
-저장소에는 `frontend/` 경로에 최소 정적 프론트엔드가 포함되어 있으며, 다음 3개 페이지를 제공합니다.
+저장소에는 `frontend/` 경로에 최소 정적 프론트엔드가 포함되어 있으며, 이제 다음 5개 페이지를 제공합니다.
 
-- `frontend/index.html`: 백테스트 실행 폼 (심볼/리스크/수수료 입력)
-- `frontend/runs.html`: 실행 목록 및 상태 갱신
-- `frontend/run.html?run_id=<id>`: Equity/Drawdown 시계열 차트 + 체결/거절 이벤트 테이블 상세
+- `frontend/index.html`: 전략 프로필 선택을 포함한 백테스트 실행 폼
+- `frontend/patterns.html`: 라벨 기반 패턴 학습, 미리보기, 저장 화면
+- `frontend/pattern.html?pattern_set_id=<id>`: 저장된 패턴셋 상세
+- `frontend/strategies.html`: 저장된 패턴셋 기반 전략 프로필 생성 화면
+- `frontend/runs.html` 및 `frontend/run.html?run_id=<id>`: 실행 목록과 Equity/Drawdown 차트, 전략 신호, 주문/리스크 이벤트 상세
 
 백엔드와 프론트를 각각 다른 터미널에서 실행하세요:
 
@@ -418,14 +429,21 @@ http://127.0.0.1:9000/api/v1
 
 1. 백엔드 API 서버 실행
 2. 프론트 정적 서버 실행
-3. `index.html`에서 실행 요청 제출
-4. `runs.html`에서 상태 확인
-5. `run.html?run_id=<id>`에서 차트/이벤트 상세 확인
+3. `patterns.html`에서 패턴셋 학습 및 저장
+4. `strategies.html`에서 전략 프로필 생성
+5. `index.html`에서 실행 요청 제출
+6. `runs.html`에서 상태 확인
+7. `run.html?run_id=<id>`에서 차트/이벤트 상세 확인
 
 프론트 클라이언트가 사용하는 API 계약:
 
 - `POST /api/v1/backtests` → 실행 생성
 - `GET /api/v1/backtests/{run_id}` → 실행 상태/결과 조회
+- `POST /api/v1/patterns/train` → 라벨 예시 기반 패턴 학습 미리보기
+- `POST /api/v1/patterns` → 학습된 패턴셋 저장
+- `GET /api/v1/patterns`, `GET /api/v1/patterns/{pattern_set_id}` → 패턴셋 목록/상세 조회
+- `POST /api/v1/strategies` → 전략 프로필 저장
+- `GET /api/v1/strategies`, `GET /api/v1/strategies/{strategy_id}` → 전략 프로필 목록/상세 조회
 
 프론트 오류 메시지는 다음 경로로 구분해 표시합니다.
 

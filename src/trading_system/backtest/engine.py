@@ -38,6 +38,7 @@ class BacktestResult:
     processed_bars: int
     executed_trades: int
     rejected_signals: int
+    signal_events: list[dict[str, Any]]
     orders: list[dict[str, Any]]
     risk_rejections: list[dict[str, Any]]
 
@@ -57,12 +58,23 @@ def run_backtest(
     executed_trades = 0
     rejected_signals = 0
     last_prices: dict[str, Decimal] = {}
+    signal_events: list[dict[str, Any]] = []
     orders: list[dict[str, Any]] = []
     risk_rejections: list[dict[str, Any]] = []
 
     for bar in bars:
         processed_bars += 1
         signal = strategy.evaluate(bar)
+        if signal.side.value != "hold":
+            signal_payload = {
+                "symbol": bar.symbol,
+                "strategy": strategy.name,
+                "side": signal.side.value,
+                "quantity": signal.quantity,
+                "reason": signal.reason,
+            }
+            _emit_event(context.logger, "strategy.signal", signal_payload)
+            _record_event(signal_events, "strategy.signal", signal_payload)
         order = signal_to_order_request(bar.symbol, signal)
 
         if order is not None:
@@ -184,6 +196,7 @@ def run_backtest(
         processed_bars=processed_bars,
         executed_trades=executed_trades,
         rejected_signals=rejected_signals,
+        signal_events=signal_events,
         orders=orders,
         risk_rejections=risk_rejections,
     )
