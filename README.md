@@ -179,6 +179,7 @@ uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode liv
 ```bash
 TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
 TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true \
+TRADING_SYSTEM_LIVE_BAR_SAMPLES=2 \
 TRADING_SYSTEM_KIS_ENV=prod \
 TRADING_SYSTEM_KIS_MARKET_DIV=J \
 TRADING_SYSTEM_KIS_APP_KEY=your-app-key \
@@ -232,6 +233,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
 ```
 
 Validation failures are returned as 4xx (`settings_validation_error` or `invalid_*`), and runtime failures are returned as a structured 5xx body (`runtime_error` or `internal_server_error`). Authentication failures return `auth_invalid_api_key`, and excessive traffic returns `rate_limit_exceeded`.
+The same endpoint accepts `live_execution=live` when KIS runtime guards are satisfied.
 
 Visualization response example (fixed schema):
 
@@ -304,6 +306,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
 ```
 
 입력 검증 실패는 4xx(`settings_validation_error` 또는 `invalid_*`)로, 실행 중 오류는 구조화된 5xx(`runtime_error` 또는 `internal_server_error`)로 반환합니다. 인증 실패는 `auth_invalid_api_key`, 과도한 요청은 `rate_limit_exceeded`로 반환됩니다.
+동일 엔드포인트에서 KIS 가드 조건을 만족하면 `live_execution=live`도 허용됩니다.
 
 시각화 응답 예시(고정 스키마):
 
@@ -507,6 +510,7 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_TIMEZONE`: operator timezone (`Asia/Seoul`, ...)
 - `TRADING_SYSTEM_API_KEY`: credential for live adapter preflight
 - `TRADING_SYSTEM_ENABLE_LIVE_ORDERS` (optional): set to `true` to allow `--live-execution live` order submission
+- `TRADING_SYSTEM_LIVE_BAR_SAMPLES` (optional): KIS live sampling size for one execution cycle (`2` default when `--live-execution live`)
 - `TRADING_SYSTEM_KIS_ENV` (optional): KIS environment selector (`prod` default, `mock` available)
 - `TRADING_SYSTEM_KIS_APP_KEY` / `TRADING_SYSTEM_KIS_APP_SECRET`: KIS Open API app credentials
 - `TRADING_SYSTEM_KIS_CANO` / `TRADING_SYSTEM_KIS_ACNT_PRDT_CD`: KIS account number and product code
@@ -523,6 +527,7 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_TIMEZONE`: 운영 타임존 (`Asia/Seoul` 등)
 - `TRADING_SYSTEM_API_KEY`: 라이브 어댑터 프리플라이트용 인증 정보
 - `TRADING_SYSTEM_ENABLE_LIVE_ORDERS` (선택): `--live-execution live` 실주문 허용 시 `true`로 설정
+- `TRADING_SYSTEM_LIVE_BAR_SAMPLES` (선택): `--live-execution live` 실행 1회당 KIS 시세 샘플 수 (기본값 `2`)
 - `TRADING_SYSTEM_KIS_ENV` (선택): 한국투자 Open API 환경 선택 (`prod` 기본값, `mock` 가능)
 - `TRADING_SYSTEM_KIS_APP_KEY` / `TRADING_SYSTEM_KIS_APP_SECRET`: 한국투자 Open API 앱 인증정보
 - `TRADING_SYSTEM_KIS_CANO` / `TRADING_SYSTEM_KIS_ACNT_PRDT_CD`: 한국투자 계좌번호와 상품코드
@@ -629,13 +634,13 @@ settings = load_settings("configs/base.yaml")
 ## 12) Operational cautions / 운영 시 주의사항
 
 ### EN
-1. **Live order submission is opt-in and KIS-only**: `live` mode defaults to preflight, supports paper simulation with `--live-execution paper`, and only allows real order submission when `--provider kis --broker kis --live-execution live` and `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true` are set.
+1. **Live order submission is opt-in and KIS-only**: `live` mode defaults to preflight, supports paper simulation with `--live-execution paper`, and only allows real order submission when `--provider kis --broker kis --live-execution live` and `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true` are set. One execution cycle samples KIS quotes using `TRADING_SYSTEM_LIVE_BAR_SAMPLES` (default `2`).
 2. **Secret handling**: inject credentials via environment/secret manager only.
 3. **Current scaffold limitation**: app composition currently focuses on a single-symbol runtime path for simplicity/safety.
 4. **Determinism first**: any backtest logic change should ship with deterministic regression tests.
 
 ### KO
-1. **실주문은 명시적 활성화 + KIS 전용**: `live` 모드는 기본 preflight이며, `--live-execution paper`로 페이퍼 실행이 가능하고, `--provider kis --broker kis --live-execution live` + `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true` 조합일 때만 실주문을 허용합니다.
+1. **실주문은 명시적 활성화 + KIS 전용**: `live` 모드는 기본 preflight이며, `--live-execution paper`로 페이퍼 실행이 가능하고, `--provider kis --broker kis --live-execution live` + `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true` 조합일 때만 실주문을 허용합니다. 실행 1회당 KIS 시세 샘플 수는 `TRADING_SYSTEM_LIVE_BAR_SAMPLES`(기본 `2`)로 제어합니다.
 2. **시크릿 관리**: 인증정보는 환경변수/시크릿 매니저로만 주입하세요.
 3. **현재 스캐폴드 제약**: 단순성과 안전성을 위해 앱 조립 경로는 단일 심볼 중심입니다.
 4. **결정성 우선**: 백테스트 로직 변경 시 결정성 회귀 테스트를 함께 추가하세요.
@@ -697,6 +702,7 @@ uv run --python .venv/bin/python --no-sync -m trading_system.patterns.example
 2. **라이브 실행(preflight/paper/live) 지원**
    - `--mode live`는 기본적으로 preflight를 수행하며, `--live-execution paper`로 페이퍼 실행 루프를 수행합니다.
    - 실주문은 `--provider kis --broker kis --live-execution live` + `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true` 조합에서만 허용됩니다.
+   - 실주문 실행 1회당 시세 샘플 수는 `TRADING_SYSTEM_LIVE_BAR_SAMPLES`(기본 `2`)로 제어합니다.
 
 3. **시장 데이터 공급 선택**
    - `mock` 인메모리 데이터(테스트/스모크용)
@@ -790,6 +796,7 @@ uv run --python .venv/bin/python --no-sync -m trading_system.patterns.example
 1. **실주문은 명시적 활성화**
    - 현재 `live`는 기본 preflight이며, `--live-execution paper`로 페이퍼 실행이 가능합니다.
    - 실주문은 `--provider kis --broker kis --live-execution live`와 `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true`를 함께 지정해야 동작합니다.
+   - 실행 1회당 시세 샘플 수는 `TRADING_SYSTEM_LIVE_BAR_SAMPLES`(기본 `2`)로 제어합니다.
 
 2. **시크릿 관리**
    - API 키는 반드시 환경변수/시크릿 매니저로 주입하고 코드/로그에 직접 남기지 마세요.

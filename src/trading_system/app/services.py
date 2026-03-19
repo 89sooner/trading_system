@@ -162,7 +162,10 @@ def _build_data_provider(
     if settings.provider == "kis":
         if kis_client is None:
             raise RuntimeError("KIS provider requires KIS API credentials.")
-        return KisQuoteMarketDataProvider(client=kis_client)
+        return KisQuoteMarketDataProvider(
+            client=kis_client,
+            bars_per_load=_resolve_kis_live_sample_size(settings),
+        )
 
     csv_dir = Path(os.getenv("TRADING_SYSTEM_CSV_DIR", "data/market"))
     csv_by_symbol: dict[str, Path] = {}
@@ -182,6 +185,8 @@ def _build_data_provider(
         )
 
     return CsvMarketDataProvider(csv_by_symbol=csv_by_symbol)
+
+
 def _build_broker(
     settings: AppSettings,
     *,
@@ -226,3 +231,16 @@ def _build_live_preflight(
 
 def _is_live_orders_enabled() -> bool:
     return os.getenv("TRADING_SYSTEM_ENABLE_LIVE_ORDERS", "").strip().lower() == "true"
+
+
+def _resolve_kis_live_sample_size(settings: AppSettings) -> int:
+    if settings.mode != AppMode.LIVE or settings.live_execution != LiveExecutionMode.LIVE:
+        return 1
+
+    configured = os.getenv("TRADING_SYSTEM_LIVE_BAR_SAMPLES", "2").strip()
+    try:
+        return max(int(configured), 2)
+    except ValueError as exc:
+        raise RuntimeError(
+            "TRADING_SYSTEM_LIVE_BAR_SAMPLES must be an integer value greater than or equal to 2."
+        ) from exc
