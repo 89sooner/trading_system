@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 
 from trading_system.api.errors import RequestValidationError
 from trading_system.api.routes.backtest import router as backtest_router
+from trading_system.api.routes.dashboard import router as dashboard_router
 from trading_system.api.routes.patterns import router as patterns_router
 from trading_system.api.routes.strategies import router as strategies_router
 from trading_system.api.schemas import ErrorResponseDTO
@@ -11,11 +12,15 @@ from trading_system.app.settings import SettingsValidationError as AppSettingsVa
 from trading_system.config.settings import SettingsValidationError as ConfigSettingsValidationError
 
 
-def create_app() -> FastAPI:
+def create_app(live_loop=None) -> FastAPI:
     app = FastAPI(title="trading_system API", version="1.0.0")
     app.include_router(backtest_router)
     app.include_router(patterns_router)
     app.include_router(strategies_router)
+    app.include_router(dashboard_router)
+
+    # Make the live loop (if any) accessible from dashboard route dependencies
+    app.state.live_loop = live_loop
 
     security_settings = SecuritySettings.from_env()
     app.middleware("http")(build_security_middleware(security_settings))

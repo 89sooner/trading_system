@@ -13,9 +13,10 @@ from trading_system.core.ops import (
 from trading_system.core.types import MarketBar
 from trading_system.execution.adapters import signal_to_order_request
 from trading_system.execution.broker import BrokerSimulator
-from trading_system.execution.orders import OrderSide
+from trading_system.execution.orders import OrderRequest, OrderSide
 from trading_system.portfolio.book import PortfolioBook
 from trading_system.risk.limits import RiskLimits
+from trading_system.risk.portfolio_limits import PortfolioRiskLimits
 from trading_system.strategy.base import Strategy
 
 
@@ -25,6 +26,7 @@ class TradingContext:
     risk_limits: RiskLimits
     broker: BrokerSimulator
     logger: StructuredLogger | None = None
+    portfolio_risk: PortfolioRiskLimits | None = None
 
 
 @dataclass(slots=True)
@@ -38,7 +40,24 @@ class StepEvents:
 
 def execute_trading_step(bar: MarketBar, strategy: Strategy, context: TradingContext) -> StepEvents:
     events = StepEvents()
-    
+
+    # --- Portfolio-level drawdown guard --------------------------------
+    if context.portfolio_risk is not None:
+        total_realized = sum(context.portfolio.realized_pnl.values(), start=Decimal("0"))
+        current_equity = context.portfolio.cash + total_realized
+        context.portfolio_risk.update_peak(current_equity)
+        if context.portfolio_risk.is_daily_limit_breached(current_equity):
+            _emit_event(
+                context.logger,
+                "risk.daily_limit_breached",
+                {
+                    "symbol": bar.symbol,
+                    "current_equity": str(current_equity),
+                    "session_peak": str(context.portfolio_risk.session_peak_equity),
+                },
+            )
+            return events
+
     signal = strategy.evaluate(bar)
     if signal.side.value != "hold":
         # Convert quantity to string to ensure stable JSON emission
@@ -109,7 +128,53 @@ def execute_trading_step(bar: MarketBar, strategy: Strategy, context: TradingCon
         )
         _emit_event(context.logger, "risk.rejected", events.risk_rejected)
 
+    # --- SL/TP auto-close ------------------------------------------------
+    if context.portfolio_risk is not None:
+        _check_sl_tp(bar, context)
+
     return events
+
+
+def _check_sl_tp(bar: MarketBar, context: TradingContext) -> None:
+    """Auto-close long positions that have hit SL or TP thresholds."""
+    pr = context.portfolio_risk
+    if pr is None:
+        return
+    for symbol, qty in list(context.portfolio.positions.items()):
+        if symbol != bar.symbol or qty <= Decimal("0"):
+            continue
+        avg_cost = context.portfolio.average_costs.get(symbol, Decimal("0"))
+        sl_hit = pr.sl_triggered(avg_cost, bar.close, qty)
+        tp_hit = pr.tp_triggered(avg_cost, bar.close, qty)
+        if not (sl_hit or tp_hit):
+            continue
+        reason = "sl_triggered" if sl_hit else "tp_triggered"
+        close_order = OrderRequest(symbol=symbol, side=OrderSide.SELL, quantity=abs(qty))
+        _emit_event(
+            context.logger,
+            f"risk.{reason}",
+            {"symbol": symbol, "avg_cost": str(avg_cost), "mark": str(bar.close)},
+        )
+        fill = context.broker.submit_order(close_order, bar)
+        if fill.filled_quantity > 0:
+            context.portfolio.apply_fill(
+                fill.symbol, fill.signed_quantity, fill.fill_price, fee=fill.fee
+            )
+            _emit_event(
+                context.logger,
+                "order.filled",
+                event_payload(
+                    OrderFilledEvent(
+                        symbol=fill.symbol,
+                        side=fill.side.value,
+                        requested_quantity=fill.requested_quantity,
+                        filled_quantity=fill.filled_quantity,
+                        fill_price=fill.fill_price,
+                        fee=fill.fee,
+                        status=fill.status.value,
+                    )
+                ),
+            )
 
 
 def _emit_event(

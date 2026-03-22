@@ -81,7 +81,6 @@ class AppServices:
         if self.mode != AppMode.LIVE:
             raise RuntimeError(f"Unsupported mode '{self.mode}'.")
 
-        # Note: LiveTradingLoop will grab the single symbol from self.symbols
         loop = LiveTradingLoop(services=self)
         loop.run()
 

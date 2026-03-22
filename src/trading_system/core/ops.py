@@ -5,6 +5,7 @@ import logging
 import os
 import time
 import uuid
+from collections import deque
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass
@@ -103,6 +104,8 @@ class ExceptionEvent:
 
 
 class StructuredLogger:
+    _EVENT_BUFFER_MAX = 500
+
     def __init__(
         self,
         name: str,
@@ -110,6 +113,7 @@ class StructuredLogger:
     ) -> None:
         self._logger = logging.getLogger(name)
         self._format = log_format
+        self._event_buffer: deque[EventRecord] = deque(maxlen=self._EVENT_BUFFER_MAX)
 
     def emit(self, event: str, severity: int, payload: dict[str, Any]) -> None:
         correlation_id = get_or_create_correlation_id()
@@ -120,7 +124,13 @@ class StructuredLogger:
             timestamp=datetime.now(tz=UTC).isoformat(),
             payload=redact_payload(payload),
         )
+        self._event_buffer.append(record)
         self._logger.log(severity, self._serialize(record))
+
+    def recent_events(self, limit: int = 50) -> list[EventRecord]:
+        """Return the most recent *limit* events from the ring buffer."""
+        items = list(self._event_buffer)
+        return items[-limit:] if len(items) > limit else items
 
     def _serialize(self, record: EventRecord) -> str:
         if self._format == StructuredLogFormat.KEY_VALUE:

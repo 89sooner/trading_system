@@ -33,9 +33,11 @@ class LiveTradingLoop:
     )
     state: AppRunnerState = field(default=AppRunnerState.INIT, init=False)
     _last_heartbeat: datetime | None = field(default=None, init=False)
-    _last_processed_timestamp: datetime | None = field(default=None, init=False)
+    _last_processed_timestamps: dict[str, datetime] = field(default_factory=dict, init=False)
+    _started_at: datetime | None = field(default=None, init=False)
 
     def run(self) -> None:
+        self._started_at = datetime.now(UTC)
         self.state = AppRunnerState.RUNNING
         self.services.logger.emit("system.live_loop.start", severity=20, payload={
             "poll_interval": self.poll_interval,
@@ -100,20 +102,19 @@ class LiveTradingLoop:
             self._last_heartbeat = now
 
     def _run_tick(self, context: TradingContext) -> None:
-        symbol = self.services.symbols[0]  # Currently single symbol logic
-        bars = list(self.services.data_provider.load_bars(symbol))
-        
         processed_any = False
-        for bar in bars:
-            if (
-                self._last_processed_timestamp is not None
-                and bar.timestamp <= self._last_processed_timestamp
-            ):
-                continue
-                
-            execute_trading_step(bar=bar, strategy=self.services.strategy, context=context)
-            self._last_processed_timestamp = bar.timestamp
-            processed_any = True
-            
+        for symbol in self.services.symbols:
+            bars = list(self.services.data_provider.load_bars(symbol))
+            last_ts = self._last_processed_timestamps.get(symbol)
+
+            for bar in bars:
+                if last_ts is not None and bar.timestamp <= last_ts:
+                    continue
+
+                execute_trading_step(bar=bar, strategy=self.services.strategy, context=context)
+                self._last_processed_timestamps[symbol] = bar.timestamp
+                last_ts = bar.timestamp
+                processed_any = True
+
         if processed_any and self.services.portfolio_repository is not None:
             self.services.portfolio_repository.save(self.services.portfolio)

@@ -162,3 +162,48 @@ class StrategyProfileDTO(BaseModel):
     strategy_id: str
     name: str
     strategy: StrategyConfigDTO
+
+
+# ---------------------------------------------------------------------------
+# Dashboard DTOs
+# ---------------------------------------------------------------------------
+
+
+class DashboardStatusDTO(BaseModel):
+    state: str
+    last_heartbeat: str | None
+    uptime_seconds: float | None
+
+
+class PositionDTO(BaseModel):
+    symbol: str
+    quantity: str
+    average_cost: str
+    unrealized_pnl: str | None = None
+
+
+class PositionsResponseDTO(BaseModel):
+    positions: list[PositionDTO]
+    cash: str
+
+
+class EventRecordDTO(BaseModel):
+    event: str
+    severity: str
+    correlation_id: str
+    timestamp: str
+    payload: dict
+
+
+class EventFeedDTO(BaseModel):
+    events: list[EventRecordDTO]
+    total: int
+
+
+class ControlActionDTO(BaseModel):
+    action: Literal["pause", "resume", "stop"]
+
+
+class ControlResponseDTO(BaseModel):
+    status: Literal["ok"]
+    state: str
