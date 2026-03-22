@@ -10,6 +10,7 @@ This repository is a Python trading-system workspace.
 - Prefer small, explicit modules over large utility files.
 - Preserve deterministic behavior in backtest code. Any time-dependent logic must be injected or configurable.
 - Treat strategy, risk, execution, and analytics as separate layers. Do not couple them directly when an interface will do.
+- Maintain a unified execution path (`step.py`) across backtesting and live environments to ensure behavioral parity.
 - When changing trading logic, update or add tests in the same change.
 - When changing configuration shape, update `configs/`, `examples/`, and `README.md` together.
 

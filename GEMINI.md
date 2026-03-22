@@ -34,7 +34,9 @@
     -   `app/main.py`: The command-line interface (CLI) entry point for running the trading engine.
     -   `api/server.py`: The FastAPI application factory, which sets up middleware, exception handlers, and API routes.
     -   `config/settings.py`: Defines the typed data structures for loading and validating application settings from YAML files and environment variables.
+    -   `app/loop.py`: Contains `LiveTradingLoop` for continuous paper/live trading with graceful shutdown.
     -   `backtest/engine.py`: Contains the core logic for orchestrating deterministic backtests.
+    -   `execution/step.py`: The unified execution core shared by both backtest and live engines.
 -   `frontend/`: Contains the static web interface (HTML, JS, CSS).
     -   `index.html`: The main page for creating new backtest runs.
     -   `src/api/client.js`: The JavaScript client for making requests to the backend API.
@@ -49,7 +51,9 @@
     -   `app/main.py`: 트레이딩 엔진을 실행하기 위한 커맨드 라인 인터페이스(CLI) 진입점입니다.
     -   `api/server.py`: 미들웨어, 예외 처리기, API 라우트를 설정하는 FastAPI 애플리케이션 팩토리입니다.
     -   `config/settings.py`: YAML 파일과 환경 변수로부터 애플리케이션 설정을 로드하고 검증하기 위한 타입이 지정된 데이터 구조를 정의합니다.
+    -   `app/loop.py`: 안전한 종료 기능을 갖춘 연속적인 페이퍼/라이브 트레이딩을 위한 `LiveTradingLoop`를 포함합니다.
     -   `backtest/engine.py`: 결정적 백테스트를 조율하기 위한 핵심 로직을 포함합니다.
+    -   `execution/step.py`: 백테스트와 라이브 엔진 모두가 공유하는 통합 핵심 실행 로직입니다.
 -   `frontend/`: 정적 웹 인터페이스(HTML, JS, CSS)를 포함합니다.
     -   `index.html`: 새로운 백테스트 실행을 생성하기 위한 메인 페이지입니다.
     -   `src/api/client.js`: 백엔드 API에 요청을 보내기 위한 JavaScript 클라이언트입니다.

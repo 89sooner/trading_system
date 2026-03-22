@@ -21,4 +21,6 @@ Suggested flow:
 
 Current implementation note:
 
-- The repository now includes a deterministic v1 backtest loop that evaluates bars sequentially, applies allowed signals at the current bar close, charges configured fees, and records an equity curve for analytics.
+- The repository orchestrates both deterministic backtests and continuous live trading loops through a unified execution core (`execute_trading_step`).
+- Live trading is managed by `LiveTradingLoop` with state control (`AppRunnerState`), heartbeat logging, and graceful shutdown.
+- Portfolio manages local persistence (`book.json`) for seamless restart-safe operations across live sessions.

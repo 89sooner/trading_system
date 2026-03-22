@@ -676,16 +676,16 @@ settings = load_settings("configs/base.yaml")
 ## 13) Suggested next roadmap / 다음 확장 로드맵 제안
 
 ### EN
-1. Add real market-data adapter and broker adapter behind existing interfaces.
-2. Introduce paper/live runtime loop with heartbeat and explicit state transitions.
-3. Add persistence/recovery for restart-safe operation.
-4. Expand risk and analytics (portfolio-level controls, drawdown/trade stats).
+1. **Real-time Live Dashboard:** Extend the frontend to monitor the continuous live trading loop, heartbeat, and active positions in real-time.
+2. **Advanced Risk & Analytics:** Implement portfolio-level drawdown controls, real-time stop-loss/take-profit, and detailed trade-level statistics.
+3. **Multi-symbol Orchestration:** Extend the backtest and live engines to handle multiple tickers efficiently under a shared portfolio configuration.
+4. **Exchange Reconciliation:** Synchronize `PortfolioBook` directly from KIS or other exchange balances, automatically adjusting for external deposits or withdrawals.
 
 ### KO
-1. 기존 인터페이스 뒤에 실데이터/실브로커 어댑터를 추가합니다.
-2. heartbeat 및 명시적 상태전이를 갖춘 paper/live 런타임 루프를 도입합니다.
-3. 재시작 안전성을 위한 영속화/복구 체계를 추가합니다.
-4. 포트폴리오 레벨 리스크 및 드로우다운/트레이드 통계 등 분석 지표를 확장합니다.
+1. **실시간 라이브 대시보드:** 프론트엔드를 확장하여 연속 라이브 트레이딩 루프의 상태(heartbeat)와 활성 포지션을 실시간으로 모니터링합니다.
+2. **고급 리스크 및 분석:** 포트폴리오 레벨의 최대 손실폭(Drawdown) 제한, 실시간 손절/익절(SL/TP) 기능, 상세 트레이드 통계를 구현합니다.
+3. **다중 심볼 오케스트레이션:** 단일 포트폴리오 자산을 공유하여 여러 종목을 동시에 효율적으로 처리할 수 있도록 엔진을 확장합니다.
+4. **거래소 잔고 대사(Reconciliation):** KIS 등 실제 거래소의 잔고를 조회하여 `PortfolioBook`과 직접 동기화하고, 외부 입출금을 자동 반영합니다.
 
 ---
 
