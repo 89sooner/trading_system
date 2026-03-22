@@ -33,8 +33,10 @@ class FilePortfolioRepository:
         }
         
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("w", encoding="utf-8") as f:
+        temp_path = self.path.with_suffix(".tmp")
+        with temp_path.open("w", encoding="utf-8") as f:
             json.dump(serializable_dict, f, indent=2)
+        temp_path.replace(self.path)
 
     def load(self) -> PortfolioBook | None:
         if not self.path.exists():

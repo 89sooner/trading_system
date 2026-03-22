@@ -21,6 +21,11 @@ def test_cli_live_mode_runs_preflight_when_api_key_is_present(capsys, monkeypatc
 
 def test_cli_live_mode_runs_paper_loop_when_requested(capsys, monkeypatch) -> None:
     monkeypatch.setenv("TRADING_SYSTEM_API_KEY", "dummy-key")
+    
+    import time
+    def mock_sleep(_):
+        raise KeyboardInterrupt()
+    monkeypatch.setattr(time, "sleep", mock_sleep)
 
     exit_code = run(
         [
@@ -36,7 +41,6 @@ def test_cli_live_mode_runs_paper_loop_when_requested(capsys, monkeypatch) -> No
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "Live mode preflight passed" in captured.out
-    assert "Smoke backtest result" in captured.out
 
 
 def test_cli_live_mode_fails_when_api_key_is_missing(capsys, monkeypatch) -> None:

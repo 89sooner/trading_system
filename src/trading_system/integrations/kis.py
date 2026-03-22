@@ -245,7 +245,9 @@ class KisApiClient:
             "ORD_UNPR": str(order.limit_price or Decimal("0")),
         }
 
-    def _parse_order_response(self, *, order: OrderRequest, response: HttpResponse) -> KisOrderResult:
+    def _parse_order_response(
+        self, *, order: OrderRequest, response: HttpResponse
+    ) -> KisOrderResult:
         result_code = str(response.body.get("rt_cd", ""))
         message = str(response.body.get("msg1", "unknown error"))
         if response.status_code >= 400:

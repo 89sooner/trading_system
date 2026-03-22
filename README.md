@@ -459,7 +459,7 @@ http://127.0.0.1:9000/api/v1
 This repository is not a fully live-trading product yet. It is a deterministic, test-centered platform that can:
 
 1. Execute end-to-end backtests through CLI.
-2. Run live-mode preflight checks (default), an explicit paper loop (`--live-execution paper`), or KIS-only live execution (`--live-execution live` + `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true`).
+2. Run live-mode loop (preflight, paper, or real execution) with configuring polling and heartbeat.
 3. Load market data via in-memory provider (`mock`) or CSV provider (`csv`).
 4. Enforce risk limits (`max_position`, `max_notional`, `max_order_size`).
 5. Simulate fills via fill ratio, slippage (bps), and commission (bps).
@@ -472,7 +472,7 @@ This repository is not a fully live-trading product yet. It is a deterministic, 
 이 저장소는 아직 “완전한 실주문 시스템”은 아니며, 결정성과 테스트 중심의 플랫폼으로 다음을 수행할 수 있습니다.
 
 1. CLI 기반 end-to-end 백테스트 실행.
-2. 라이브 프리플라이트(기본), 명시적 페이퍼 실행 루프(`--live-execution paper`), 또는 KIS 전용 실주문 실행(`--live-execution live` + `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true`) 수행.
+2. 안정적인 무한 루프 기반 라이브 실행 (preflight, 페이퍼 시뮬레이션, KIS 실주문 모드 지원).
 3. 인메모리(`mock`) 또는 CSV(`csv`) 데이터 공급자 사용.
 4. 리스크 제한(`max_position`, `max_notional`, `max_order_size`) 적용.
 5. 체결 비율/슬리피지(bps)/수수료(bps) 기반 체결 시뮬레이션.
@@ -542,6 +542,8 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS` / `TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS` (optional): simple per-path rate limit
 - `TRADING_SYSTEM_CSV_DIR` (optional): CSV directory for `--provider csv` (default: `data/market`)
 - `TRADING_SYSTEM_PORTFOLIO_DIR` (optional): Directory where the portfolio book JSON is persisted (default: `data/portfolio`)
+- `TRADING_SYSTEM_LIVE_POLL_INTERVAL` (optional): Seconds to wait between live ticks (default: `10`)
+- `TRADING_SYSTEM_HEARTBEAT_INTERVAL` (optional): Seconds between heartbeat logs (default: `60`)
 
 ### KO
 - `TRADING_SYSTEM_ENV`: 런타임 환경 라벨 (`local`, `staging`, `prod` 등)
@@ -560,6 +562,8 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS` / `TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS` (선택): 경로 단위 단순 요청 제한
 - `TRADING_SYSTEM_CSV_DIR` (선택): `--provider csv`용 CSV 디렉터리 (기본값: `data/market`)
 - `TRADING_SYSTEM_PORTFOLIO_DIR` (선택): 포트폴리오 상태(JSON)가 영속화되는 디렉터리 (기본값: `data/portfolio`)
+- `TRADING_SYSTEM_LIVE_POLL_INTERVAL` (선택): 라이브 루프에서 시세를 받아오는 간격 초 단위 (기본값: `10`)
+- `TRADING_SYSTEM_HEARTBEAT_INTERVAL` (선택): 하트비트 로그 기록 간격 (기본값: `60`)
 
 ---
 

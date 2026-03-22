@@ -82,10 +82,13 @@ def test_live_mode_paper_execution_runs_without_order_submission_error(monkeypat
     )
     settings.validate()
 
-    services = build_services(settings)
-    result = services.run_live_paper()
+    import time
+    def mock_sleep(_):
+        raise KeyboardInterrupt()
+    monkeypatch.setattr(time, "sleep", mock_sleep)
 
-    assert result.processed_bars > 0
+    services = build_services(settings)
+    services.run_live_paper()
 
 
 def test_live_mode_kis_preflight_uses_kis_quote(monkeypatch) -> None:
@@ -193,10 +196,13 @@ def test_live_execution_runs_when_opted_in(monkeypatch) -> None:
     )
     settings.validate()
 
-    services = build_services(settings)
-    result = services.run_live_execution()
+    import time
+    def mock_sleep(_):
+        raise KeyboardInterrupt()
+    monkeypatch.setattr(time, "sleep", mock_sleep)
 
-    assert result.processed_bars == 2
+    services = build_services(settings)
+    services.run_live_execution()
 
 
 def test_live_execution_can_submit_order_with_moving_quotes(monkeypatch) -> None:
@@ -223,12 +229,15 @@ def test_live_execution_can_submit_order_with_moving_quotes(monkeypatch) -> None
     )
     settings.validate()
 
+    import time
+    def mock_sleep(_):
+        raise KeyboardInterrupt()
+    monkeypatch.setattr(time, "sleep", mock_sleep)
+
     services = build_services(settings)
-    result = services.run_live_execution()
+    services.run_live_execution()
 
     assert client.order_requests == 1
-    assert result.executed_trades == 1
-    assert result.processed_bars == 2
 
 
 def test_live_execution_rejects_invalid_live_sample_env(monkeypatch) -> None:
@@ -274,14 +283,20 @@ class _MovingQuoteKisClient:
     def __init__(self) -> None:
         self._price_sequence = iter([Decimal("70200"), Decimal("70300")])
         self.order_requests = 0
+        self.preflight_calls = 0
 
     def preflight_symbol(self, symbol: str):
+        from datetime import timedelta
+        self.preflight_calls += 1
+        current_time = datetime(2024, 1, 2, tzinfo=timezone.utc) + timedelta(
+            seconds=self.preflight_calls
+        )
         class Quote:
             def __init__(self, quote_symbol: str, price: Decimal) -> None:
                 self.symbol = quote_symbol
                 self.price = price
                 self.volume = Decimal("1500")
-                self.as_of = datetime(2024, 1, 2, tzinfo=timezone.utc)
+                self.as_of = current_time
 
         return Quote(symbol, next(self._price_sequence))
 
