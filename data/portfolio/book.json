@@ -1,0 +1,19 @@
+{
+  "cash": "-130693.83375",
+  "positions": {
+    "BTCUSDT": "0.9",
+    "005930": "2"
+  },
+  "average_costs": {
+    "BTCUSDT": "102.672164036658136296200000",
+    "005930": "70300"
+  },
+  "realized_pnl": {
+    "BTCUSDT": "-1.09505236700767733342000002"
+  },
+  "fees_paid": {
+    "BTCUSDT": "0.33375",
+    "005930": "0"
+  },
+  "keep_flat_positions": false
+}
