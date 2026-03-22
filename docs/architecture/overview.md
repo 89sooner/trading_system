@@ -6,7 +6,7 @@ The starter architecture is intentionally split into explicit layers.
 - `strategy`: signal generation and strategy contracts
 - `risk`: position and order checks
 - `execution`: order requests and broker interfaces
-- `portfolio`: holdings and cash state
+- `portfolio`: holdings, cash state, and persistence repository
 - `backtest`: orchestration over historical data
 - `analytics`: performance metrics and reporting helpers
 
@@ -16,7 +16,7 @@ Suggested flow:
 2. A strategy produces a desired action.
 3. Risk management validates the action.
 4. Execution converts the action into an order request.
-5. Portfolio state is updated from fills.
+5. Portfolio state is updated from fills and optionally persisted to disk.
 6. Analytics computes metrics from the event stream.
 
 Current implementation note:

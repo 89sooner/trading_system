@@ -30,6 +30,7 @@ from trading_system.execution.kis_adapter import KisBrokerAdapter
 from trading_system.integrations.kis import KisApiClient
 from trading_system.patterns.repository import PatternSetRepository
 from trading_system.portfolio.book import PortfolioBook
+from trading_system.portfolio.repository import FilePortfolioRepository, PortfolioRepository
 from trading_system.risk.limits import RiskLimits
 from trading_system.strategy.base import Strategy
 from trading_system.strategy.factory import build_strategy
@@ -50,6 +51,7 @@ class AppServices:
     symbols: tuple[str, ...]
     logger: StructuredLogger
     live_preflight_check: Callable[[str], str] | None = None
+    portfolio_repository: PortfolioRepository | None = None
 
     def run(self) -> BacktestResult:
         if self.mode != AppMode.BACKTEST:
@@ -86,7 +88,10 @@ class AppServices:
             broker=self.broker_simulator,
             logger=self.logger,
         )
-        return run_backtest(bars=bars, strategy=self.strategy, context=context)
+        result = run_backtest(bars=bars, strategy=self.strategy, context=context)
+        if self.portfolio_repository is not None:
+            self.portfolio_repository.save(result.final_portfolio)
+        return result
 
     def run_live_execution(self) -> BacktestResult:
         if self.mode != AppMode.LIVE:
@@ -120,9 +125,18 @@ def build_services(settings: AppSettings) -> AppServices:
     kis_client = _build_kis_client_if_needed(settings)
     pattern_repository = PatternSetRepository(_resolve_pattern_dir())
     strategy_repository = StrategyProfileRepository(_resolve_strategy_dir())
+    portfolio_repository = FilePortfolioRepository(_resolve_portfolio_path())
 
     if settings.mode == AppMode.LIVE:
         _require_live_credentials(settings)
+        
+    saved_book = portfolio_repository.load()
+    if saved_book is not None and settings.mode == AppMode.LIVE:
+        portfolio = saved_book
+        logger.emit("portfolio.loaded", severity=20, payload={"path": str(_resolve_portfolio_path()), "cash": str(portfolio.cash)})
+    else:
+        portfolio = PortfolioBook(cash=settings.backtest.starting_cash)
+        logger.emit("portfolio.initialized", severity=20, payload={"cash": str(portfolio.cash)})
 
     return AppServices(
         mode=settings.mode,
@@ -143,10 +157,11 @@ def build_services(settings: AppSettings) -> AppServices:
         broker_simulator=ResilientBroker(
             delegate=_build_broker(settings, kis_client=kis_client),
         ),
-        portfolio=PortfolioBook(cash=settings.backtest.starting_cash),
+        portfolio=portfolio,
         symbols=settings.symbols,
         logger=logger,
         live_preflight_check=_build_live_preflight(settings, kis_client=kis_client),
+        portfolio_repository=portfolio_repository if settings.mode == AppMode.LIVE else None,
     )
 
 
@@ -260,3 +275,7 @@ def _resolve_pattern_dir() -> Path:
 
 def _resolve_strategy_dir() -> Path:
     return Path(os.getenv("TRADING_SYSTEM_STRATEGY_DIR", "configs/strategies"))
+
+
+def _resolve_portfolio_path() -> Path:
+    return Path(os.getenv("TRADING_SYSTEM_PORTFOLIO_DIR", "data/portfolio")) / "book.json"

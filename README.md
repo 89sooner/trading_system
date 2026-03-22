@@ -464,8 +464,9 @@ This repository is not a fully live-trading product yet. It is a deterministic, 
 4. Enforce risk limits (`max_position`, `max_notional`, `max_order_size`).
 5. Simulate fills via fill ratio, slippage (bps), and commission (bps).
 6. Update cash/positions and compute equity curve + cumulative return.
-7. Train/match chart patterns and convert matches into strategy signals.
-8. Emit structured logs with sensitive-field redaction and correlation IDs.
+7. Persist portfolio state to disk (in live modes) for restart-safe operations.
+8. Train/match chart patterns and convert matches into strategy signals.
+9. Emit structured logs with sensitive-field redaction and correlation IDs.
 
 ### KO
 이 저장소는 아직 “완전한 실주문 시스템”은 아니며, 결정성과 테스트 중심의 플랫폼으로 다음을 수행할 수 있습니다.
@@ -476,8 +477,9 @@ This repository is not a fully live-trading product yet. It is a deterministic, 
 4. 리스크 제한(`max_position`, `max_notional`, `max_order_size`) 적용.
 5. 체결 비율/슬리피지(bps)/수수료(bps) 기반 체결 시뮬레이션.
 6. 현금/포지션 갱신 및 equity curve + 누적수익률 계산.
-7. 차트 패턴 학습/매칭 및 전략 신호 변환.
-8. 민감정보 마스킹/상관관계 ID를 포함한 구조화 로그 출력.
+7. 앱 재기동 복구를 위해 포트폴리오 상태를 디스크에 영속화 (라이브 모드).
+8. 차트 패턴 학습/매칭 및 전략 신호 변환.
+9. 민감정보 마스킹/상관관계 ID를 포함한 구조화 로그 출력.
 
 ---
 
@@ -539,6 +541,7 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` (optional): comma-separated CORS origins; overrides config file value
 - `TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS` / `TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS` (optional): simple per-path rate limit
 - `TRADING_SYSTEM_CSV_DIR` (optional): CSV directory for `--provider csv` (default: `data/market`)
+- `TRADING_SYSTEM_PORTFOLIO_DIR` (optional): Directory where the portfolio book JSON is persisted (default: `data/portfolio`)
 
 ### KO
 - `TRADING_SYSTEM_ENV`: 런타임 환경 라벨 (`local`, `staging`, `prod` 등)
@@ -556,6 +559,7 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` (선택): CORS 허용 오리진 목록(쉼표 구분, 설정 파일 값보다 우선)
 - `TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS` / `TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS` (선택): 경로 단위 단순 요청 제한
 - `TRADING_SYSTEM_CSV_DIR` (선택): `--provider csv`용 CSV 디렉터리 (기본값: `data/market`)
+- `TRADING_SYSTEM_PORTFOLIO_DIR` (선택): 포트폴리오 상태(JSON)가 영속화되는 디렉터리 (기본값: `data/portfolio`)
 
 ---
 
