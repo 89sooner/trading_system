@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from trading_system.app.loop import LiveTradingLoop
 from trading_system.app.sample_data import build_sample_bars
 from trading_system.app.settings import AppMode, AppSettings, LiveExecutionMode
 from trading_system.backtest.engine import BacktestContext, BacktestResult, run_backtest
@@ -76,24 +77,15 @@ class AppServices:
             return self.live_preflight_check(symbol)
         return "Live mode preflight passed (no orders were submitted)."
 
-    def run_live_paper(self) -> BacktestResult:
+    def run_live_paper(self) -> None:
         if self.mode != AppMode.LIVE:
             raise RuntimeError(f"Unsupported mode '{self.mode}'.")
 
-        symbol = self._single_symbol(mode_name="live")
-        bars = self.data_provider.load_bars(symbol)
-        context = BacktestContext(
-            portfolio=self.portfolio,
-            risk_limits=self.risk_limits,
-            broker=self.broker_simulator,
-            logger=self.logger,
-        )
-        result = run_backtest(bars=bars, strategy=self.strategy, context=context)
-        if self.portfolio_repository is not None:
-            self.portfolio_repository.save(result.final_portfolio)
-        return result
+        # Note: LiveTradingLoop will grab the single symbol from self.symbols
+        loop = LiveTradingLoop(services=self)
+        loop.run()
 
-    def run_live_execution(self) -> BacktestResult:
+    def run_live_execution(self) -> None:
         if self.mode != AppMode.LIVE:
             raise RuntimeError(f"Unsupported mode '{self.mode}'.")
         if self.live_execution != LiveExecutionMode.LIVE:
@@ -109,7 +101,7 @@ class AppServices:
                 "Live order submission is disabled. "
                 "Set TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true to enable."
             )
-        return self.run_live_paper()
+        self.run_live_paper()
 
     def _single_symbol(self, mode_name: str) -> str:
         if len(self.symbols) != 1:
@@ -133,7 +125,11 @@ def build_services(settings: AppSettings) -> AppServices:
     saved_book = portfolio_repository.load()
     if saved_book is not None and settings.mode == AppMode.LIVE:
         portfolio = saved_book
-        logger.emit("portfolio.loaded", severity=20, payload={"path": str(_resolve_portfolio_path()), "cash": str(portfolio.cash)})
+        logger.emit(
+            "portfolio.loaded",
+            severity=20,
+            payload={"path": str(_resolve_portfolio_path()), "cash": str(portfolio.cash)}
+        )
     else:
         portfolio = PortfolioBook(cash=settings.backtest.starting_cash)
         logger.emit("portfolio.initialized", severity=20, payload={"cash": str(portfolio.cash)})

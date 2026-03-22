@@ -55,11 +55,11 @@ def run(argv: list[str] | None = None) -> int:
         if settings.mode == AppMode.LIVE:
             print(services.preflight_live())
             if settings.live_execution == LiveExecutionMode.PAPER:
-                result = services.run_live_paper()
-                print(format_result(result))
+                services.run_live_paper()
+                print("Live paper execution loop ended.")
             if settings.live_execution == LiveExecutionMode.LIVE:
-                result = services.run_live_execution()
-                print(format_result(result))
+                services.run_live_execution()
+                print("Live execution loop ended.")
             return 0
 
         result = services.run()

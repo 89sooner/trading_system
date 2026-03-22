@@ -157,7 +157,10 @@ def test_run_backtest_supports_partial_fill_and_unfilled_order() -> None:
     assert unfilled_result.executed_trades == 0
     assert unfilled_result.final_portfolio.positions == {}
     assert unfilled_result.final_portfolio.cash == Decimal("1000")
-    assert [event["event"] for event in unfilled_result.orders] == ["order.created", "order.rejected"]
+    assert [event["event"] for event in unfilled_result.orders] == [
+        "order.created",
+        "order.rejected",
+    ]
 
 
 def test_run_backtest_applies_slippage_to_fill_price() -> None:

@@ -8,7 +8,7 @@ from decimal import Decimal
 import pytest
 
 from trading_system.app.services import AppServices
-from trading_system.app.settings import AppMode
+from trading_system.app.settings import AppMode, LiveExecutionMode
 from trading_system.core.ops import (
     CircuitBreakerPolicy,
     RetryPolicy,
@@ -120,6 +120,9 @@ def test_backtest_orchestration_rejects_signal_when_risk_disallows_order() -> No
 def test_backtest_orchestration_propagates_provider_error() -> None:
     services = AppServices(
         mode=AppMode.BACKTEST,
+        provider="mock",
+        broker="mock",
+        live_execution=LiveExecutionMode.PAPER,
         strategy=SequenceStrategy([]),
         data_provider=FailingProvider(ValueError("provider disconnected")),
         risk_limits=RiskLimits(
@@ -210,6 +213,9 @@ def _build_services(
 ) -> AppServices:
     return AppServices(
         mode=AppMode.BACKTEST,
+        provider="mock",
+        broker="mock",
+        live_execution=LiveExecutionMode.PAPER,
         strategy=strategy,
         data_provider=InMemoryMarketDataProvider(bars_by_symbol={"BTCUSDT": bars}),
         risk_limits=risk_limits,
