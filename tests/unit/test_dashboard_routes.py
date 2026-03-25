@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
 from fastapi.testclient import TestClient
 
 from trading_system.api.server import create_app
 from trading_system.app.state import AppRunnerState
 from trading_system.core.ops import EventRecord
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -146,12 +144,12 @@ class TestDashboardControl:
         assert resp.status_code == 200
         assert loop.state == AppRunnerState.RUNNING
 
-    def test_stop_loop(self) -> None:
-        loop = _make_loop(AppRunnerState.RUNNING)
+    def test_reset_emergency_loop_to_paused(self) -> None:
+        loop = _make_loop(AppRunnerState.EMERGENCY)
         client = _make_client(loop)
-        resp = client.post("/api/v1/dashboard/control", json={"action": "stop"})
+        resp = client.post("/api/v1/dashboard/control", json={"action": "reset"})
         assert resp.status_code == 200
-        assert loop.state == AppRunnerState.STOPPED
+        assert loop.state == AppRunnerState.PAUSED
 
     def test_invalid_action_returns_422(self) -> None:
         loop = _make_loop()

@@ -5,8 +5,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from trading_system.app.state import AppRunnerState
+from trading_system.app.state import AppRunnerState, LiveRuntimeState
 from trading_system.core.compat import UTC
+from trading_system.execution.reconciliation import reconcile
 from trading_system.execution.step import TradingContext, execute_trading_step
 
 if TYPE_CHECKING:
@@ -31,10 +32,36 @@ class LiveTradingLoop:
     heartbeat_interval: int = field(
         default_factory=lambda: _resolve_env_int("TRADING_SYSTEM_HEARTBEAT_INTERVAL", 60)
     )
-    state: AppRunnerState = field(default=AppRunnerState.INIT, init=False)
-    _last_heartbeat: datetime | None = field(default=None, init=False)
+    reconciliation_interval: int = field(
+        default_factory=lambda: _resolve_env_int("TRADING_SYSTEM_RECONCILIATION_INTERVAL", 300)
+    )
+    runtime: LiveRuntimeState = field(default_factory=LiveRuntimeState, init=False)
     _last_processed_timestamps: dict[str, datetime] = field(default_factory=dict, init=False)
-    _started_at: datetime | None = field(default=None, init=False)
+    _last_reconciliation: datetime | None = field(default=None, init=False)
+
+    @property
+    def state(self) -> AppRunnerState:
+        return self.runtime.state
+
+    @state.setter
+    def state(self, value: AppRunnerState) -> None:
+        self.runtime.state = value
+
+    @property
+    def _last_heartbeat(self) -> datetime | None:
+        return self.runtime.last_heartbeat
+
+    @_last_heartbeat.setter
+    def _last_heartbeat(self, value: datetime | None) -> None:
+        self.runtime.last_heartbeat = value
+
+    @property
+    def _started_at(self) -> datetime | None:
+        return self.runtime.started_at
+
+    @_started_at.setter
+    def _started_at(self, value: datetime | None) -> None:
+        self.runtime.started_at = value
 
     def run(self) -> None:
         self._started_at = datetime.now(UTC)
@@ -51,11 +78,15 @@ class LiveTradingLoop:
             risk_limits=self.services.risk_limits,
             broker=self.services.broker_simulator,
             logger=self.services.logger,
+            portfolio_risk=self.services.portfolio_risk,
+            runtime_state=self.runtime,
+            marks=self.runtime.last_marks,
         )
 
         while self.state != AppRunnerState.STOPPED:
             try:
                 if self.state == AppRunnerState.RUNNING:
+                    self._maybe_reconcile()
                     self._run_tick(context)
                     
                 self._check_heartbeat()
@@ -111,10 +142,32 @@ class LiveTradingLoop:
                 if last_ts is not None and bar.timestamp <= last_ts:
                     continue
 
-                execute_trading_step(bar=bar, strategy=self.services.strategy, context=context)
+                execute_trading_step(
+                    bar=bar,
+                    strategy=self.services.strategy_for(symbol),
+                    context=context,
+                )
                 self._last_processed_timestamps[symbol] = bar.timestamp
                 last_ts = bar.timestamp
                 processed_any = True
 
         if processed_any and self.services.portfolio_repository is not None:
             self.services.portfolio_repository.save(self.services.portfolio)
+
+    def _maybe_reconcile(self) -> None:
+        now = datetime.now(UTC)
+        if (
+            self._last_reconciliation is not None
+            and (now - self._last_reconciliation).total_seconds() < self.reconciliation_interval
+        ):
+            return
+        snapshot = self.services.broker_simulator.get_account_balance()
+        if snapshot is None:
+            self._last_reconciliation = now
+            return
+        reconcile(
+            book=self.services.portfolio,
+            snapshot=snapshot,
+            logger=self.services.logger,
+        )
+        self._last_reconciliation = now

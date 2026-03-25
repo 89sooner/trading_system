@@ -68,6 +68,7 @@ class OrderCreatedEvent:
     symbol: str
     side: str
     quantity: Decimal
+    timestamp: str
 
 
 @dataclass(slots=True)
@@ -76,6 +77,7 @@ class OrderRejectedEvent:
     side: str
     quantity: Decimal
     reason: str
+    timestamp: str
 
 
 @dataclass(slots=True)
@@ -87,6 +89,7 @@ class OrderFilledEvent:
     fill_price: Decimal
     fee: Decimal
     status: str
+    timestamp: str
 
 
 @dataclass(slots=True)
@@ -95,6 +98,7 @@ class RiskRejectedEvent:
     requested_quantity: Decimal
     current_position: Decimal
     price: Decimal
+    timestamp: str
 
 
 @dataclass(slots=True)

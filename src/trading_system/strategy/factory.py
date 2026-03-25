@@ -15,6 +15,37 @@ def build_strategy(
     pattern_repository: PatternSetRepository,
     strategy_repository: StrategyProfileRepository,
 ) -> Strategy:
+    return build_strategies(
+        settings,
+        symbols=(settings.symbols[0],),
+        pattern_repository=pattern_repository,
+        strategy_repository=strategy_repository,
+    )[settings.symbols[0]]
+
+
+def build_strategies(
+    settings: AppSettings,
+    *,
+    symbols: tuple[str, ...],
+    pattern_repository: PatternSetRepository,
+    strategy_repository: StrategyProfileRepository,
+) -> dict[str, Strategy]:
+    return {
+        symbol: _build_strategy_instance(
+            settings,
+            pattern_repository=pattern_repository,
+            strategy_repository=strategy_repository,
+        )
+        for symbol in symbols
+    }
+
+
+def _build_strategy_instance(
+    settings: AppSettings,
+    *,
+    pattern_repository: PatternSetRepository,
+    strategy_repository: StrategyProfileRepository,
+) -> Strategy:
     if settings.strategy is None:
         return MomentumStrategy(trade_quantity=settings.backtest.trade_quantity)
 

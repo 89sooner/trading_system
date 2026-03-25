@@ -33,6 +33,8 @@ def run_backtest(
     bars: Iterable[MarketBar],
     strategy: Strategy,
     context: BacktestContext,
+    *,
+    strategy_by_symbol: dict[str, Strategy] | None = None,
 ) -> BacktestResult:
     equity_timestamps: list[datetime] = []
     equity_curve: list[Decimal] = []
@@ -46,7 +48,12 @@ def run_backtest(
 
     for bar in bars:
         processed_bars += 1
-        events = execute_trading_step(bar, strategy, context)
+        active_strategy = (
+            strategy_by_symbol.get(bar.symbol, strategy)
+            if strategy_by_symbol
+            else strategy
+        )
+        events = execute_trading_step(bar, active_strategy, context)
         
         if events.signal:
             _record_event(signal_events, "strategy.signal", events.signal)

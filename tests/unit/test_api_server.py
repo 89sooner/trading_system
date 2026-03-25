@@ -78,19 +78,14 @@ def test_settings_validation_errors_return_422() -> None:
     assert "--max-order-size cannot exceed --max-position." in body["message"]
 
 
-def test_invalid_symbols_return_standardized_400() -> None:
+def test_backtest_accepts_multiple_symbols() -> None:
     client = _build_client()
     payload = _base_payload(mode="backtest")
     payload["symbols"] = ["BTCUSDT", "ETHUSDT"]
 
     response = client.post("/api/v1/backtests", json=payload)
 
-    assert response.status_code == 400
-    body = response.json()
-    assert body == {
-        "error_code": "invalid_symbols",
-        "message": "Exactly one symbol is required for this API runtime.",
-    }
+    assert response.status_code == 201
 
 
 def test_live_execution_requires_opt_in_flag(monkeypatch) -> None:

@@ -77,6 +77,8 @@ async def get_status(loop: LoopDep) -> DashboardStatusDTO:
 async def get_positions(loop: LoopDep) -> PositionsResponseDTO:
     """Return active positions and cash from the portfolio book."""
     book = loop.services.portfolio
+    marks = getattr(loop.runtime, "last_marks", {})
+    unrealized = book.unrealized_pnl(marks)
     dtos: list[PositionDTO] = []
     for symbol, qty in book.positions.items():
         avg_cost = book.average_costs.get(symbol, ZERO)
@@ -85,7 +87,7 @@ async def get_positions(loop: LoopDep) -> PositionsResponseDTO:
                 symbol=symbol,
                 quantity=str(qty),
                 average_cost=str(avg_cost),
-                unrealized_pnl=None,  # mark-to-market requires live price; omitted here
+                unrealized_pnl=str(unrealized[symbol]) if symbol in unrealized else None,
             )
         )
     return PositionsResponseDTO(positions=dtos, cash=str(book.cash))
@@ -114,7 +116,7 @@ async def get_events(
 
 @router.post("/control", response_model=ControlResponseDTO, status_code=status.HTTP_200_OK)
 async def control_loop(body: ControlActionDTO, loop: LoopDep) -> ControlResponseDTO:
-    """Pause, resume, or stop the live trading loop."""
+    """Pause, resume, or reset the live trading loop."""
     if body.action == "pause":
         if loop.state == AppRunnerState.RUNNING:
             loop.state = AppRunnerState.PAUSED
@@ -131,11 +133,12 @@ async def control_loop(body: ControlActionDTO, loop: LoopDep) -> ControlResponse
                 severity=20,
                 payload={"action": "resume", "requested_by": "api"},
             )
-    elif body.action == "stop":
-        loop.state = AppRunnerState.STOPPED
-        loop.services.logger.emit(
-            "system.control",
-            severity=30,
-            payload={"action": "stop", "requested_by": "api"},
-        )
+    elif body.action == "reset":
+        if loop.state == AppRunnerState.EMERGENCY:
+            loop.state = AppRunnerState.PAUSED
+            loop.services.logger.emit(
+                "system.control",
+                severity=30,
+                payload={"action": "reset", "requested_by": "api"},
+            )
     return ControlResponseDTO(status="ok", state=loop.state.value)

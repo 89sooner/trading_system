@@ -10,6 +10,12 @@ class RiskSettingsDTO(BaseModel):
     max_order_size: Decimal
 
 
+class PortfolioRiskSettingsDTO(BaseModel):
+    max_daily_drawdown_pct: Decimal
+    sl_pct: Decimal | None = None
+    tp_pct: Decimal | None = None
+
+
 class BacktestSettingsDTO(BaseModel):
     starting_cash: Decimal
     fee_bps: Decimal
@@ -32,6 +38,7 @@ class BacktestRunRequestDTO(BaseModel):
     broker: Literal["paper", "kis"] = "paper"
     live_execution: Literal["preflight", "paper", "live"] = "preflight"
     risk: RiskSettingsDTO
+    portfolio_risk: PortfolioRiskSettingsDTO | None = None
     backtest: BacktestSettingsDTO
     strategy: StrategyConfigDTO | None = None
 
@@ -43,6 +50,7 @@ class LivePreflightRequestDTO(BaseModel):
     broker: Literal["paper", "kis"] = "paper"
     live_execution: Literal["preflight", "paper", "live"] = "preflight"
     risk: RiskSettingsDTO
+    portfolio_risk: PortfolioRiskSettingsDTO | None = None
     backtest: BacktestSettingsDTO
     strategy: StrategyConfigDTO | None = None
 
@@ -201,9 +209,33 @@ class EventFeedDTO(BaseModel):
 
 
 class ControlActionDTO(BaseModel):
-    action: Literal["pause", "resume", "stop"]
+    action: Literal["pause", "resume", "reset"]
 
 
 class ControlResponseDTO(BaseModel):
     status: Literal["ok"]
     state: str
+
+
+class TradeDTO(BaseModel):
+    symbol: str
+    entry_time: str
+    exit_time: str
+    entry_price: str
+    exit_price: str
+    quantity: str
+    pnl: str
+    holding_seconds: float
+
+
+class TradeStatsDTO(BaseModel):
+    trade_count: int
+    win_rate: str
+    risk_reward_ratio: str
+    max_drawdown: str
+    average_time_in_market_seconds: float
+
+
+class TradeAnalyticsResponseDTO(BaseModel):
+    stats: TradeStatsDTO
+    trades: list[TradeDTO]

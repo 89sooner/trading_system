@@ -1,203 +1,138 @@
 # Phase 3 Implementation Plan
 
-## Overview
-Build on the stabilized Phase 1 & 2 foundations ([step.py](file:///home/roqkf/trading_system/src/trading_system/execution/step.py), [LiveTradingLoop](file:///home/roqkf/trading_system/src/trading_system/app/loop.py#25-120), [FilePortfolioRepository](file:///home/roqkf/trading_system/src/trading_system/portfolio/repository.py#18-56)) to add:
-- A real-time live dashboard (API + frontend)
-- Portfolio-level drawdown and SL/TP risk guards
-- Multi-symbol orchestration in the live loop
-- Trade-level analytics (profit factor, Sharpe, etc.)
-- Exchange reconciliation integration
+## Goal
+Implement Phase 3 as a production-hardening layer on top of the Phase 1 and 2 execution foundation. The plan must preserve the unified execution path, add operator visibility and control, protect the portfolio at runtime, support multi-symbol processing with shared capital, expose trade-level analytics from fills, and reconcile local portfolio state against the broker.
 
-> [!IMPORTANT]
-> Phase 3 is split into 4 independent epics (A–D). Each epic ships as a standalone PR so regression surface is small. Epic A (dashboard) and Epic B (portfolio risk) are the highest priority.
+## Assumptions
+- `src/trading_system/execution/step.py` remains the single trading decision and order path for both backtest and live behavior changes.
+- Existing dashboard-related and portfolio-risk-related code can be refactored if it does not fully satisfy the PRD.
+- Reconciliation is part of Phase 3 scope, but it should ship after the core runtime and risk foundations are in place because it depends on trustworthy runtime state.
+- Multi-symbol capital contention uses FIFO allocation in configured symbol order.
+- Multi-symbol strategy execution uses per-symbol strategy instances rather than shared stateful strategy objects.
+- Per-symbol strategy instances are built once during service initialization and reused for the full run.
+- Trade statistics are exposed through `GET /api/v1/analytics/backtests/{run_id}/trades` rather than only embedded inside existing backtest responses.
+- Reconciliation runs in live mode only, defaults to a 300-second cadence, and skips symbol adjustments plus all cash adjustments when any affected order is in transit.
 
----
+## Impacted Files
 
-## Epic A — Live Dashboard API + Frontend
+### Runtime and orchestration
+- `src/trading_system/app/loop.py`
+- `src/trading_system/app/state.py`
+- `src/trading_system/app/services.py`
+- `src/trading_system/execution/step.py`
+- `src/trading_system/execution/broker.py`
+- `src/trading_system/execution/reconciliation.py`
 
-### Backend
+### Risk and portfolio
+- `src/trading_system/risk/portfolio_limits.py`
+- `src/trading_system/portfolio/book.py`
+- `src/trading_system/config/settings.py`
+- `src/trading_system/app/settings.py`
 
-#### [NEW] `src/trading_system/api/routes/dashboard.py`
-- `GET /api/v1/dashboard/status` → returns the current [AppRunnerState](file:///home/roqkf/trading_system/src/trading_system/app/state.py#4-9), last heartbeat timestamp, uptime
-- `GET /api/v1/dashboard/positions` → returns all open positions from [PortfolioBook](file:///home/roqkf/trading_system/src/trading_system/portfolio/book.py#7-103) (symbol, qty, avg_cost, unrealized_pnl using last known mark)
-- `GET /api/v1/dashboard/events` → paginated last-N log events (pulled from an in-memory ring buffer wired into `StructuredLogger`)
-- `POST /api/v1/dashboard/control` → body `{"action": "pause" | "resume" | "stop"}` → mutates [AppRunnerState](file:///home/roqkf/trading_system/src/trading_system/app/state.py#4-9) in the running [LiveTradingLoop](file:///home/roqkf/trading_system/src/trading_system/app/loop.py#25-120)
+### API and dashboard
+- `src/trading_system/api/server.py`
+- `src/trading_system/api/routes/dashboard.py`
+- `src/trading_system/api/routes/analytics.py`
+- `src/trading_system/api/routes/backtest.py`
+- `src/trading_system/api/schemas.py`
+- `src/trading_system/core/ops.py`
+- `frontend/dashboard.html`
+- `frontend/index.html`
 
-> [!NOTE]
-> The loop state must be shared between the FastAPI process and the loop worker. The approach is: store [LiveTradingLoop](file:///home/roqkf/trading_system/src/trading_system/app/loop.py#25-120) instance on the FastAPI `app.state` at server startup. Dashboard routes read/mutate it through a dependency.
+### Strategy and analytics
+- `src/trading_system/strategy/factory.py`
+- `src/trading_system/strategy/base.py`
+- `src/trading_system/analytics/trades.py`
+- `src/trading_system/analytics/trade_stats.py`
 
-#### [MODIFY] [src/trading_system/api/server.py](file:///home/roqkf/trading_system/src/trading_system/api/server.py)
-- Register the new `dashboard_router`
-- Accept an optional [LiveTradingLoop](file:///home/roqkf/trading_system/src/trading_system/app/loop.py#25-120) argument in [create_app()](file:///home/roqkf/trading_system/src/trading_system/api/server.py#14-63) and store it on `app.state`
+### Tests and docs
+- `tests/unit/test_dashboard_routes.py`
+- `tests/unit/test_portfolio_risk_limits.py`
+- `tests/unit/test_live_loop_multi_symbol.py`
+- `tests/unit/test_trade_stats.py`
+- `tests/unit/test_reconciliation.py`
+- `tests/integration/` additions where runtime interaction matters
+- `configs/base.yaml`
+- `examples/`
+- `README.md`
+- `GEMINI.md`
 
-#### [MODIFY] [src/trading_system/api/schemas.py](file:///home/roqkf/trading_system/src/trading_system/api/schemas.py)
-- Add `DashboardStatusDTO`, `PositionDTO`, `PositionsResponseDTO`, `ControlActionDTO`, `EventDTO`
+## Implementation Steps
 
-#### [MODIFY] [src/trading_system/core/ops.py](file:///home/roqkf/trading_system/src/trading_system/core/ops.py)
-- Add an in-memory ring buffer (capped deque, e.g. 500 entries) to `StructuredLogger`
-- Expose `.recent_events(limit=50)` method
+1. Establish the authoritative live runtime state for operator control.
+Define how the API process and live loop share state before adding more dashboard behavior. This step should make loop state, heartbeat, uptime, and control actions authoritative rather than best-effort references on `app.state`. Introduce a small runtime control object owned by the live process and exposed to the API layer. The operator kill switch maps to pause-only behavior; it does not liquidate positions. The dashboard control API supports `pause`, `resume`, and `reset`, where `reset` is only for leaving an emergency risk state and transitions the runtime back to `PAUSED`.
 
-### Frontend
+2. Complete the dashboard around that runtime state.
+Expose status, positions, and recent events through API routes and a minimal frontend. The dashboard should show estimated marks and unrealized PnL, and it must surface pause and resume controls. Event streaming can start with polling, but the route contract should be stable enough to support later transport upgrades.
 
-#### [NEW] `frontend/dashboard.html`
-- Status card (state badge, heartbeat timestamp)
-- Positions table (symbol / qty / avg_cost / unrealised PnL)
-- Event feed (auto-refreshing every 5s via `fetch`)
-- Kill switch button (calls `/api/v1/dashboard/control`)
+3. Refactor portfolio risk to match the PRD, not only the current partial implementation.
+Move drawdown and SL/TP behavior into the risk layer used by `step.py`. Daily drawdown handling must do more than skip evaluation: it must block new entries, emit high-severity events, trigger an emergency portfolio unwind policy, and move the runtime into a guarded state that prevents immediate re-entry. Configuration should include drawdown and SL/TP thresholds plus any emergency unwind settings.
 
-#### [MODIFY] [frontend/index.html](file:///home/roqkf/trading_system/frontend/index.html) + `frontend/src/pages/` nav
-- Add nav link to `dashboard.html`
+4. Make multi-symbol execution a unified behavior across live and backtest.
+Extend orchestration so every configured symbol is processed through the same `step.py` path with independent per-symbol strategy instances and shared portfolio accounting. Build the symbol-to-strategy map once during service initialization and reuse it for the full run in both backtest and live modes. Do not leave backtest on a single-symbol-only path if live behavior changes depend on multi-symbol state. Use FIFO allocation for cash contention in configured symbol order and cover it with deterministic tests.
 
-### Tests
-- Unit: `tests/unit/test_dashboard_routes.py` — mock `app.state.loop`, verify route contracts
-- Smoke: control action changes state, positions reflect `PortfolioBook` contents
+5. Add trade extraction and PRD-aligned trade statistics.
+Create trade objects from fill events with explicit pairing rules for partial fills, scale-ins, and scale-outs. Compute the required metrics first: win rate, risk-reward ratio, trade-sequence max drawdown, and average time in market. Expose them through `GET /api/v1/analytics/backtests/{run_id}/trades` as the initial dedicated analytics API. Live-session analytics can remain follow-up work after the backtest route is stable.
 
----
+6. Add broker reconciliation as a first-class Phase 3 capability.
+Extend the broker interface with an account snapshot method, add a reconciliation service, and run it in the live loop on a default 300-second cadence. Reconciliation must compare broker state to `PortfolioBook`, emit structured adjustment events, skip symbol adjustments for affected in-transit orders, and freeze all cash adjustments for that reconciliation cycle.
 
-## Epic B — Portfolio-Level Risk Guards
+7. Update configuration, examples, and operator documentation together.
+Any configuration shape changes must be reflected in `configs/`, `examples/`, `README.md`, and `GEMINI.md`. Operator docs should explain dashboard control, emergency risk behavior, multi-symbol constraints, and reconciliation semantics.
 
-### Backend
+## Epic Breakdown
 
-#### [NEW] `src/trading_system/risk/portfolio_limits.py`
-```python
-@dataclass(slots=True)
-class PortfolioRiskLimits:
-    max_daily_drawdown_pct: Decimal   # e.g. Decimal("0.05") = 5%
-    session_peak_equity: Decimal      # set to starting equity at boot
-    sl_pct: Decimal | None = None     # per-position stop-loss %
-    tp_pct: Decimal | None = None     # per-position take-profit %
+### Epic A. Runtime State And Dashboard
+- Introduce an authoritative runtime-control/state object shared by the live loop and API layer.
+- Expose status, heartbeat, uptime, open positions, and recent events.
+- Implement dashboard `pause`, `resume`, and `reset` control against the authoritative runtime state, with kill switch mapped to pause-only behavior and `reset` returning `EMERGENCY` to `PAUSED`.
+- Add frontend dashboard polling UI.
 
-    def is_daily_limit_breached(self, current_equity: Decimal) -> bool: ...
-    def sl_triggered(self, symbol: str, avg_cost: Decimal, mark: Decimal, qty: Decimal) -> bool: ...
-    def tp_triggered(self, symbol: str, avg_cost: Decimal, mark: Decimal, qty: Decimal) -> bool: ...
-```
+### Epic B. Portfolio-Level Risk Defense
+- Finish `PortfolioRiskLimits` so equity uses realized plus unrealized exposure.
+- Add emergency drawdown handling with entry blocking, liquidation, and guarded runtime transition.
+- Keep SL/TP execution in the risk layer, not strategy code.
+- Emit warning or critical events for every guardrail action.
 
-#### [MODIFY] `src/trading_system/execution/step.py`
-- Accept an optional `portfolio_risk: PortfolioRiskLimits | None` on `TradingContext`
-- Before calling `strategy.evaluate(bar)`, check `is_daily_limit_breached`. If breached, emit `risk.daily_limit_breached` at WARNING severity and skip the step.
-- After `RiskLimits.allows_order` check, evaluate SL/TP on existing positions and auto-generate close orders as needed.
+### Epic C. Unified Multi-Symbol Orchestration
+- Extend `LiveTradingLoop` and backtest orchestration to process multiple symbols.
+- Add per-symbol timestamps and per-symbol strategy instances with isolated history.
+- Use FIFO allocation in configured symbol order for capital contention.
+- Ensure strategy factory and runtime orchestration materialize per-symbol strategy instances once per run and reuse them for the full run.
 
-#### [MODIFY] `src/trading_system/app/services.py`
-- Wire `PortfolioRiskLimits` (from settings) into `TradingContext` inside `run_live_paper`
+### Epic D. Trade Analytics
+- Extract completed trades from fills.
+- Implement PRD-required metrics only as the initial scope.
+- Surface trade stats through `GET /api/v1/analytics/backtests/{run_id}/trades` with stable DTOs.
 
-#### [MODIFY] `src/trading_system/config/settings.py` + `src/trading_system/app/settings.py`
-- Add `PortfolioRiskSettings` dataclass: `max_daily_drawdown_pct`, `sl_pct`, `tp_pct`
+### Epic E. Broker Reconciliation
+- Add broker account snapshot support.
+- Implement live-only reconciliation with a default 300-second cadence and drift detection.
+- Apply safe local corrections and emit adjustment events, but skip symbol adjustments and freeze all cash adjustments while affected orders are in transit.
+- Handle external deposits and withdrawals as first-class reconciliation outcomes.
 
-#### [MODIFY] `configs/base.yaml` + `examples/` + `README.md`
-- Document new settings keys
+## Test Plan
 
-### Tests
-- `tests/unit/test_portfolio_risk_limits.py` — drawdown breach, SL/TP trigger edge cases
-- Regression: step skips trading when daily limit breached
+### Unit Tests
+- Dashboard route tests for status, positions, events, and `pause`/`resume`/`reset` control actions.
+- Portfolio risk tests for peak-equity tracking, drawdown breach, liquidation triggers, guarded emergency state transitions, and SL/TP edge cases.
+- Multi-symbol loop tests for per-symbol processing, per-symbol strategy isolation, build-once lifecycle, FIFO cash contention, and deterministic ordering.
+- Trade extraction tests for partial fills, reopen flows, and average holding time.
+- Reconciliation tests for no-op sync, adjustment events, external cash changes, symbol skip, and cash-freeze behavior during in-transit protection.
 
----
-
-## Epic C — Multi-Symbol Orchestration
-
-### Backend
-
-#### [MODIFY] `src/trading_system/app/loop.py` — `_run_tick`
-- Replace `symbol = self.services.symbols[0]` with a loop over `self.services.symbols`
-- Maintain per-symbol `_last_processed_timestamp` as a `dict[str, datetime]`
-- Portfolio remains shared; cash allocation is FIFO (first signal to check cash wins)
-
-#### [MODIFY] `src/trading_system/app/services.py` — `_single_symbol` guard
-- Remove the guard from `run_live_paper` (was only safety for old scaffold); keep for `run` (backtest) where multi-symbol orchestration is not in scope for Phase 3
-
-#### [MODIFY] `src/trading_system/strategy/factory.py`
-- Make `build_strategy` return either a single strategy (applied to all symbols) or a `dict[str, Strategy]` keyed by symbol, depending on settings
-
-### Tests
-- `tests/unit/test_live_loop_multi_symbol.py` — mock provider returning stubs for 2 symbols, assert both are processed each tick, portfolio cash is shared
-
----
-
-## Epic D — Trade-Level Analytics
-
-#### [NEW] `src/trading_system/analytics/trades.py`
-```python
-@dataclass(frozen=True, slots=True)
-class CompletedTrade:
-    symbol: str
-    entry_price: Decimal
-    exit_price: Decimal
-    quantity: Decimal
-    pnl: Decimal
-    entry_time: datetime
-    exit_time: datetime
-
-def extract_trades(fill_events: Sequence[OrderFilledEvent]) -> list[CompletedTrade]: ...
-```
-- Parses fill event log to match buys against sells (FIFO pairing)
-
-#### [NEW] `src/trading_system/analytics/advanced_metrics.py`
-```python
-def profit_factor(trades: Sequence[CompletedTrade]) -> Decimal: ...
-def average_win(trades: Sequence[CompletedTrade]) -> Decimal: ...
-def average_loss(trades: Sequence[CompletedTrade]) -> Decimal: ...
-def sharpe_ratio(trades: Sequence[CompletedTrade], risk_free_rate: Decimal = ZERO) -> Decimal: ...
-def sortino_ratio(trades: Sequence[CompletedTrade], risk_free_rate: Decimal = ZERO) -> Decimal: ...
-```
-
-#### [MODIFY] `src/trading_system/api/routes/backtest.py`
-- Enrich `BacktestResultDTO` with `TradeStatsDTO` (profit_factor, avg_win, avg_loss, sharpe, sortino) computed from `fill_events`
-
-### Tests
-- `tests/unit/test_trades.py` — FIFO pairing, partial close, flat then reopen
-- `tests/unit/test_advanced_metrics.py` — profit_factor edge cases, empty trades → zero return
-
----
-
-## Epic E — Exchange Reconciliation (Optional Phase 3.5)
-
-> [!WARNING]
-> This epic has higher implementation risk (KIS in-transit edge cases). Treat as Phase 3.5 — plan now, ship separately after A–D are merged.
-
-#### [NEW] `src/trading_system/execution/reconciliation.py`
-```python
-@dataclass(slots=True)
-class ReconciliationResult:
-    adjusted_cash: Decimal
-    adjusted_positions: dict[str, Decimal]
-    adjustments_made: list[str]   # human-readable diff log
-
-def reconcile(book: PortfolioBook, broker: BrokerSimulator, logger: StructuredLogger) -> ReconciliationResult: ...
-```
-- Calls `broker.get_account_balance()` (new method on broker interface) to fetch real cash + positions
-- Computes diff vs `PortfolioBook`, emits `portfolio.reconciliation` event at WARNING if diff > threshold
-- Applies correction to `PortfolioBook` fields directly
-
-#### [MODIFY] `src/trading_system/execution/broker.py` — `BrokerSimulator` protocol
-- Add optional `get_account_balance() -> AccountBalanceSnapshot` method; KIS adapter implements it, simulator stubs it
-
-#### [MODIFY] `src/trading_system/app/loop.py`
-- Add a `reconciliation_interval` (default: 300s = every 5 minutes)
-- Call `reconcile()` before each tick cycle when interval has passed
-
----
-
-## Validation Plan
-
-### Automated Tests
-```bash
-# Run all tests after each epic
-uv run --python .venv/bin/python --no-sync pytest -m smoke
-uv run --python .venv/bin/python --no-sync pytest
-
-# Lint
-uv run --python .venv/bin/python --no-sync ruff check src tests
-```
+### Integration Tests
+- Live runtime/API integration test proving dashboard control changes loop behavior.
+- Multi-symbol simulation test proving the same orchestration logic works in backtest and live scaffolds.
+- Reconciliation integration test against broker stubs that model pending and settled orders.
 
 ### Manual Verification
-- Start server with `uvicorn`, open `dashboard.html`, verify heartbeat updates and position table reflects a running loop
-- Set `max_daily_drawdown_pct: 0.01` and force equity below threshold; verify `risk.daily_limit_breached` appears in logs and no new orders emit
-- Configure 2 symbols in `--symbols`, verify both are processed in each tick cycle via logs
+- Run the live server and dashboard together, confirm heartbeat updates and operator controls work.
+- Force a drawdown breach and verify new entries stop, positions unwind, and the runtime remains guarded.
+- Run two or more symbols with constrained cash and verify the allocation policy is observable in logs.
+- Simulate broker drift and verify reconciliation emits an adjustment event and updates the local book safely.
 
-### PR Strategy
-| Epic | Branch | Dependencies |
-|------|--------|-------------|
-| A — Dashboard | `feature/live-dashboard` | none |
-| B — Portfolio Risk | `feature/portfolio-risk` | none |
-| C — Multi-symbol | `feature/multi-symbol` | none |
-| D — Trade Analytics | `feature/trade-analytics` | none |
-| E — Reconciliation | `feature/reconciliation` | C (multi-symbol loop) |
+## Risks And Follow-Up
+- If live runtime control is not authoritative, the dashboard will look correct while not actually controlling the loop.
+- If multi-symbol support lands only in live mode, strategy behavior will drift from backtest and become hard to validate.
+- If reconciliation ships before in-transit semantics are explicit, it can damage the local book.
+- Async provider or broker access may be required once multi-symbol polling is exercised under real latency; treat that as an implementation concern to assess during Epic C and Epic E, not as a speculative refactor upfront.

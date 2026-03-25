@@ -21,6 +21,7 @@ from trading_system.app.settings import (
     BacktestSettings,
     LiveExecutionMode,
     PatternSignalStrategySettings,
+    PortfolioRiskSettings,
     RiskSettings,
 )
 from trading_system.backtest.dto import BacktestResultDTO as SerializedBacktestResultDTO
@@ -37,18 +38,19 @@ _MAX_FEE_BPS = Decimal("1000")
 
 
 def _validate_request_payload(payload: BacktestRunRequestDTO | LivePreflightRequestDTO) -> None:
-    if len(payload.symbols) != 1:
+    if payload.mode == "live" and len(payload.symbols) != 1:
         raise RequestValidationError(
             error_code="invalid_symbols",
-            message="Exactly one symbol is required for this API runtime.",
+            message="Exactly one symbol is required for live API runtime.",
         )
 
-    normalized = payload.symbols[0].strip().upper()
-    if not normalized or not normalized.replace("-", "").isalnum():
-        raise RequestValidationError(
-            error_code="invalid_symbols",
-            message="Symbol must be non-empty and contain only letters, numbers, or '-'.",
-        )
+    for symbol in payload.symbols:
+        normalized = symbol.strip().upper()
+        if not normalized or not normalized.replace("-", "").isalnum():
+            raise RequestValidationError(
+                error_code="invalid_symbols",
+                message="Symbol must be non-empty and contain only letters, numbers, or '-'.",
+            )
 
     if payload.backtest.trade_quantity <= 0:
         raise RequestValidationError(
@@ -108,6 +110,15 @@ def _to_app_settings(payload: BacktestRunRequestDTO | LivePreflightRequestDTO) -
             max_position=payload.risk.max_position,
             max_notional=payload.risk.max_notional,
             max_order_size=payload.risk.max_order_size,
+        ),
+        portfolio_risk=(
+            PortfolioRiskSettings(
+                max_daily_drawdown_pct=payload.portfolio_risk.max_daily_drawdown_pct,
+                sl_pct=payload.portfolio_risk.sl_pct,
+                tp_pct=payload.portfolio_risk.tp_pct,
+            )
+            if payload.portfolio_risk is not None
+            else None
         ),
         backtest=BacktestSettings(
             starting_cash=payload.backtest.starting_cash,
@@ -220,7 +231,7 @@ def run_live_preflight(payload: LivePreflightRequestDTO) -> LivePreflightRespons
     message = services.preflight_live()
     paper_result = None
     if settings.live_execution == LiveExecutionMode.PAPER:
-        paper_result = _to_api_result_dto(_to_serialized_result(services.run_live_paper()))
+        services.run_live_paper()
     if settings.live_execution == LiveExecutionMode.LIVE:
-        paper_result = _to_api_result_dto(_to_serialized_result(services.run_live_execution()))
+        services.run_live_execution()
     return LivePreflightResponseDTO(message=message, paper_result=paper_result)

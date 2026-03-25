@@ -35,6 +35,13 @@ class FillEvent:
         return self.filled_quantity if self.side == OrderSide.BUY else -self.filled_quantity
 
 
+@dataclass(slots=True, frozen=True)
+class AccountBalanceSnapshot:
+    cash: Decimal
+    positions: dict[str, Decimal]
+    pending_symbols: tuple[str, ...] = ()
+
+
 class FillQuantityPolicy(Protocol):
     def fill_quantity(self, order: OrderRequest, bar: MarketBar) -> Decimal:
         """Return absolute filled quantity."""
@@ -93,6 +100,9 @@ class BrokerSimulator(Protocol):
     def submit_order(self, order: OrderRequest, bar: MarketBar) -> FillEvent:
         """Submit one order and return a deterministic fill event."""
 
+    def get_account_balance(self) -> AccountBalanceSnapshot | None:
+        """Return an account snapshot when the broker supports reconciliation."""
+
 
 @dataclass(slots=True)
 class PolicyBrokerSimulator:
@@ -130,6 +140,9 @@ class PolicyBrokerSimulator:
             status=status,
         )
 
+    def get_account_balance(self) -> AccountBalanceSnapshot | None:
+        return None
+
 
 @dataclass(slots=True)
 class ResilientBroker:
@@ -143,6 +156,18 @@ class ResilientBroker:
         return execute_with_resilience(
             operation=f"broker_submit:{order.symbol}",
             callback=lambda: self.delegate.submit_order(order, bar),
+            retry=self.retry_policy,
+            timeout=self.timeout_policy,
+            circuit_breaker=self.circuit_breaker_policy,
+            circuit_state=self._circuit_state,
+        )
+
+    def get_account_balance(self) -> AccountBalanceSnapshot | None:
+        if not hasattr(self.delegate, "get_account_balance"):
+            return None
+        return execute_with_resilience(
+            operation="broker_account_balance",
+            callback=lambda: self.delegate.get_account_balance(),
             retry=self.retry_policy,
             timeout=self.timeout_policy,
             circuit_breaker=self.circuit_breaker_policy,

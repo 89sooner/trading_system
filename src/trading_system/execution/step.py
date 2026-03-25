@@ -1,7 +1,9 @@
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from trading_system.app.state import AppRunnerState, LiveRuntimeState
 from trading_system.core.ops import (
     OrderCreatedEvent,
     OrderFilledEvent,
@@ -27,6 +29,8 @@ class TradingContext:
     broker: BrokerSimulator
     logger: StructuredLogger | None = None
     portfolio_risk: PortfolioRiskLimits | None = None
+    runtime_state: LiveRuntimeState | None = None
+    marks: dict[str, Decimal] | None = None
 
 
 @dataclass(slots=True)
@@ -40,13 +44,22 @@ class StepEvents:
 
 def execute_trading_step(bar: MarketBar, strategy: Strategy, context: TradingContext) -> StepEvents:
     events = StepEvents()
+    _update_marks(bar, context)
+
+    if (
+        context.runtime_state is not None
+        and context.runtime_state.state == AppRunnerState.EMERGENCY
+    ):
+        _liquidate_current_symbol_position(bar, context, events, reason="emergency_active")
+        return events
 
     # --- Portfolio-level drawdown guard --------------------------------
     if context.portfolio_risk is not None:
-        total_realized = sum(context.portfolio.realized_pnl.values(), start=Decimal("0"))
-        current_equity = context.portfolio.cash + total_realized
+        current_equity = context.portfolio.total_equity(_marks(context))
         context.portfolio_risk.update_peak(current_equity)
         if context.portfolio_risk.is_daily_limit_breached(current_equity):
+            if context.runtime_state is not None:
+                context.runtime_state.state = AppRunnerState.EMERGENCY
             _emit_event(
                 context.logger,
                 "risk.daily_limit_breached",
@@ -55,6 +68,13 @@ def execute_trading_step(bar: MarketBar, strategy: Strategy, context: TradingCon
                     "current_equity": str(current_equity),
                     "session_peak": str(context.portfolio_risk.session_peak_equity),
                 },
+                severity=50,
+            )
+            _liquidate_current_symbol_position(
+                bar,
+                context,
+                events,
+                reason="emergency_drawdown_liquidation",
             )
             return events
 
@@ -79,6 +99,7 @@ def execute_trading_step(bar: MarketBar, strategy: Strategy, context: TradingCon
             symbol=order.symbol,
             side=order.side.value,
             quantity=order.quantity,
+            timestamp=_bar_timestamp(bar.timestamp),
         )
     )
     _emit_event(context.logger, "order.created", events.order_created)
@@ -104,6 +125,7 @@ def execute_trading_step(bar: MarketBar, strategy: Strategy, context: TradingCon
                     fill_price=fill.fill_price,
                     fee=fill.fee,
                     status=fill.status.value,
+                    timestamp=_bar_timestamp(bar.timestamp),
                 )
             )
             _emit_event(context.logger, "order.filled", events.order_filled)
@@ -114,6 +136,7 @@ def execute_trading_step(bar: MarketBar, strategy: Strategy, context: TradingCon
                     side=order.side.value,
                     quantity=order.quantity,
                     reason="unfilled",
+                    timestamp=_bar_timestamp(bar.timestamp),
                 )
             )
             _emit_event(context.logger, "order.rejected", events.order_rejected)
@@ -124,6 +147,7 @@ def execute_trading_step(bar: MarketBar, strategy: Strategy, context: TradingCon
                 requested_quantity=signed_quantity,
                 current_position=current_position,
                 price=bar.close,
+                timestamp=_bar_timestamp(bar.timestamp),
             )
         )
         _emit_event(context.logger, "risk.rejected", events.risk_rejected)
@@ -153,7 +177,12 @@ def _check_sl_tp(bar: MarketBar, context: TradingContext) -> None:
         _emit_event(
             context.logger,
             f"risk.{reason}",
-            {"symbol": symbol, "avg_cost": str(avg_cost), "mark": str(bar.close)},
+            {
+                "symbol": symbol,
+                "avg_cost": str(avg_cost),
+                "mark": str(bar.close),
+                "timestamp": _bar_timestamp(bar.timestamp),
+            },
         )
         fill = context.broker.submit_order(close_order, bar)
         if fill.filled_quantity > 0:
@@ -172,6 +201,7 @@ def _check_sl_tp(bar: MarketBar, context: TradingContext) -> None:
                         fill_price=fill.fill_price,
                         fee=fill.fee,
                         status=fill.status.value,
+                        timestamp=_bar_timestamp(bar.timestamp),
                     )
                 ),
             )
@@ -181,7 +211,90 @@ def _emit_event(
     logger: StructuredLogger | None,
     event_name: str,
     payload: dict[str, Any],
+    *,
+    severity: int = 20,
 ) -> None:
     if logger is None:
         return
-    logger.emit(event_name, severity=20, payload=payload)
+    logger.emit(event_name, severity=severity, payload=payload)
+
+
+def _update_marks(bar: MarketBar, context: TradingContext) -> None:
+    if context.marks is not None:
+        context.marks[bar.symbol] = bar.close
+    if context.runtime_state is not None:
+        context.runtime_state.last_marks[bar.symbol] = bar.close
+
+
+def _marks(context: TradingContext) -> dict[str, Decimal]:
+    if context.marks is not None:
+        return context.marks
+    if context.runtime_state is not None:
+        return context.runtime_state.last_marks
+    return {}
+
+
+def _liquidate_current_symbol_position(
+    bar: MarketBar,
+    context: TradingContext,
+    events: StepEvents,
+    *,
+    reason: str,
+) -> None:
+    quantity = context.portfolio.positions.get(bar.symbol, Decimal("0"))
+    if quantity == Decimal("0"):
+        return
+
+    side = OrderSide.SELL if quantity > 0 else OrderSide.BUY
+    close_order = OrderRequest(symbol=bar.symbol, side=side, quantity=abs(quantity))
+    _emit_event(
+        context.logger,
+        "risk.emergency_liquidation",
+        {
+            "symbol": bar.symbol,
+            "quantity": str(abs(quantity)),
+            "reason": reason,
+            "timestamp": _bar_timestamp(bar.timestamp),
+        },
+        severity=50,
+    )
+    events.order_created = event_payload(
+        OrderCreatedEvent(
+            symbol=close_order.symbol,
+            side=close_order.side.value,
+            quantity=close_order.quantity,
+            timestamp=_bar_timestamp(bar.timestamp),
+        )
+    )
+    fill = context.broker.submit_order(close_order, bar)
+    if fill.filled_quantity <= 0:
+        events.order_rejected = event_payload(
+            OrderRejectedEvent(
+                symbol=close_order.symbol,
+                side=close_order.side.value,
+                quantity=close_order.quantity,
+                reason="emergency_unfilled",
+                timestamp=_bar_timestamp(bar.timestamp),
+            )
+        )
+        _emit_event(context.logger, "order.rejected", events.order_rejected, severity=40)
+        return
+
+    context.portfolio.apply_fill(fill.symbol, fill.signed_quantity, fill.fill_price, fee=fill.fee)
+    events.order_filled = event_payload(
+        OrderFilledEvent(
+            symbol=fill.symbol,
+            side=fill.side.value,
+            requested_quantity=fill.requested_quantity,
+            filled_quantity=fill.filled_quantity,
+            fill_price=fill.fill_price,
+            fee=fill.fee,
+            status=fill.status.value,
+            timestamp=_bar_timestamp(bar.timestamp),
+        )
+    )
+    _emit_event(context.logger, "order.filled", events.order_filled, severity=30)
+
+
+def _bar_timestamp(value: datetime) -> str:
+    return value.isoformat()

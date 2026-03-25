@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
 from trading_system.api.errors import RequestValidationError
+from trading_system.api.routes.analytics import router as analytics_router
 from trading_system.api.routes.backtest import router as backtest_router
 from trading_system.api.routes.dashboard import router as dashboard_router
 from trading_system.api.routes.patterns import router as patterns_router
@@ -14,6 +15,7 @@ from trading_system.config.settings import SettingsValidationError as ConfigSett
 
 def create_app(live_loop=None) -> FastAPI:
     app = FastAPI(title="trading_system API", version="1.0.0")
+    app.include_router(analytics_router)
     app.include_router(backtest_router)
     app.include_router(patterns_router)
     app.include_router(strategies_router)
