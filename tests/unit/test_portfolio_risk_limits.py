@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-import pytest
-
+from trading_system.app.state import AppRunnerState, LiveRuntimeState
 from trading_system.core.types import MarketBar
 from trading_system.execution.step import TradingContext, execute_trading_step
 from trading_system.portfolio.book import PortfolioBook
@@ -120,10 +120,7 @@ class TestTakeProfit:
 
 
 def _make_bar(close: str = "100") -> MarketBar:
-    from trading_system.core.types import MarketBar as MB
-    from datetime import datetime, timezone
-
-    return MB(
+    return MarketBar(
         symbol="BTCUSDT",
         timestamp=datetime(2025, 1, 1, tzinfo=timezone.utc),
         open=Decimal(close),
@@ -134,7 +131,10 @@ def _make_bar(close: str = "100") -> MarketBar:
     )
 
 
-def _make_context(cash: str = "100", portfolio_risk: PortfolioRiskLimits | None = None) -> TradingContext:
+def _make_context(
+    cash: str = "100",
+    portfolio_risk: PortfolioRiskLimits | None = None,
+) -> TradingContext:
     portfolio = PortfolioBook(cash=Decimal(cash))
     risk = RiskLimits(
         max_position=Decimal("10"),
@@ -142,7 +142,14 @@ def _make_context(cash: str = "100", portfolio_risk: PortfolioRiskLimits | None 
         max_order_size=Decimal("1"),
     )
     broker = MagicMock()
-    return TradingContext(portfolio=portfolio, risk_limits=risk, broker=broker, portfolio_risk=portfolio_risk)
+    return TradingContext(
+        portfolio=portfolio,
+        risk_limits=risk,
+        broker=broker,
+        portfolio_risk=portfolio_risk,
+        runtime_state=LiveRuntimeState(state=AppRunnerState.RUNNING),
+        marks={},
+    )
 
 
 class TestDrawdownRegressionInStep:
@@ -185,3 +192,17 @@ class TestDrawdownRegressionInStep:
 
         # Strategy MUST be called when equity is healthy
         strategy.evaluate.assert_called_once_with(bar)
+
+    def test_drawdown_breach_moves_runtime_to_emergency(self) -> None:
+        pr = PortfolioRiskLimits(
+            max_daily_drawdown_pct=Decimal("0.05"),
+            session_peak_equity=Decimal("1000"),
+        )
+        context = _make_context(cash="100", portfolio_risk=pr)
+        strategy = MagicMock()
+        bar = _make_bar("100")
+
+        execute_trading_step(bar=bar, strategy=strategy, context=context)
+
+        assert context.runtime_state is not None
+        assert context.runtime_state.state == AppRunnerState.EMERGENCY

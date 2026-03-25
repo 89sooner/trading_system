@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from trading_system.core.types import MarketBar
-from trading_system.execution.broker import FillEvent, FillStatus
+from trading_system.execution.broker import AccountBalanceSnapshot, FillEvent, FillStatus
 from trading_system.execution.orders import OrderRequest
 from trading_system.integrations.kis import KisApiClient, KisOrderResult
 
@@ -14,6 +14,9 @@ class KisBrokerAdapter:
     def submit_order(self, order: OrderRequest, bar: MarketBar) -> FillEvent:
         result = self.client.submit_order(order)
         return _to_fill_event(result=result, order=order, fallback_price=bar.close)
+
+    def get_account_balance(self) -> AccountBalanceSnapshot | None:
+        return None
 
 
 def _to_fill_event(

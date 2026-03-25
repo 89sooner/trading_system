@@ -6,6 +6,7 @@ from typing import Callable
 from trading_system.app.loop import LiveTradingLoop
 from trading_system.app.sample_data import build_sample_bars
 from trading_system.app.settings import AppMode, AppSettings, LiveExecutionMode
+from trading_system.app.state import AppRunnerState, LiveRuntimeState
 from trading_system.backtest.engine import BacktestContext, BacktestResult, run_backtest
 from trading_system.core.ops import (
     EnvSecretProvider,
@@ -33,8 +34,9 @@ from trading_system.patterns.repository import PatternSetRepository
 from trading_system.portfolio.book import PortfolioBook
 from trading_system.portfolio.repository import FilePortfolioRepository, PortfolioRepository
 from trading_system.risk.limits import RiskLimits
+from trading_system.risk.portfolio_limits import PortfolioRiskLimits
 from trading_system.strategy.base import Strategy
-from trading_system.strategy.factory import build_strategy
+from trading_system.strategy.factory import build_strategies
 from trading_system.strategy.repository import StrategyProfileRepository
 
 
@@ -53,20 +55,29 @@ class AppServices:
     logger: StructuredLogger
     live_preflight_check: Callable[[str], str] | None = None
     portfolio_repository: PortfolioRepository | None = None
+    strategies: dict[str, Strategy] | None = None
+    portfolio_risk: PortfolioRiskLimits | None = None
 
     def run(self) -> BacktestResult:
         if self.mode != AppMode.BACKTEST:
             raise RuntimeError(f"Unsupported mode '{self.mode}'.")
 
-        symbol = self._single_symbol(mode_name="backtest")
-        bars = self.data_provider.load_bars(symbol)
+        bars = self._merged_bars()
         context = BacktestContext(
             portfolio=self.portfolio,
             risk_limits=self.risk_limits,
             broker=self.broker_simulator,
             logger=self.logger,
+            portfolio_risk=self.portfolio_risk,
+            runtime_state=LiveRuntimeState(state=AppRunnerState.RUNNING),
+            marks={},
         )
-        return run_backtest(bars=bars, strategy=self.strategy, context=context)
+        return run_backtest(
+            bars=bars,
+            strategy=self.strategy,
+            context=context,
+            strategy_by_symbol=self.strategies,
+        )
 
     def preflight_live(self) -> str:
         if self.mode != AppMode.LIVE:
@@ -109,6 +120,20 @@ class AppServices:
             )
         return self.symbols[0]
 
+    def strategy_for(self, symbol: str) -> Strategy:
+        if self.strategies is None:
+            return self.strategy
+        return self.strategies[symbol]
+
+    def _merged_bars(self):
+        symbol_order = {symbol: idx for idx, symbol in enumerate(self.symbols)}
+        merged = [
+            bar
+            for symbol in self.symbols
+            for bar in self.data_provider.load_bars(symbol)
+        ]
+        return sorted(merged, key=lambda bar: (bar.timestamp, symbol_order[bar.symbol]))
+
 
 def build_services(settings: AppSettings) -> AppServices:
     ensure_logging()
@@ -133,22 +158,28 @@ def build_services(settings: AppSettings) -> AppServices:
         portfolio = PortfolioBook(cash=settings.backtest.starting_cash)
         logger.emit("portfolio.initialized", severity=20, payload={"cash": str(portfolio.cash)})
 
+    strategies = build_strategies(
+        settings,
+        symbols=settings.symbols,
+        pattern_repository=pattern_repository,
+        strategy_repository=strategy_repository,
+    )
+    primary_strategy = strategies[settings.symbols[0]]
+
     return AppServices(
         mode=settings.mode,
         provider=settings.provider,
         broker=settings.broker,
         live_execution=settings.live_execution,
-        strategy=build_strategy(
-            settings,
-            pattern_repository=pattern_repository,
-            strategy_repository=strategy_repository,
-        ),
+        strategy=primary_strategy,
+        strategies=strategies,
         data_provider=_build_data_provider(settings, kis_client=kis_client),
         risk_limits=RiskLimits(
             max_position=settings.risk.max_position,
             max_notional=settings.risk.max_notional,
             max_order_size=settings.risk.max_order_size,
         ),
+        portfolio_risk=_build_portfolio_risk(settings, portfolio),
         broker_simulator=ResilientBroker(
             delegate=_build_broker(settings, kis_client=kis_client),
         ),
@@ -157,6 +188,20 @@ def build_services(settings: AppSettings) -> AppServices:
         logger=logger,
         live_preflight_check=_build_live_preflight(settings, kis_client=kis_client),
         portfolio_repository=portfolio_repository if settings.mode == AppMode.LIVE else None,
+    )
+
+
+def _build_portfolio_risk(
+    settings: AppSettings,
+    portfolio: PortfolioBook,
+) -> PortfolioRiskLimits | None:
+    if settings.portfolio_risk is None:
+        return None
+    return PortfolioRiskLimits(
+        max_daily_drawdown_pct=settings.portfolio_risk.max_daily_drawdown_pct,
+        session_peak_equity=portfolio.total_equity({}),
+        sl_pct=settings.portfolio_risk.sl_pct,
+        tp_pct=settings.portfolio_risk.tp_pct,
     )
 
 

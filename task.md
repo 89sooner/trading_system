@@ -1,45 +1,65 @@
 # Phase 3 Task Breakdown
 
-## Epic A — Live Dashboard API + Frontend
-- [x] Add ring buffer + [recent_events()](file:///home/roqkf/trading_system/src/trading_system/core/ops.py#130-134) to [StructuredLogger](file:///home/roqkf/trading_system/src/trading_system/core/ops.py#106-158) in [core/ops.py](file:///home/roqkf/trading_system/src/trading_system/core/ops.py)
-- [x] Create [api/routes/dashboard.py](file:///home/roqkf/trading_system/src/trading_system/api/routes/dashboard.py) (status, positions, events, control)
-- [x] Add DTOs to [api/schemas.py](file:///home/roqkf/trading_system/src/trading_system/api/schemas.py)
-- [x] Register dashboard router + thread-safe `app.state.loop` wiring in [api/server.py](file:///home/roqkf/trading_system/src/trading_system/api/server.py)
-- [x] Create [frontend/dashboard.html](file:///home/roqkf/trading_system/frontend/dashboard.html)
-- [x] Add nav link in [frontend/index.html](file:///home/roqkf/trading_system/frontend/index.html)
-- [x] Write [tests/unit/test_dashboard_routes.py](file:///home/roqkf/trading_system/tests/unit/test_dashboard_routes.py)
+## Epic A - Runtime State And Dashboard
+- [x] Define an authoritative runtime state/control object shared by the live loop and API layer
+- [x] Refactor live startup so the dashboard reads real loop state, heartbeat, and uptime from that authority
+- [x] Expose `GET /api/v1/dashboard/status`
+- [x] Expose `GET /api/v1/dashboard/positions`
+- [x] Expose `GET /api/v1/dashboard/events`
+- [x] Expose `POST /api/v1/dashboard/control` for `pause`, `resume`, and `reset`, with kill switch mapped to pause-only behavior
+- [x] Make `reset` valid only for clearing `EMERGENCY` state and returning the runtime to `PAUSED`
+- [ ] Ensure control actions are safe against race conditions with the running loop
+- [x] Keep an in-memory recent-event buffer in `StructuredLogger`
+- [ ] Create or refine `frontend/dashboard.html` to show status, heartbeat, positions, unrealized PnL, and recent events
+- [ ] Add navigation entry points from the existing frontend
+- [x] Write route and runtime interaction tests for dashboard behavior
 
-## Epic B — Portfolio-Level Risk Guards
-- [x] Create [risk/portfolio_limits.py](file:///home/roqkf/trading_system/src/trading_system/risk/portfolio_limits.py) with [PortfolioRiskLimits](file:///home/roqkf/trading_system/src/trading_system/risk/portfolio_limits.py#15-83)
-- [x] Add `PortfolioRiskSettings` to config and app settings
-- [x] Update [configs/base.yaml](file:///home/roqkf/trading_system/configs/base.yaml) + `examples/` + [README.md](file:///home/roqkf/trading_system/README.md)
-- [x] Extend [TradingContext](file:///home/roqkf/trading_system/src/trading_system/execution/step.py#23-30) to carry `portfolio_risk`
-- [x] Extend [step.py](file:///home/roqkf/trading_system/src/trading_system/execution/step.py) to check drawdown limit and SL/TP
-- [x] Wire [PortfolioRiskLimits](file:///home/roqkf/trading_system/src/trading_system/risk/portfolio_limits.py#15-83) in [app/services.py](file:///home/roqkf/trading_system/src/trading_system/app/services.py)
-- [x] Write [tests/unit/test_portfolio_risk_limits.py](file:///home/roqkf/trading_system/tests/unit/test_portfolio_risk_limits.py)
-- [x] Write regression test: step skips when daily limit breached
+## Epic B - Portfolio-Level Risk Defense
+- [x] Finalize `PortfolioRiskLimits` around session peak equity using realized plus unrealized portfolio value
+- [ ] Add configuration for drawdown guard, SL, TP, and emergency liquidation behavior
+- [x] Extend `TradingContext` to carry the portfolio-level risk policy cleanly
+- [x] Block new entries when the drawdown limit is breached
+- [x] Emit high-severity structured events for drawdown breaches
+- [x] Trigger emergency liquidation of open positions when the drawdown limit is breached
+- [x] Move the runtime into a guarded risk state after emergency liquidation
+- [x] Keep SL and TP execution in the independent risk layer
+- [x] Add regression tests for breach, liquidation, guarded-state behavior, and SL/TP edge cases
 
-## Epic C — Multi-Symbol Orchestration
-- [ ] Update [app/loop.py](file:///home/roqkf/trading_system/src/trading_system/app/loop.py) [_run_tick](file:///home/roqkf/trading_system/src/trading_system/app/loop.py#104-122) for multi-symbol
-- [ ] Update per-symbol timestamp tracking (`dict[str, datetime]`)
-- [ ] Relax single-symbol guard in [app/services.py](file:///home/roqkf/trading_system/src/trading_system/app/services.py) for live mode
-- [ ] Update strategy factory for multi-symbol strategy dispatch
-- [ ] Write `tests/unit/test_live_loop_multi_symbol.py`
+## Epic C - Unified Multi-Symbol Orchestration
+- [x] Update live orchestration to process every configured symbol each cycle
+- [x] Maintain per-symbol last-processed timestamps
+- [x] Maintain per-symbol strategy instances with isolated state
+- [x] Build per-symbol strategy instances once at service startup and reuse them for the full run
+- [x] Keep a shared `PortfolioBook` and a single order path through `step.py`
+- [x] Implement FIFO allocation in configured symbol order for capital contention
+- [ ] Remove live-only single-symbol restrictions that conflict with Phase 3
+- [x] Extend backtest orchestration so multi-symbol behavior is testable through the same execution path
+- [x] Update strategy factory and related interfaces for per-symbol dispatch where needed
+- [x] Write deterministic multi-symbol tests covering cash contention and symbol isolation
 
-## Epic D — Trade-Level Analytics
-- [ ] Create `analytics/trades.py` (`CompletedTrade`, `extract_trades`)
-- [ ] Create `analytics/advanced_metrics.py` (profit_factor, sharpe, sortino, avg_win, avg_loss)
-- [ ] Extend backtest API response with `TradeStatsDTO`
-- [ ] Write `tests/unit/test_trades.py`
-- [ ] Write `tests/unit/test_advanced_metrics.py`
+## Epic D - Trade Analytics
+- [x] Create trade extraction from fill events
+- [x] Define the `Trade` or `CompletedTrade` model with entry, exit, quantity, pnl, and holding time
+- [x] Implement win rate
+- [x] Implement risk-reward ratio
+- [x] Implement trade-sequence max drawdown
+- [x] Implement average time in market
+- [x] Expose trade stats through `GET /api/v1/analytics/backtests/{run_id}/trades` with stable DTOs
+- [ ] Add tests for partial fills, scale-in, scale-out, flat-then-reopen, and empty trade sets
 
-## Epic E — Exchange Reconciliation (Phase 3.5)
-- [ ] Create `execution/reconciliation.py`
-- [ ] Add `get_account_balance()` to broker protocol + KIS adapter
-- [ ] Wire reconciliation interval into [app/loop.py](file:///home/roqkf/trading_system/src/trading_system/app/loop.py)
-- [ ] Write reconciliation tests
+## Epic E - Broker Reconciliation
+- [x] Add broker account snapshot support to the broker interface
+- [x] Implement a reconciliation service that compares broker state with `PortfolioBook`
+- [x] Add live-only reconciliation cadence in the live loop with a default of 300 seconds
+- [x] Emit structured adjustment events when drift is detected
+- [x] Reflect broker-proven external deposits and withdrawals in the local ledger
+- [x] Skip symbol adjustments for in-transit orders and freeze all cash adjustments for that reconciliation cycle
+- [x] Add reconciliation unit and integration tests
 
-## Cross-cutting
-- [ ] `uv run pytest` all green after each epic
-- [ ] `ruff check` clean after each epic
-- [ ] Update [README.md](file:///home/roqkf/trading_system/README.md) and [GEMINI.md](file:///home/roqkf/trading_system/GEMINI.md) after each epic merge
+## Cross-Cutting
+- [x] Keep `step.py` as the unified execution path for trading behavior changes
+- [ ] Update `configs/base.yaml`, `examples/`, `README.md`, and `GEMINI.md` for any config or operator workflow changes
+- [ ] Run targeted unit tests after each epic
+- [ ] Run broader regression tests after behavior-changing epics
+- [x] Run `ruff check src tests`
+- [ ] Run the full test suite before declaring Phase 3 complete

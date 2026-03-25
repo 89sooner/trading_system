@@ -28,6 +28,13 @@ class RiskSettings:
 
 
 @dataclass(slots=True)
+class PortfolioRiskSettings:
+    max_daily_drawdown_pct: Decimal
+    sl_pct: Decimal | None = None
+    tp_pct: Decimal | None = None
+
+
+@dataclass(slots=True)
 class BacktestSettings:
     starting_cash: Decimal
     fee_bps: Decimal
@@ -54,6 +61,7 @@ class AppSettings:
     risk: RiskSettings
     backtest: BacktestSettings
     strategy: PatternSignalStrategySettings | None = None
+    portfolio_risk: PortfolioRiskSettings | None = None
 
     @classmethod
     def from_cli(
@@ -93,6 +101,7 @@ class AppSettings:
                 max_notional=_to_decimal(max_notional, "max_notional"),
                 max_order_size=_to_decimal(max_order_size, "max_order_size"),
             ),
+            portfolio_risk=None,
             backtest=BacktestSettings(
                 starting_cash=_to_decimal(starting_cash, "starting_cash"),
                 fee_bps=_to_decimal(fee_bps, "fee_bps"),
@@ -140,6 +149,20 @@ class AppSettings:
 
         if self.risk.max_order_size > self.risk.max_position:
             raise SettingsValidationError("--max-order-size cannot exceed --max-position.")
+
+        if self.portfolio_risk is not None:
+            if self.portfolio_risk.max_daily_drawdown_pct <= 0:
+                raise SettingsValidationError(
+                    "portfolio_risk.max_daily_drawdown_pct must be greater than 0."
+                )
+            if self.portfolio_risk.max_daily_drawdown_pct >= Decimal("1"):
+                raise SettingsValidationError(
+                    "portfolio_risk.max_daily_drawdown_pct must be less than 1."
+                )
+            if self.portfolio_risk.sl_pct is not None and self.portfolio_risk.sl_pct <= 0:
+                raise SettingsValidationError("portfolio_risk.sl_pct must be greater than 0.")
+            if self.portfolio_risk.tp_pct is not None and self.portfolio_risk.tp_pct <= 0:
+                raise SettingsValidationError("portfolio_risk.tp_pct must be greater than 0.")
 
         if self.strategy is None:
             return

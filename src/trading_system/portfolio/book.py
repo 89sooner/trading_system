@@ -67,6 +67,13 @@ class PortfolioBook:
             result[symbol] = (marks[symbol] - average_cost) * quantity
         return result
 
+    def total_equity(self, marks: dict[str, Decimal]) -> Decimal:
+        equity = self.cash
+        for symbol, quantity in self.positions.items():
+            mark = marks.get(symbol, self.average_costs.get(symbol, ZERO))
+            equity += quantity * mark
+        return equity
+
     def total_fees_paid(self) -> Decimal:
         return sum(self.fees_paid.values(), start=ZERO)
 
