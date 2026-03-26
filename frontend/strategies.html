@@ -14,6 +14,7 @@
         <a href="./patterns.html">Patterns</a>
         <a href="./strategies.html">Strategies</a>
         <a href="./runs.html">Runs</a>
+        <a href="./dashboard.html">Dashboard</a>
       </nav>
     </header>
 
@@ -47,15 +48,26 @@
           </label>
           <label>
             Trade Quantity
-            <input id="strategy-trade-quantity" name="strategyTradeQuantity" type="number" min="0.0001" step="0.0001" value="0.2" />
+            <input
+              id="strategy-trade-quantity"
+              name="strategyTradeQuantity"
+              type="number"
+              min="0.0001"
+              step="0.0001"
+              value="0.2"
+            />
           </label>
           <label class="full-span">
             Label to Side
-            <textarea id="strategy-label-map" name="strategyLabelMap" rows="6">bullish_reversal=buy</textarea>
+            <textarea id="strategy-label-map" name="strategyLabelMap" rows="6">
+bullish_reversal=buy</textarea
+            >
           </label>
           <label class="full-span">
             Threshold Overrides
-            <textarea id="strategy-thresholds" name="strategyThresholds" rows="4">bullish_reversal=0.8</textarea>
+            <textarea id="strategy-thresholds" name="strategyThresholds" rows="4">
+bullish_reversal=0.8</textarea
+            >
           </label>
           <button id="save-strategy-button" type="submit">Save Strategy Profile</button>
         </form>

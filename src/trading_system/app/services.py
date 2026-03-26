@@ -32,7 +32,10 @@ from trading_system.execution.kis_adapter import KisBrokerAdapter
 from trading_system.integrations.kis import KisApiClient
 from trading_system.patterns.repository import PatternSetRepository
 from trading_system.portfolio.book import PortfolioBook
-from trading_system.portfolio.repository import FilePortfolioRepository, PortfolioRepository
+from trading_system.portfolio.repository import (
+    FilePortfolioRepository,
+    PortfolioRepository,
+)
 from trading_system.risk.limits import RiskLimits
 from trading_system.risk.portfolio_limits import PortfolioRiskLimits
 from trading_system.strategy.base import Strategy
@@ -83,9 +86,10 @@ class AppServices:
         if self.mode != AppMode.LIVE:
             raise RuntimeError(f"Unsupported mode '{self.mode}'.")
 
-        symbol = self._single_symbol(mode_name="live")
         if self.live_preflight_check is not None:
-            return self.live_preflight_check(symbol)
+            # Broker-specific preflight (e.g. KIS) checks each symbol individually.
+            results = [self.live_preflight_check(s) for s in self.symbols]
+            return " ".join(results)
         return "Live mode preflight passed (no orders were submitted)."
 
     def run_live_paper(self) -> None:
@@ -99,9 +103,7 @@ class AppServices:
         if self.mode != AppMode.LIVE:
             raise RuntimeError(f"Unsupported mode '{self.mode}'.")
         if self.live_execution != LiveExecutionMode.LIVE:
-            raise RuntimeError(
-                "run_live_execution requires --live-execution live."
-            )
+            raise RuntimeError("run_live_execution requires --live-execution live.")
         if self.provider != "kis" or self.broker != "kis":
             raise RuntimeError(
                 "Live order submission requires '--provider kis --broker kis'."
@@ -112,13 +114,6 @@ class AppServices:
                 "Set TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true to enable."
             )
         self.run_live_paper()
-
-    def _single_symbol(self, mode_name: str) -> str:
-        if len(self.symbols) != 1:
-            raise RuntimeError(
-                f"Current scaffold supports exactly one symbol for {mode_name} mode."
-            )
-        return self.symbols[0]
 
     def strategy_for(self, symbol: str) -> Strategy:
         if self.strategies is None:
@@ -145,18 +140,23 @@ def build_services(settings: AppSettings) -> AppServices:
 
     if settings.mode == AppMode.LIVE:
         _require_live_credentials(settings)
-        
+
     saved_book = portfolio_repository.load()
     if saved_book is not None and settings.mode == AppMode.LIVE:
         portfolio = saved_book
         logger.emit(
             "portfolio.loaded",
             severity=20,
-            payload={"path": str(_resolve_portfolio_path()), "cash": str(portfolio.cash)}
+            payload={
+                "path": str(_resolve_portfolio_path()),
+                "cash": str(portfolio.cash),
+            },
         )
     else:
         portfolio = PortfolioBook(cash=settings.backtest.starting_cash)
-        logger.emit("portfolio.initialized", severity=20, payload={"cash": str(portfolio.cash)})
+        logger.emit(
+            "portfolio.initialized", severity=20, payload={"cash": str(portfolio.cash)}
+        )
 
     strategies = build_strategies(
         settings,
@@ -187,7 +187,9 @@ def build_services(settings: AppSettings) -> AppServices:
         symbols=settings.symbols,
         logger=logger,
         live_preflight_check=_build_live_preflight(settings, kis_client=kis_client),
-        portfolio_repository=portfolio_repository if settings.mode == AppMode.LIVE else None,
+        portfolio_repository=(
+            portfolio_repository if settings.mode == AppMode.LIVE else None
+        ),
     )
 
 
@@ -220,7 +222,9 @@ def _build_data_provider(
     kis_client: KisApiClient | None,
 ) -> MarketDataProvider:
     if settings.provider == "mock":
-        bars_by_symbol = {symbol: build_sample_bars(symbol=symbol) for symbol in settings.symbols}
+        bars_by_symbol = {
+            symbol: build_sample_bars(symbol=symbol) for symbol in settings.symbols
+        }
         return InMemoryMarketDataProvider(bars_by_symbol=bars_by_symbol)
     if settings.provider == "kis":
         if kis_client is None:
@@ -297,7 +301,10 @@ def _is_live_orders_enabled() -> bool:
 
 
 def _resolve_kis_live_sample_size(settings: AppSettings) -> int:
-    if settings.mode != AppMode.LIVE or settings.live_execution != LiveExecutionMode.LIVE:
+    if (
+        settings.mode != AppMode.LIVE
+        or settings.live_execution != LiveExecutionMode.LIVE
+    ):
         return 1
 
     configured = os.getenv("TRADING_SYSTEM_LIVE_BAR_SAMPLES", "2").strip()
@@ -318,4 +325,6 @@ def _resolve_strategy_dir() -> Path:
 
 
 def _resolve_portfolio_path() -> Path:
-    return Path(os.getenv("TRADING_SYSTEM_PORTFOLIO_DIR", "data/portfolio")) / "book.json"
+    return (
+        Path(os.getenv("TRADING_SYSTEM_PORTFOLIO_DIR", "data/portfolio")) / "book.json"
+    )

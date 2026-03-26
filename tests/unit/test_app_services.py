@@ -10,7 +10,9 @@ from trading_system.execution.orders import OrderSide
 from trading_system.integrations.kis import KisOrderResult
 
 
-def test_build_services_uses_csv_provider_for_domestic_symbol(tmp_path, monkeypatch) -> None:
+def test_build_services_uses_csv_provider_for_domestic_symbol(
+    tmp_path, monkeypatch
+) -> None:
     csv_path = tmp_path / "005930.csv"
     csv_path.write_text(
         "timestamp,open,high,low,close,volume\n"
@@ -42,7 +44,9 @@ def test_build_services_uses_csv_provider_for_domestic_symbol(tmp_path, monkeypa
     assert bars[0].timestamp == datetime(2024, 1, 2, tzinfo=timezone.utc)
 
 
-def test_build_services_raises_clear_error_when_csv_file_missing(tmp_path, monkeypatch) -> None:
+def test_build_services_raises_clear_error_when_csv_file_missing(
+    tmp_path, monkeypatch
+) -> None:
     monkeypatch.setenv("TRADING_SYSTEM_CSV_DIR", str(tmp_path))
 
     settings = AppSettings.from_cli(
@@ -64,7 +68,9 @@ def test_build_services_raises_clear_error_when_csv_file_missing(tmp_path, monke
         build_services(settings)
 
 
-def test_live_mode_paper_execution_runs_without_order_submission_error(monkeypatch) -> None:
+def test_live_mode_paper_execution_runs_without_order_submission_error(
+    monkeypatch,
+) -> None:
     monkeypatch.setenv("TRADING_SYSTEM_API_KEY", "dummy-key")
 
     settings = AppSettings.from_cli(
@@ -83,8 +89,10 @@ def test_live_mode_paper_execution_runs_without_order_submission_error(monkeypat
     settings.validate()
 
     import time
+
     def mock_sleep(_):
         raise KeyboardInterrupt()
+
     monkeypatch.setattr(time, "sleep", mock_sleep)
 
     services = build_services(settings)
@@ -118,6 +126,59 @@ def test_live_mode_kis_preflight_uses_kis_quote(monkeypatch) -> None:
         "KIS live preflight passed (symbol=005930, price=70200, volume=1200). "
         "No orders were submitted."
     )
+
+
+def test_live_preflight_supports_multi_symbol(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "trading_system.app.services.KisApiClient.from_env",
+        lambda: _StubKisClient(),
+    )
+
+    settings = AppSettings.from_cli(
+        mode="live",
+        symbols="005930,035720",
+        provider="kis",
+        broker="kis",
+        live_execution="preflight",
+        starting_cash="1000000",
+        fee_bps="5",
+        trade_quantity="1",
+        max_position="10",
+        max_notional="100000000",
+        max_order_size="5",
+    )
+    settings.validate()
+
+    services = build_services(settings)
+    result = services.preflight_live()
+
+    assert "005930" in result
+    assert "035720" in result
+
+
+def test_live_preflight_no_broker_check_multi_symbol(monkeypatch) -> None:
+    """When no broker-specific preflight exists, multi-symbol passes without error."""
+    monkeypatch.setenv("TRADING_SYSTEM_API_KEY", "test-key")
+
+    settings = AppSettings.from_cli(
+        mode="live",
+        symbols="BTCUSDT,ETHUSDT",
+        provider="mock",
+        broker="paper",
+        live_execution="preflight",
+        starting_cash="1000000",
+        fee_bps="5",
+        trade_quantity="1",
+        max_position="10",
+        max_notional="100000000",
+        max_order_size="5",
+    )
+    settings.validate()
+
+    services = build_services(settings)
+    result = services.preflight_live()
+
+    assert result == "Live mode preflight passed (no orders were submitted)."
 
 
 def test_build_services_uses_kis_broker_adapter_when_broker_is_kis(monkeypatch) -> None:
@@ -197,8 +258,10 @@ def test_live_execution_runs_when_opted_in(monkeypatch) -> None:
     settings.validate()
 
     import time
+
     def mock_sleep(_):
         raise KeyboardInterrupt()
+
     monkeypatch.setattr(time, "sleep", mock_sleep)
 
     services = build_services(settings)
@@ -230,8 +293,10 @@ def test_live_execution_can_submit_order_with_moving_quotes(monkeypatch) -> None
     settings.validate()
 
     import time
+
     def mock_sleep(_):
         raise KeyboardInterrupt()
+
     monkeypatch.setattr(time, "sleep", mock_sleep)
 
     services = build_services(settings)
@@ -287,10 +352,12 @@ class _MovingQuoteKisClient:
 
     def preflight_symbol(self, symbol: str):
         from datetime import timedelta
+
         self.preflight_calls += 1
         current_time = datetime(2024, 1, 2, tzinfo=timezone.utc) + timedelta(
             seconds=self.preflight_calls
         )
+
         class Quote:
             def __init__(self, quote_symbol: str, price: Decimal) -> None:
                 self.symbol = quote_symbol

@@ -55,8 +55,9 @@ async function refreshStatus() {
   try {
     const data = await fetchJson("/dashboard/status");
     setBadge(data.state);
-    document.getElementById("last-hb").textContent =
-      data.last_heartbeat ? new Date(data.last_heartbeat).toLocaleTimeString() : "–";
+    document.getElementById("last-hb").textContent = data.last_heartbeat
+      ? new Date(data.last_heartbeat).toLocaleTimeString()
+      : "–";
     document.getElementById("uptime").textContent = formatUptime(data.uptime_seconds);
   } catch (e) {
     setBadge("unknown");
@@ -82,7 +83,7 @@ async function refreshPositions() {
             <td>${p.quantity}</td>
             <td>${p.average_cost}</td>
             <td>${p.unrealized_pnl ?? "–"}</td>
-          </tr>`
+          </tr>`,
         )
         .join("");
     }
@@ -132,8 +133,7 @@ async function refreshEvents() {
 // ── Refresh cycle ─────────────────────────────────────────────────────────
 
 function updateRefreshTs() {
-  document.getElementById("last-refresh-ts").textContent =
-    new Date().toLocaleTimeString();
+  document.getElementById("last-refresh-ts").textContent = new Date().toLocaleTimeString();
 }
 
 async function refresh() {
@@ -158,8 +158,9 @@ async function sendControl(action) {
 
 document.getElementById("btn-pause").addEventListener("click", () => sendControl("pause"));
 document.getElementById("btn-resume").addEventListener("click", () => sendControl("resume"));
-document.getElementById("btn-stop").addEventListener("click", () => {
-  if (confirm("Are you sure you want to STOP the live loop?")) sendControl("stop");
+document.getElementById("btn-reset").addEventListener("click", () => {
+  if (confirm("Are you sure you want to RESET? This clears EMERGENCY state and returns to PAUSED."))
+    sendControl("reset");
 });
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────
