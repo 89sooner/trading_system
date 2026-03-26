@@ -9,7 +9,9 @@ def test_cli_backtest_mode_runs_successfully(capsys) -> None:
     assert "Smoke backtest result" in captured.out
 
 
-def test_cli_live_mode_runs_preflight_when_api_key_is_present(capsys, monkeypatch) -> None:
+def test_cli_live_mode_runs_preflight_when_api_key_is_present(
+    capsys, monkeypatch
+) -> None:
     monkeypatch.setenv("TRADING_SYSTEM_API_KEY", "dummy-key")
 
     exit_code = run(["--mode", "live", "--symbols", "BTCUSDT"])
@@ -21,10 +23,12 @@ def test_cli_live_mode_runs_preflight_when_api_key_is_present(capsys, monkeypatc
 
 def test_cli_live_mode_runs_paper_loop_when_requested(capsys, monkeypatch) -> None:
     monkeypatch.setenv("TRADING_SYSTEM_API_KEY", "dummy-key")
-    
+
     import time
+
     def mock_sleep(_):
         raise KeyboardInterrupt()
+
     monkeypatch.setattr(time, "sleep", mock_sleep)
 
     exit_code = run(
@@ -63,13 +67,10 @@ def test_cli_returns_validation_error_for_invalid_fee_bps(capsys) -> None:
     assert "--fee-bps must be between 0 and 1000." in captured.err
 
 
-def test_cli_returns_runtime_error_for_unsupported_multi_symbol_backtest(capsys) -> None:
+def test_cli_multi_symbol_backtest_runs_successfully(capsys) -> None:
     exit_code = run(["--mode", "backtest", "--symbols", "BTCUSDT,ETHUSDT"])
 
-    captured = capsys.readouterr()
-    assert exit_code == 3
-    assert "Runtime error:" in captured.err
-    assert "supports exactly one symbol" in captured.err
+    assert exit_code == 0
 
 
 def test_cli_returns_validation_error_for_unsupported_provider(capsys) -> None:
@@ -87,10 +88,14 @@ def test_cli_returns_validation_error_for_invalid_live_execution_mode(capsys) ->
     captured = capsys.readouterr()
     assert exit_code == 2
     assert "Configuration error:" in captured.err
-    assert "--live-execution must be one of: 'preflight', 'paper', 'live'." in captured.err
+    assert (
+        "--live-execution must be one of: 'preflight', 'paper', 'live'." in captured.err
+    )
 
 
-def test_cli_live_mode_rejects_live_execution_without_opt_in(capsys, monkeypatch) -> None:
+def test_cli_live_mode_rejects_live_execution_without_opt_in(
+    capsys, monkeypatch
+) -> None:
     class _StubServicesKisClient:
         def preflight_symbol(self, symbol: str):
             class Quote:

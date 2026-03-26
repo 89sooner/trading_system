@@ -16,38 +16,149 @@
         text-transform: uppercase;
         letter-spacing: 0.05em;
       }
-      .badge-running  { background: #22c55e22; color: #22c55e; border: 1px solid #22c55e55; }
-      .badge-paused   { background: #f59e0b22; color: #f59e0b; border: 1px solid #f59e0b55; }
-      .badge-stopped  { background: #ef444422; color: #ef4444; border: 1px solid #ef444455; }
-      .badge-init     { background: #6b728022; color: #6b7280; border: 1px solid #6b728055; }
-      .badge-unknown  { background: #6b728022; color: #6b7280; border: 1px solid #6b728055; }
+      .badge-running {
+        background: #22c55e22;
+        color: #22c55e;
+        border: 1px solid #22c55e55;
+      }
+      .badge-paused {
+        background: #f59e0b22;
+        color: #f59e0b;
+        border: 1px solid #f59e0b55;
+      }
+      .badge-emergency {
+        background: #ef444422;
+        color: #ef4444;
+        border: 1px solid #ef444455;
+      }
+      .badge-init {
+        background: #6b728022;
+        color: #6b7280;
+        border: 1px solid #6b728055;
+      }
+      .badge-unknown {
+        background: #6b728022;
+        color: #6b7280;
+        border: 1px solid #6b728055;
+      }
 
-      .meta-row { display: flex; gap: 2rem; flex-wrap: wrap; margin-top: 0.75rem; font-size: 0.85rem; color: var(--text-muted, #9ca3af); }
-      .meta-row span b { color: var(--text, #f3f4f6); }
+      .meta-row {
+        display: flex;
+        gap: 2rem;
+        flex-wrap: wrap;
+        margin-top: 0.75rem;
+        font-size: 0.85rem;
+        color: var(--text-muted, #9ca3af);
+      }
+      .meta-row span b {
+        color: var(--text, #f3f4f6);
+      }
 
-      .control-buttons { display: flex; gap: 0.75rem; margin-top: 1rem; flex-wrap: wrap; }
-      .btn-danger  { background: #ef4444; color: #fff; border: none; }
-      .btn-warn    { background: #f59e0b; color: #1a1a1a; border: none; }
-      .btn-success { background: #22c55e; color: #1a1a1a; border: none; }
-      button       { padding: 0.4em 1em; border-radius: 0.4rem; cursor: pointer; font-size: 0.875rem; }
-      button:hover { opacity: 0.85; }
+      .control-buttons {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+      }
+      .btn-danger {
+        background: #ef4444;
+        color: #fff;
+        border: none;
+      }
+      .btn-warn {
+        background: #f59e0b;
+        color: #1a1a1a;
+        border: none;
+      }
+      .btn-success {
+        background: #22c55e;
+        color: #1a1a1a;
+        border: none;
+      }
+      button {
+        padding: 0.4em 1em;
+        border-radius: 0.4rem;
+        cursor: pointer;
+        font-size: 0.875rem;
+      }
+      button:hover {
+        opacity: 0.85;
+      }
 
-      .positions-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-      .positions-table th, .positions-table td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #ffffff11; }
-      .positions-table th { color: var(--text-muted, #9ca3af); font-weight: 600; }
-      .empty-row { color: var(--text-muted, #9ca3af); font-style: italic; }
+      .positions-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+      }
+      .positions-table th,
+      .positions-table td {
+        padding: 0.5rem 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid #ffffff11;
+      }
+      .positions-table th {
+        color: var(--text-muted, #9ca3af);
+        font-weight: 600;
+      }
+      .empty-row {
+        color: var(--text-muted, #9ca3af);
+        font-style: italic;
+      }
 
-      .event-feed { max-height: 380px; overflow-y: auto; font-size: 0.78rem; font-family: monospace; }
-      .event-item { padding: 0.3rem 0; border-bottom: 1px solid #ffffff08; }
-      .event-item .ev-ts  { color: #6b7280; margin-right: 0.5rem; }
-      .event-item .ev-tag { font-weight: 700; margin-right: 0.5rem; }
-      .ev-tag-INFO    { color: #60a5fa; }
-      .ev-tag-WARNING { color: #f59e0b; }
-      .ev-tag-ERROR, .ev-tag-CRITICAL { color: #ef4444; }
+      .event-feed {
+        max-height: 380px;
+        overflow-y: auto;
+        font-size: 0.78rem;
+        font-family: monospace;
+      }
+      .event-item {
+        padding: 0.3rem 0;
+        border-bottom: 1px solid #ffffff08;
+      }
+      .event-item .ev-ts {
+        color: #6b7280;
+        margin-right: 0.5rem;
+      }
+      .event-item .ev-tag {
+        font-weight: 700;
+        margin-right: 0.5rem;
+      }
+      .ev-tag-INFO {
+        color: #60a5fa;
+      }
+      .ev-tag-WARNING {
+        color: #f59e0b;
+      }
+      .ev-tag-ERROR,
+      .ev-tag-CRITICAL {
+        color: #ef4444;
+      }
 
-      .refresh-bar { display: flex; align-items: center; gap: 1rem; font-size: 0.8rem; color: var(--text-muted, #9ca3af); margin-bottom: 0.5rem; }
-      .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; display: inline-block; }
-      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+      .refresh-bar {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        font-size: 0.8rem;
+        color: var(--text-muted, #9ca3af);
+        margin-bottom: 0.5rem;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #22c55e;
+        animation: pulse 2s infinite;
+        display: inline-block;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.3;
+        }
+      }
     </style>
   </head>
   <body>
@@ -80,15 +191,14 @@
 
       <!-- ── Loop Status ───────────────────────────────────────────────── -->
       <section class="card">
-        <h2>Loop Status
-          <span class="refresh-bar" style="float:right">
+        <h2>
+          Loop Status
+          <span class="refresh-bar" style="float: right">
             <span class="dot" id="live-dot"></span>
             <span id="last-refresh-ts">–</span>
           </span>
         </h2>
-        <div>
-          State: <span id="state-badge" class="status-badge badge-unknown">–</span>
-        </div>
+        <div>State: <span id="state-badge" class="status-badge badge-unknown">–</span></div>
         <div class="meta-row">
           <span>Last Heartbeat: <b id="last-hb">–</b></span>
           <span>Uptime: <b id="uptime">–</b></span>
@@ -96,21 +206,28 @@
         <div class="control-buttons">
           <button id="btn-pause" class="btn-warn">⏸ Pause</button>
           <button id="btn-resume" class="btn-success">▶ Resume</button>
-          <button id="btn-stop" class="btn-danger">■ Stop</button>
+          <button id="btn-reset" class="btn-danger">↺ Reset</button>
         </div>
-        <p id="ctrl-msg" style="margin-top:0.5rem;font-size:0.8rem;color:#9ca3af"></p>
+        <p id="ctrl-msg" style="margin-top: 0.5rem; font-size: 0.8rem; color: #9ca3af"></p>
       </section>
 
       <!-- ── Positions ─────────────────────────────────────────────────── -->
       <section class="card">
         <h2>Positions &amp; Cash</h2>
-        <p style="font-size:0.9rem">Cash: <b id="cash-value">–</b></p>
+        <p style="font-size: 0.9rem">Cash: <b id="cash-value">–</b></p>
         <table class="positions-table">
           <thead>
-            <tr><th>Symbol</th><th>Qty</th><th>Avg Cost</th><th>Unrealised PnL</th></tr>
+            <tr>
+              <th>Symbol</th>
+              <th>Qty</th>
+              <th>Avg Cost</th>
+              <th>Unrealised PnL</th>
+            </tr>
           </thead>
           <tbody id="positions-body">
-            <tr class="empty-row"><td colspan="4">No open positions.</td></tr>
+            <tr class="empty-row">
+              <td colspan="4">No open positions.</td>
+            </tr>
           </tbody>
         </table>
       </section>

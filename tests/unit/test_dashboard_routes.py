@@ -156,3 +156,46 @@ class TestDashboardControl:
         client = _make_client(loop)
         resp = client.post("/api/v1/dashboard/control", json={"action": "explode"})
         assert resp.status_code == 422
+
+    def test_stop_action_returns_422(self) -> None:
+        loop = _make_loop(AppRunnerState.RUNNING)
+        client = _make_client(loop)
+        resp = client.post("/api/v1/dashboard/control", json={"action": "stop"})
+        assert resp.status_code == 422
+
+    # ── Idempotent / no-op transitions ──────────────────────────────────
+
+    def test_pause_already_paused_is_noop(self) -> None:
+        loop = _make_loop(AppRunnerState.PAUSED)
+        client = _make_client(loop)
+        resp = client.post("/api/v1/dashboard/control", json={"action": "pause"})
+        assert resp.status_code == 200
+        assert loop.state == AppRunnerState.PAUSED
+
+    def test_resume_already_running_is_noop(self) -> None:
+        loop = _make_loop(AppRunnerState.RUNNING)
+        client = _make_client(loop)
+        resp = client.post("/api/v1/dashboard/control", json={"action": "resume"})
+        assert resp.status_code == 200
+        assert loop.state == AppRunnerState.RUNNING
+
+    def test_reset_when_not_emergency_is_noop(self) -> None:
+        loop = _make_loop(AppRunnerState.RUNNING)
+        client = _make_client(loop)
+        resp = client.post("/api/v1/dashboard/control", json={"action": "reset"})
+        assert resp.status_code == 200
+        assert loop.state == AppRunnerState.RUNNING
+
+    def test_pause_during_emergency_is_noop(self) -> None:
+        loop = _make_loop(AppRunnerState.EMERGENCY)
+        client = _make_client(loop)
+        resp = client.post("/api/v1/dashboard/control", json={"action": "pause"})
+        assert resp.status_code == 200
+        assert loop.state == AppRunnerState.EMERGENCY
+
+    def test_resume_during_emergency_is_noop(self) -> None:
+        loop = _make_loop(AppRunnerState.EMERGENCY)
+        client = _make_client(loop)
+        resp = client.post("/api/v1/dashboard/control", json={"action": "resume"})
+        assert resp.status_code == 200
+        assert loop.state == AppRunnerState.EMERGENCY

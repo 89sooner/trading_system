@@ -21,6 +21,13 @@ backtest:
   fee_bps: 5.0
   trade_quantity: 0.1
 
+# Portfolio-level risk controls (optional).
+# When set, the runtime enforces drawdown protection and optional SL/TP exits.
+#
+# portfolio_risk:
+#   max_daily_drawdown_pct: 0.05   # halt trading when session drawdown exceeds 5%
+#   sl_pct: 0.02                   # per-position stop-loss at 2% (optional)
+#   tp_pct: 0.04                   # per-position take-profit at 4% (optional)
 
 api:
   cors_allow_origins:

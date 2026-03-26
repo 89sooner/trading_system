@@ -1,33 +1,38 @@
 # Phase 3.5 Task Breakdown
 
 ## Epic A - Dashboard UX And Safe Controls
-- [ ] Update the dashboard UI to use `pause`, `resume`, and `reset`
-- [ ] Remove the stale `stop` button and any stop-oriented operator wording
-- [ ] Show runtime status, heartbeat, positions, unrealized PnL, and recent events
-- [ ] Add navigation entry points from existing frontend pages
-- [ ] Add tests for invalid control transitions
-- [ ] Add tests for idempotent control actions
+
+- [x] Update the dashboard UI to use `pause`, `resume`, and `reset`
+- [x] Remove the stale `stop` button and any stop-oriented operator wording
+- [x] Show runtime status, heartbeat, positions, unrealized PnL, and recent events
+- [x] Add navigation entry points from existing frontend pages
+- [x] Add tests for invalid control transitions
+- [x] Add tests for idempotent control actions
 
 ## Epic B - Config And Operator Documentation
-- [ ] Add `portfolio_risk` to `configs/base.yaml`
-- [ ] Update `README.md` in English and Korean together
-- [ ] Update `GEMINI.md`
-- [ ] Update examples if config or operator workflow examples change
+
+- [x] Add `portfolio_risk` to `configs/base.yaml`
+- [x] Update `README.md` in English and Korean together
+- [x] Update `GEMINI.md`
+- [x] Update examples if config or operator workflow examples change
 
 ## Epic C - Live Constraint Cleanup
-- [ ] Remove the generic single-symbol preflight restriction
-- [ ] Preserve and document only broker-specific limitations if they still exist
-- [ ] Add or update tests for live preflight behavior
+
+- [x] Remove the generic single-symbol preflight restriction
+- [x] Preserve and document only broker-specific limitations if they still exist
+- [x] Add or update tests for live preflight behavior
 
 ## Epic D - Trade Analytics Edge Cases
-- [ ] Add partial-fill tests
-- [ ] Add scale-in tests
-- [ ] Add scale-out tests
-- [ ] Add flat-then-reopen tests
-- [ ] Add empty-trade tests
+
+- [x] Add partial-fill tests
+- [x] Add scale-in tests
+- [x] Add scale-out tests
+- [x] Add flat-then-reopen tests
+- [x] Add empty-trade tests
 
 ## Epic E - Verification
-- [ ] Run targeted frontend/API/runtime tests for touched areas
-- [ ] Run broader regression tests
-- [ ] Run the full test suite
-- [ ] Run `ruff check src tests`
+
+- [x] Run targeted frontend/API/runtime tests for touched areas
+- [x] Run broader regression tests
+- [x] Run the full test suite
+- [x] Run `ruff check src tests`

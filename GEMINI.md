@@ -10,62 +10,67 @@
 ## 1. Project Overview / 프로젝트 개요
 
 ### EN
+
 `trading_system` is a modular Python-based trading workspace designed for both deterministic backtesting and live trading operations. The system is architected with clear service boundaries, emphasizing testability and safe evolution from research to production.
 
--   **Backend:** A Python application built with **FastAPI** serving a REST API for running and managing trading sessions. It uses `uv` for dependency and environment management. The core logic is separated into distinct layers: `data`, `strategy`, `risk`, `execution`, `portfolio`, `backtest`, and `analytics`.
--   **Frontend:** A minimal, static vanilla JavaScript frontend is provided for interacting with the backtesting API. It allows users to create backtest runs and view results, including equity curves and event logs.
--   **Configuration:** The system is configured via YAML files (e.g., `configs/base.yaml`) and environment variables, which are parsed and validated by typed settings models.
+- **Backend:** A Python application built with **FastAPI** serving a REST API for running and managing trading sessions. It uses `uv` for dependency and environment management. The core logic is separated into distinct layers: `data`, `strategy`, `risk`, `execution`, `portfolio`, `backtest`, and `analytics`.
+- **Frontend:** A minimal, static vanilla JavaScript frontend is provided for interacting with the backtesting API. It allows users to create backtest runs and view results, including equity curves and event logs.
+- **Configuration:** The system is configured via YAML files (e.g., `configs/base.yaml`) and environment variables, which are parsed and validated by typed settings models.
 
 ### KO
+
 `trading_system`은 결정적 백테스팅과 실시간 트레이딩 운영을 모두 지원하도록 설계된 모듈형 Python 기반 트레이딩 워크스페이스입니다. 이 시스템은 명확한 서비스 경계를 갖도록 설계되었으며, 테스트 용이성과 연구에서 운영 환경으로의 안전한 진화를 강조합니다.
 
--   **백엔드:** **FastAPI**로 구축된 Python 애플리케이션으로, 트레이딩 세션을 실행하고 관리하기 위한 REST API를 제공합니다. 의존성 및 환경 관리를 위해 `uv`를 사용합니다. 핵심 로직은 `data`, `strategy`, `risk`, `execution`, `portfolio`, `backtest`, `analytics`와 같은 명확한 레이어로 분리되어 있습니다.
--   **프론트엔드:** 백테스팅 API와 상호작용하기 위한 최소한의 정적 바닐라 JavaScript 프론트엔드가 제공됩니다. 사용자는 이를 통해 백테스트 실행을 생성하고, 자산 곡선 및 이벤트 로그를 포함한 결과를 볼 수 있습니다.
--   **설정:** 시스템은 YAML 파일(예: `configs/base.yaml`)과 환경 변수를 통해 구성되며, 이는 타입이 지정된 설정 모델에 의해 파싱되고 검증됩니다.
+- **백엔드:** **FastAPI**로 구축된 Python 애플리케이션으로, 트레이딩 세션을 실행하고 관리하기 위한 REST API를 제공합니다. 의존성 및 환경 관리를 위해 `uv`를 사용합니다. 핵심 로직은 `data`, `strategy`, `risk`, `execution`, `portfolio`, `backtest`, `analytics`와 같은 명확한 레이어로 분리되어 있습니다.
+- **프론트엔드:** 백테스팅 API와 상호작용하기 위한 최소한의 정적 바닐라 JavaScript 프론트엔드가 제공됩니다. 사용자는 이를 통해 백테스트 실행을 생성하고, 자산 곡선 및 이벤트 로그를 포함한 결과를 볼 수 있습니다.
+- **설정:** 시스템은 YAML 파일(예: `configs/base.yaml`)과 환경 변수를 통해 구성되며, 이는 타입이 지정된 설정 모델에 의해 파싱되고 검증됩니다.
 
 ---
 
 ## 2. Key Files and Directories / 주요 파일 및 디렉토리
 
 ### EN
--   `README.md`: The primary entry point for understanding the project, with detailed setup and run commands.
--   `pyproject.toml`: Defines project metadata, dependencies (`fastapi`, `uvicorn`, `pytest`), and tool configurations (`ruff`, `pytest`).
--   `src/trading_system/`: The main application source code.
-    -   `app/main.py`: The command-line interface (CLI) entry point for running the trading engine.
-    -   `api/server.py`: The FastAPI application factory, which sets up middleware, exception handlers, and API routes.
-    -   `config/settings.py`: Defines the typed data structures for loading and validating application settings from YAML files and environment variables.
-    -   `app/loop.py`: Contains `LiveTradingLoop` for continuous paper/live trading with graceful shutdown.
-    -   `backtest/engine.py`: Contains the core logic for orchestrating deterministic backtests.
-    -   `execution/step.py`: The unified execution core shared by both backtest and live engines.
--   `frontend/`: Contains the static web interface (HTML, JS, CSS).
-    -   `index.html`: The main page for creating new backtest runs.
-    -   `src/api/client.js`: The JavaScript client for making requests to the backend API.
--   `tests/`: Contains unit and integration tests, separated by `pytest` markers (`smoke`, `extended`).
--   `.github/workflows/tests.yml`: The GitHub Actions workflow for running tests automatically on pull requests and pushes to `main`.
--   `scripts/run_engine.sh`: A convenience script for setting up the environment and running the trading engine.
+
+- `README.md`: The primary entry point for understanding the project, with detailed setup and run commands.
+- `pyproject.toml`: Defines project metadata, dependencies (`fastapi`, `uvicorn`, `pytest`), and tool configurations (`ruff`, `pytest`).
+- `src/trading_system/`: The main application source code.
+  - `app/main.py`: The command-line interface (CLI) entry point for running the trading engine.
+  - `api/server.py`: The FastAPI application factory, which sets up middleware, exception handlers, and API routes.
+  - `config/settings.py`: Defines the typed data structures for loading and validating application settings from YAML files and environment variables.
+  - `app/loop.py`: Contains `LiveTradingLoop` for continuous paper/live trading with graceful shutdown.
+  - `backtest/engine.py`: Contains the core logic for orchestrating deterministic backtests.
+  - `execution/step.py`: The unified execution core shared by both backtest and live engines.
+- `frontend/`: Contains the static web interface (HTML, JS, CSS).
+  - `index.html`: The main page for creating new backtest runs.
+  - `src/api/client.js`: The JavaScript client for making requests to the backend API.
+- `tests/`: Contains unit and integration tests, separated by `pytest` markers (`smoke`, `extended`).
+- `.github/workflows/tests.yml`: The GitHub Actions workflow for running tests automatically on pull requests and pushes to `main`.
+- `scripts/run_engine.sh`: A convenience script for setting up the environment and running the trading engine.
 
 ### KO
--   `README.md`: 상세한 설정 및 실행 명령어를 포함하여 프로젝트를 이해하기 위한 기본 진입점입니다.
--   `pyproject.toml`: 프로젝트 메타데이터, 의존성(`fastapi`, `uvicorn`, `pytest`), 그리고 도구 설정(`ruff`, `pytest`)을 정의합니다.
--   `src/trading_system/`: 메인 애플리케이션 소스 코드입니다.
-    -   `app/main.py`: 트레이딩 엔진을 실행하기 위한 커맨드 라인 인터페이스(CLI) 진입점입니다.
-    -   `api/server.py`: 미들웨어, 예외 처리기, API 라우트를 설정하는 FastAPI 애플리케이션 팩토리입니다.
-    -   `config/settings.py`: YAML 파일과 환경 변수로부터 애플리케이션 설정을 로드하고 검증하기 위한 타입이 지정된 데이터 구조를 정의합니다.
-    -   `app/loop.py`: 안전한 종료 기능을 갖춘 연속적인 페이퍼/라이브 트레이딩을 위한 `LiveTradingLoop`를 포함합니다.
-    -   `backtest/engine.py`: 결정적 백테스트를 조율하기 위한 핵심 로직을 포함합니다.
-    -   `execution/step.py`: 백테스트와 라이브 엔진 모두가 공유하는 통합 핵심 실행 로직입니다.
--   `frontend/`: 정적 웹 인터페이스(HTML, JS, CSS)를 포함합니다.
-    -   `index.html`: 새로운 백테스트 실행을 생성하기 위한 메인 페이지입니다.
-    -   `src/api/client.js`: 백엔드 API에 요청을 보내기 위한 JavaScript 클라이언트입니다.
--   `tests/`: `pytest` 마커(`smoke`, `extended`)로 분리된 단위 및 통합 테스트를 포함합니다.
--   `.github/workflows/tests.yml`: `main` 브랜치에 대한 pull request 및 push 발생 시 자동으로 테스트를 실행하는 GitHub Actions 워크플로우입니다.
--   `scripts/run_engine.sh`: 환경을 설정하고 트레이딩 엔진을 실행하기 위한 편의 스크립트입니다.
+
+- `README.md`: 상세한 설정 및 실행 명령어를 포함하여 프로젝트를 이해하기 위한 기본 진입점입니다.
+- `pyproject.toml`: 프로젝트 메타데이터, 의존성(`fastapi`, `uvicorn`, `pytest`), 그리고 도구 설정(`ruff`, `pytest`)을 정의합니다.
+- `src/trading_system/`: 메인 애플리케이션 소스 코드입니다.
+  - `app/main.py`: 트레이딩 엔진을 실행하기 위한 커맨드 라인 인터페이스(CLI) 진입점입니다.
+  - `api/server.py`: 미들웨어, 예외 처리기, API 라우트를 설정하는 FastAPI 애플리케이션 팩토리입니다.
+  - `config/settings.py`: YAML 파일과 환경 변수로부터 애플리케이션 설정을 로드하고 검증하기 위한 타입이 지정된 데이터 구조를 정의합니다.
+  - `app/loop.py`: 안전한 종료 기능을 갖춘 연속적인 페이퍼/라이브 트레이딩을 위한 `LiveTradingLoop`를 포함합니다.
+  - `backtest/engine.py`: 결정적 백테스트를 조율하기 위한 핵심 로직을 포함합니다.
+  - `execution/step.py`: 백테스트와 라이브 엔진 모두가 공유하는 통합 핵심 실행 로직입니다.
+- `frontend/`: 정적 웹 인터페이스(HTML, JS, CSS)를 포함합니다.
+  - `index.html`: 새로운 백테스트 실행을 생성하기 위한 메인 페이지입니다.
+  - `src/api/client.js`: 백엔드 API에 요청을 보내기 위한 JavaScript 클라이언트입니다.
+- `tests/`: `pytest` 마커(`smoke`, `extended`)로 분리된 단위 및 통합 테스트를 포함합니다.
+- `.github/workflows/tests.yml`: `main` 브랜치에 대한 pull request 및 push 발생 시 자동으로 테스트를 실행하는 GitHub Actions 워크플로우입니다.
+- `scripts/run_engine.sh`: 환경을 설정하고 트레이딩 엔진을 실행하기 위한 편의 스크립트입니다.
 
 ---
 
 ## 3. Building and Running / 빌드 및 실행
 
 ### EN
+
 The project uses `uv` for Python environment and package management.
 
 #### 3.1. Initial Setup
@@ -129,6 +134,7 @@ uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode bac
 The `scripts/run_engine.sh` script provides a simpler way to execute these CLI commands.
 
 ### KO
+
 이 프로젝트는 Python 환경 및 패키지 관리를 위해 `uv`를 사용합니다.
 
 #### 3.1. 초기 설정
@@ -196,17 +202,23 @@ uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode bac
 ## 4. Development Conventions / 개발 컨벤션
 
 ### EN
--   **Architecture:** The codebase is organized into a layered architecture to separate concerns (data, strategy, risk, execution, portfolio, etc.). This is documented in `docs/architecture/overview.md`.
--   **Code Style:** Code is formatted and linted using `ruff`. The configuration is in `pyproject.toml`.
--   **Configuration:** Application configuration is strictly managed through typed settings classes, loaded from YAML files and environment variables. This provides validation and clarity.
--   **API:** The API is versioned (`/api/v1`) and requires an API key for access, which is checked by a custom security middleware (`src/trading_system/api/security.py`).
--   **Immutability:** The backtest engine and related components favor an event-driven approach where state changes are recorded as a sequence of immutable events, enhancing observability and determinism.
--   **Bilingual Documentation:** The main `README.md` is maintained in both English and Korean.
+
+- **Architecture:** The codebase is organized into a layered architecture to separate concerns (data, strategy, risk, execution, portfolio, etc.). This is documented in `docs/architecture/overview.md`.
+- **Code Style:** Code is formatted and linted using `ruff`. The configuration is in `pyproject.toml`.
+- **Configuration:** Application configuration is strictly managed through typed settings classes, loaded from YAML files and environment variables. This provides validation and clarity.
+- **API:** The API is versioned (`/api/v1`) and requires an API key for access, which is checked by a custom security middleware (`src/trading_system/api/security.py`).
+- **Immutability:** The backtest engine and related components favor an event-driven approach where state changes are recorded as a sequence of immutable events, enhancing observability and determinism.
+- **Bilingual Documentation:** The main `README.md` is maintained in both English and Korean.
+- **Dashboard Controls:** The live dashboard supports `pause`, `resume`, and `reset` actions via `POST /api/v1/dashboard/control`. `reset` clears EMERGENCY state and returns to PAUSED. See `README.md` §12 for full semantics.
+- **Portfolio Risk:** Optional `portfolio_risk` configuration enables drawdown protection (`max_daily_drawdown_pct`), per-position stop-loss (`sl_pct`), and take-profit (`tp_pct`). Documented in `configs/base.yaml`.
 
 ### KO
--   **아키텍처:** 코드베이스는 관심사를 분리하기 위해 계층적 아키텍처로 구성됩니다 (data, strategy, risk, execution, portfolio 등). 이는 `docs/architecture/overview.md`에 문서화되어 있습니다.
--   **코드 스타일:** 코드는 `ruff`를 사용하여 포맷되고 린트됩니다. 설정은 `pyproject.toml`에 있습니다.
--   **설정:** 애플리케이션 설정은 YAML 파일과 환경 변수에서 로드되는 타입이 지정된 설정 클래스를 통해 엄격하게 관리됩니다. 이는 유효성 검사와 명확성을 제공합니다.
--   **API:** API는 버전이 관리되며(`/api/v1`), 접근 시 API 키가 필요합니다. 이는 커스텀 보안 미들웨어(`src/trading_system/api/security.py`)에 의해 확인됩니다.
--   **불변성:** 백테스트 엔진 및 관련 구성 요소는 상태 변경이 불변 이벤트의 시퀀스로 기록되는 이벤트 기반 접근 방식을 선호하여 관측성과 결정성을 향상시킵니다.
--   **이중 언어 문서:** 주요 `README.md`는 영어와 한국어로 모두 유지 관리됩니다.
+
+- **아키텍처:** 코드베이스는 관심사를 분리하기 위해 계층적 아키텍처로 구성됩니다 (data, strategy, risk, execution, portfolio 등). 이는 `docs/architecture/overview.md`에 문서화되어 있습니다.
+- **코드 스타일:** 코드는 `ruff`를 사용하여 포맷되고 린트됩니다. 설정은 `pyproject.toml`에 있습니다.
+- **설정:** 애플리케이션 설정은 YAML 파일과 환경 변수에서 로드되는 타입이 지정된 설정 클래스를 통해 엄격하게 관리됩니다. 이는 유효성 검사와 명확성을 제공합니다.
+- **API:** API는 버전이 관리되며(`/api/v1`), 접근 시 API 키가 필요합니다. 이는 커스텀 보안 미들웨어(`src/trading_system/api/security.py`)에 의해 확인됩니다.
+- **불변성:** 백테스트 엔진 및 관련 구성 요소는 상태 변경이 불변 이벤트의 시퀀스로 기록되는 이벤트 기반 접근 방식을 선호하여 관측성과 결정성을 향상시킵니다.
+- **이중 언어 문서:** 주요 `README.md`는 영어와 한국어로 모두 유지 관리됩니다.
+- **대시보드 제어:** 라이브 대시보드는 `POST /api/v1/dashboard/control`을 통해 `pause`, `resume`, `reset` 액션을 지원합니다. `reset`은 EMERGENCY 상태를 해제하고 PAUSED로 복귀합니다. 전체 의미는 `README.md` §12를 참조하세요.
+- **포트폴리오 리스크:** 선택적 `portfolio_risk` 설정으로 드로우다운 보호(`max_daily_drawdown_pct`), 포지션별 손절(`sl_pct`), 익절(`tp_pct`)을 활성화할 수 있습니다. `configs/base.yaml`에 문서화되어 있습니다.

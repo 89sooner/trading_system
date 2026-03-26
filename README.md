@@ -10,18 +10,22 @@
 ## 1) Project overview / 프로젝트 개요
 
 ### EN
+
 `trading_system` is a modular Python trading workspace focused on deterministic backtesting, clear service boundaries, and safe evolution toward production-like operations.
 
 Current emphasis:
+
 - deterministic backtest orchestration
 - explicit boundaries across strategy/risk/execution/portfolio/analytics
 - structured logging + resilience helpers
 - testability without live infrastructure
 
 ### KO
+
 `trading_system`은 결정적 백테스트, 명확한 서비스 경계, 실서비스 확장을 위한 안전한 진화를 목표로 하는 모듈형 Python 트레이딩 워크스페이스입니다.
 
 현재 중점:
+
 - 결정적(backtest deterministic) 오케스트레이션
 - strategy/risk/execution/portfolio/analytics 레이어 분리
 - 구조화 로깅 + 복원력 유틸
@@ -32,11 +36,13 @@ Current emphasis:
 ## 2) Goals / 목표
 
 ### EN
+
 - Separate market data, strategy, risk, execution, portfolio, backtest, and analytics concerns.
 - Keep domain logic testable without live infrastructure.
 - Enable smooth growth from local research to production-like service architecture.
 
 ### KO
+
 - 시장데이터, 전략, 리스크, 실행, 포트폴리오, 백테스트, 분석의 관심사를 분리합니다.
 - 라이브 인프라 없이도 도메인 로직을 테스트 가능하게 유지합니다.
 - 로컬 연구 환경에서 운영형 서비스 구조로 자연스럽게 확장할 수 있도록 설계합니다.
@@ -72,6 +78,7 @@ examples/
 ## 4) Quick start / 빠른 시작
 
 ### EN
+
 ```bash
 uv venv --python 3.12 --seed .venv
 uv pip install --python .venv/bin/python -e '.[dev]'
@@ -79,6 +86,7 @@ uv run --python .venv/bin/python --no-sync pytest
 ```
 
 ### KO
+
 ```bash
 uv venv --python 3.12 --seed .venv
 uv pip install --python .venv/bin/python -e '.[dev]'
@@ -92,6 +100,7 @@ uv run --python .venv/bin/python --no-sync pytest
 ### 5.1 One-command local run / 원커맨드 로컬 실행
 
 ### EN
+
 ```bash
 ./scripts/run_engine.sh backtest
 ./scripts/run_engine.sh live-preflight
@@ -104,6 +113,7 @@ uv run --python .venv/bin/python --no-sync pytest
 - `live-preflight` uses `TRADING_SYSTEM_API_KEY` from your environment when available; otherwise it injects a local dummy key for preflight only.
 
 ### KO
+
 ```bash
 ./scripts/run_engine.sh backtest
 ./scripts/run_engine.sh live-preflight
@@ -118,10 +128,12 @@ uv run --python .venv/bin/python --no-sync pytest
 ### 5.2 Test subsets / 테스트 세트
 
 ### EN
+
 - Fast smoke set: `uv run --python .venv/bin/python --no-sync pytest -m smoke -q`
 - Extended set: `uv run --python .venv/bin/python --no-sync pytest -m "not smoke" -q`
 
 ### KO
+
 - 빠른 스모크 세트: `uv run --python .venv/bin/python --no-sync pytest -m smoke -q`
 - 확장 세트: `uv run --python .venv/bin/python --no-sync pytest -m "not smoke" -q`
 
@@ -198,6 +210,7 @@ uv run --python .venv/bin/python --no-sync -m trading_system.backtest.example
 ### 5.9 HTTP API mode / HTTP API 모드
 
 ### EN
+
 Always run the API through `uv` against the project virtualenv. Avoid calling system `uvicorn` directly because it may use a different Python environment.
 
 Verify your environment first:
@@ -247,23 +260,23 @@ Visualization response example (fixed schema):
       "win_rate": "0.5714"
     },
     "equity_curve": [
-      {"timestamp": "2024-01-01T00:00:00Z", "equity": "10000"},
-      {"timestamp": "2024-01-02T00:00:00Z", "equity": "10125"}
+      { "timestamp": "2024-01-01T00:00:00Z", "equity": "10000" },
+      { "timestamp": "2024-01-02T00:00:00Z", "equity": "10125" }
     ],
     "drawdown_curve": [
-      {"timestamp": "2024-01-01T00:00:00Z", "drawdown": "0"},
-      {"timestamp": "2024-01-02T00:00:00Z", "drawdown": "0"}
+      { "timestamp": "2024-01-01T00:00:00Z", "drawdown": "0" },
+      { "timestamp": "2024-01-02T00:00:00Z", "drawdown": "0" }
     ],
     "orders": [
       {
         "event": "order.filled",
-        "payload": {"symbol": "BTCUSDT", "filled_quantity": "0.1", "status": "filled"}
+        "payload": { "symbol": "BTCUSDT", "filled_quantity": "0.1", "status": "filled" }
       }
     ],
     "risk_rejections": [
       {
         "event": "risk.rejected",
-        "payload": {"symbol": "BTCUSDT", "requested_quantity": "0.5"}
+        "payload": { "symbol": "BTCUSDT", "requested_quantity": "0.5" }
       }
     ]
   }
@@ -271,6 +284,7 @@ Visualization response example (fixed schema):
 ```
 
 ### KO
+
 API 서버는 반드시 프로젝트 가상환경을 가리키는 `uv` 경유로 실행하세요. 시스템 전역 `uvicorn`을 직접 호출하면 다른 Python 환경을 타서 의존성을 못 찾을 수 있습니다.
 
 먼저 환경을 확인하세요:
@@ -320,23 +334,23 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
       "win_rate": "0.5714"
     },
     "equity_curve": [
-      {"timestamp": "2024-01-01T00:00:00Z", "equity": "10000"},
-      {"timestamp": "2024-01-02T00:00:00Z", "equity": "10125"}
+      { "timestamp": "2024-01-01T00:00:00Z", "equity": "10000" },
+      { "timestamp": "2024-01-02T00:00:00Z", "equity": "10125" }
     ],
     "drawdown_curve": [
-      {"timestamp": "2024-01-01T00:00:00Z", "drawdown": "0"},
-      {"timestamp": "2024-01-02T00:00:00Z", "drawdown": "0"}
+      { "timestamp": "2024-01-01T00:00:00Z", "drawdown": "0" },
+      { "timestamp": "2024-01-02T00:00:00Z", "drawdown": "0" }
     ],
     "orders": [
       {
         "event": "order.filled",
-        "payload": {"symbol": "BTCUSDT", "filled_quantity": "0.1", "status": "filled"}
+        "payload": { "symbol": "BTCUSDT", "filled_quantity": "0.1", "status": "filled" }
       }
     ],
     "risk_rejections": [
       {
         "event": "risk.rejected",
-        "payload": {"symbol": "BTCUSDT", "requested_quantity": "0.5"}
+        "payload": { "symbol": "BTCUSDT", "requested_quantity": "0.5" }
       }
     ]
   }
@@ -346,6 +360,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
 ### 5.10 Frontend + backend local development / 프론트엔드 + 백엔드 로컬 개발
 
 ### EN
+
 The repository now includes a minimal static frontend under `frontend/` with five pages:
 
 - `frontend/index.html`: backtest run form with optional strategy profile selection
@@ -399,6 +414,7 @@ Frontend error handling is separated by path:
 - 5xx failure: runtime/internal server issue
 
 ### KO
+
 저장소에는 `frontend/` 경로에 최소 정적 프론트엔드가 포함되어 있으며, 이제 다음 5개 페이지를 제공합니다.
 
 - `frontend/index.html`: 전략 프로필 선택을 포함한 백테스트 실행 폼
@@ -456,6 +472,7 @@ http://127.0.0.1:9000/api/v1
 ## 6) What this system can do now / 현재 시스템으로 할 수 있는 것
 
 ### EN
+
 This repository is not a fully live-trading product yet. It is a deterministic, test-centered platform that can:
 
 1. Execute end-to-end backtests through CLI.
@@ -469,6 +486,7 @@ This repository is not a fully live-trading product yet. It is a deterministic, 
 9. Emit structured logs with sensitive-field redaction and correlation IDs.
 
 ### KO
+
 이 저장소는 아직 “완전한 실주문 시스템”은 아니며, 결정성과 테스트 중심의 플랫폼으로 다음을 수행할 수 있습니다.
 
 1. CLI 기반 end-to-end 백테스트 실행.
@@ -488,14 +506,18 @@ This repository is not a fully live-trading product yet. It is a deterministic, 
 ### 7.1 Python compatibility / Python 호환성
 
 ### EN
+
 Added `src/trading_system/core/compat.py`:
+
 - `StrEnum`: uses stdlib `enum.StrEnum` on modern Python; falls back to `str + Enum` on older runtimes.
 - `UTC`: uses `datetime.UTC` when available; otherwise aliases `timezone.utc`.
 
 This keeps call sites consistent while preventing immediate import failures on Python 3.10 environments.
 
 ### KO
+
 `src/trading_system/core/compat.py`를 추가했습니다.
+
 - `StrEnum`: 최신 Python에서는 표준 `enum.StrEnum` 사용, 구버전에서는 `str + Enum` 폴백 사용.
 - `UTC`: 가능하면 `datetime.UTC` 사용, 아니면 `timezone.utc` 별칭 사용.
 
@@ -504,7 +526,9 @@ This keeps call sites consistent while preventing immediate import failures on P
 ### 7.2 Backtest observability / 백테스트 관측성
 
 ### EN
+
 Backtest engine now emits structured lifecycle events:
+
 - `order.created`
 - `order.filled`
 - `order.rejected` (unfilled)
@@ -513,7 +537,9 @@ Backtest engine now emits structured lifecycle events:
 This makes signal→risk→execution decisions inspectable, not just final PnL numbers.
 
 ### KO
+
 백테스트 엔진이 아래 라이프사이클 이벤트를 구조화 로그로 방출합니다.
+
 - `order.created`
 - `order.filled`
 - `order.rejected` (미체결)
@@ -526,6 +552,7 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 ## 8) Required environment variables / 필수 환경변수
 
 ### EN
+
 - `TRADING_SYSTEM_ENV`: runtime environment label (`local`, `staging`, `prod`, ...)
 - `TRADING_SYSTEM_TIMEZONE`: operator timezone (`Asia/Seoul`, ...)
 - `TRADING_SYSTEM_API_KEY`: credential for live adapter preflight
@@ -546,6 +573,7 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_HEARTBEAT_INTERVAL` (optional): Seconds between heartbeat logs (default: `60`)
 
 ### KO
+
 - `TRADING_SYSTEM_ENV`: 런타임 환경 라벨 (`local`, `staging`, `prod` 등)
 - `TRADING_SYSTEM_TIMEZONE`: 운영 타임존 (`Asia/Seoul` 등)
 - `TRADING_SYSTEM_API_KEY`: 라이브 어댑터 프리플라이트용 인증 정보
@@ -570,6 +598,7 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 ## 9) Configuration schema / 설정 스키마
 
 ### EN
+
 `src/trading_system/config/settings.py` provides typed YAML loading + validation:
 
 ```python
@@ -579,6 +608,7 @@ settings = load_settings("configs/base.yaml")
 ```
 
 Required root sections:
+
 - `app`: `environment` (str), `timezone` (str), `mode` (`backtest`|`live`)
 - `market_data`: `provider` (str), `symbols` (list[str])
 - `execution`: `broker` (`paper`|`kis`)
@@ -589,6 +619,7 @@ Required root sections:
 All numeric amount/quantity fields are parsed as `Decimal`.
 
 ### KO
+
 `src/trading_system/config/settings.py`에서 타입 기반 YAML 로딩 및 검증을 제공합니다.
 
 ```python
@@ -598,6 +629,7 @@ settings = load_settings("configs/base.yaml")
 ```
 
 필수 루트 섹션:
+
 - `app`: `environment` (str), `timezone` (str), `mode` (`backtest`|`live`)
 - `market_data`: `provider` (str), `symbols` (list[str])
 - `execution`: `broker` (`paper`|`kis`)
@@ -612,6 +644,7 @@ settings = load_settings("configs/base.yaml")
 ## 10) Layer responsibilities / 레이어별 책임
 
 ### EN
+
 - **app**: CLI parsing, service composition, runtime mode branching
 - **data**: provider interfaces and market data loading
 - **strategy**: signal generation
@@ -623,6 +656,7 @@ settings = load_settings("configs/base.yaml")
 - **core**: logging, redaction, correlation, resilience, compatibility helpers
 
 ### KO
+
 - **app**: CLI 파싱, 서비스 조립, 모드 분기
 - **data**: 데이터 공급자 인터페이스 및 로딩
 - **strategy**: 신호 생성
@@ -638,6 +672,7 @@ settings = load_settings("configs/base.yaml")
 ## 11) Testing strategy / 테스트 전략
 
 ### EN
+
 - Use both unit and integration tests to validate domain rules and orchestration behavior.
 - Suggested commands:
   - `uv run --python .venv/bin/python --no-sync pytest -m smoke -q`
@@ -647,6 +682,7 @@ settings = load_settings("configs/base.yaml")
   - backtest event emission (`order.created`, `order.filled`, `risk.rejected`)
 
 ### KO
+
 - 단위/통합 테스트를 함께 사용해 도메인 규칙과 오케스트레이션 동작을 검증합니다.
 - 권장 명령:
   - `uv run --python .venv/bin/python --no-sync pytest -m smoke -q`
@@ -660,32 +696,42 @@ settings = load_settings("configs/base.yaml")
 ## 12) Operational cautions / 운영 시 주의사항
 
 ### EN
+
 1. **Live order submission is opt-in and KIS-only**: `live` mode defaults to preflight, supports paper simulation with `--live-execution paper`, and only allows real order submission when `--provider kis --broker kis --live-execution live` and `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true` are set. One execution cycle samples KIS quotes using `TRADING_SYSTEM_LIVE_BAR_SAMPLES` (default `2`).
 2. **Secret handling**: inject credentials via environment/secret manager only.
-3. **Current scaffold limitation**: app composition currently focuses on a single-symbol runtime path for simplicity/safety.
+3. **Multi-symbol live mode**: the runtime supports multi-symbol operation for both backtest and live modes. The only remaining single-symbol restriction is KIS broker-specific preflight, which checks each symbol individually.
 4. **Determinism first**: any backtest logic change should ship with deterministic regression tests.
+5. **Dashboard controls**: the live dashboard exposes three operator actions — `pause`, `resume`, and `reset`. `pause` transitions a RUNNING loop to PAUSED; `resume` transitions PAUSED back to RUNNING; `reset` clears an EMERGENCY state and returns to PAUSED (not directly to RUNNING). Invalid or no-op transitions are silently accepted and return the current state.
+6. **Portfolio-level risk (`portfolio_risk`)**: optional drawdown protection can be configured via `portfolio_risk` in the YAML config or app settings. Available fields: `max_daily_drawdown_pct` (required), `sl_pct` (optional per-position stop-loss), `tp_pct` (optional per-position take-profit). See `configs/base.yaml` for an example.
+7. **Reconciliation**: the live loop persists the `PortfolioBook` to disk after each cycle. On restart the portfolio is reloaded automatically. If the loop is in PAUSED or EMERGENCY state, reconciliation writes are skipped to avoid inconsistent snapshots.
 
 ### KO
+
 1. **실주문은 명시적 활성화 + KIS 전용**: `live` 모드는 기본 preflight이며, `--live-execution paper`로 페이퍼 실행이 가능하고, `--provider kis --broker kis --live-execution live` + `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true` 조합일 때만 실주문을 허용합니다. 실행 1회당 KIS 시세 샘플 수는 `TRADING_SYSTEM_LIVE_BAR_SAMPLES`(기본 `2`)로 제어합니다.
 2. **시크릿 관리**: 인증정보는 환경변수/시크릿 매니저로만 주입하세요.
-3. **현재 스캐폴드 제약**: 단순성과 안전성을 위해 앱 조립 경로는 단일 심볼 중심입니다.
+3. **다중 심볼 라이브 모드**: 런타임은 백테스트와 라이브 모드 모두 다중 심볼 운영을 지원합니다. 유일하게 남아있는 단일 심볼 제한은 KIS 브로커 전용 preflight으로, 각 심볼을 개별적으로 검증합니다.
 4. **결정성 우선**: 백테스트 로직 변경 시 결정성 회귀 테스트를 함께 추가하세요.
+5. **대시보드 제어**: 라이브 대시보드는 `pause`, `resume`, `reset` 세 가지 운영 액션을 제공합니다. `pause`는 RUNNING 루프를 PAUSED로 전환하고, `resume`은 PAUSED를 RUNNING으로 되돌리며, `reset`은 EMERGENCY 상태를 해제하고 PAUSED로 복귀합니다(RUNNING으로 직접 전환하지 않음). 유효하지 않거나 중복 전환은 무시되고 현재 상태를 반환합니다.
+6. **포트폴리오 레벨 리스크 (`portfolio_risk`)**: YAML 설정 또는 앱 설정의 `portfolio_risk`를 통해 선택적 드로우다운 보호를 구성할 수 있습니다. 사용 가능한 필드: `max_daily_drawdown_pct`(필수), `sl_pct`(선택, 포지션별 손절), `tp_pct`(선택, 포지션별 익절). 예시는 `configs/base.yaml`을 참조하세요.
+7. **조정(Reconciliation)**: 라이브 루프는 매 사이클 후 `PortfolioBook`을 디스크에 저장합니다. 재시작 시 포트폴리오가 자동으로 복원됩니다. 루프가 PAUSED 또는 EMERGENCY 상태이면 일관성 문제를 방지하기 위해 조정 기록을 건너뜁니다.
 
 ---
 
 ## 13) Suggested next roadmap / 다음 확장 로드맵 제안
 
 ### EN
-1. **Real-time Live Dashboard:** Extend the frontend to monitor the continuous live trading loop, heartbeat, and active positions in real-time.
-2. **Advanced Risk & Analytics:** Implement portfolio-level drawdown controls, real-time stop-loss/take-profit, and detailed trade-level statistics.
-3. **Multi-symbol Orchestration:** Extend the backtest and live engines to handle multiple tickers efficiently under a shared portfolio configuration.
-4. **Exchange Reconciliation:** Synchronize `PortfolioBook` directly from KIS or other exchange balances, automatically adjusting for external deposits or withdrawals.
+
+1. ~~**Real-time Live Dashboard:**~~ ✅ Delivered — the frontend dashboard monitors loop state, heartbeat, positions, and events in real-time with `pause`/`resume`/`reset` controls.
+2. ~~**Advanced Risk & Analytics:**~~ ✅ Delivered — `portfolio_risk` provides portfolio-level drawdown controls, SL/TP, and the dedicated `/api/v1/analytics/backtests/{run_id}/trades` endpoint exposes trade-level statistics.
+3. ~~**Multi-symbol Orchestration:**~~ ✅ Delivered — both backtest and live engines handle multiple symbols under a shared portfolio.
+4. **Exchange Reconciliation:** Synchronize `PortfolioBook` directly from KIS or other exchange balances, automatically adjusting for external deposits or withdrawals. (Portfolio persistence to disk is implemented; exchange-level sync is future work.)
 
 ### KO
-1. **실시간 라이브 대시보드:** 프론트엔드를 확장하여 연속 라이브 트레이딩 루프의 상태(heartbeat)와 활성 포지션을 실시간으로 모니터링합니다.
-2. **고급 리스크 및 분석:** 포트폴리오 레벨의 최대 손실폭(Drawdown) 제한, 실시간 손절/익절(SL/TP) 기능, 상세 트레이드 통계를 구현합니다.
-3. **다중 심볼 오케스트레이션:** 단일 포트폴리오 자산을 공유하여 여러 종목을 동시에 효율적으로 처리할 수 있도록 엔진을 확장합니다.
-4. **거래소 잔고 대사(Reconciliation):** KIS 등 실제 거래소의 잔고를 조회하여 `PortfolioBook`과 직접 동기화하고, 외부 입출금을 자동 반영합니다.
+
+1. ~~**실시간 라이브 대시보드:**~~ ✅ 완료 — 프론트엔드 대시보드에서 루프 상태, heartbeat, 포지션, 이벤트를 실시간 모니터링하며 `pause`/`resume`/`reset` 제어가 가능합니다.
+2. ~~**고급 리스크 및 분석:**~~ ✅ 완료 — `portfolio_risk`로 포트폴리오 레벨 드로우다운 제한, SL/TP를 제공하며, `/api/v1/analytics/backtests/{run_id}/trades` 전용 엔드포인트에서 트레이드 통계를 조회할 수 있습니다.
+3. ~~**다중 심볼 오케스트레이션:**~~ ✅ 완료 — 백테스트와 라이브 엔진 모두 공유 포트폴리오 하에서 다중 심볼을 처리합니다.
+4. **거래소 잔고 대사(Reconciliation):** KIS 등 실제 거래소의 잔고를 조회하여 `PortfolioBook`과 직접 동기화하고, 외부 입출금을 자동 반영합니다. (디스크 기반 포트폴리오 영속화는 구현됨; 거래소 레벨 동기화는 향후 작업.)
 
 ---
 
@@ -702,9 +748,11 @@ settings = load_settings("configs/base.yaml")
 ## 15) One-line summary / 한 줄 요약
 
 ### EN
+
 This repository is a reliable deterministic backtest-and-validation foundation, now standardized on uv-managed Python 3.12 environments with event-level observability.
 
 ### KO
+
 이 저장소는 결정적 백테스트/검증 기반을 제공하며, uv 기반 Python 3.12 실행 환경과 이벤트 단위 관측성 강화를 통해 운영 전 단계 품질을 높인 상태입니다.
 Run the example matcher with:
 
@@ -827,11 +875,20 @@ uv run --python .venv/bin/python --no-sync -m trading_system.patterns.example
 2. **시크릿 관리**
    - API 키는 반드시 환경변수/시크릿 매니저로 주입하고 코드/로그에 직접 남기지 마세요.
 
-3. **단일 심볼 제약(앱 스캐폴드)**
-   - 현재 app 조립 경로는 안전성과 단순성을 위해 단일 심볼 중심입니다.
+3. **다중 심볼 라이브 모드**
+   - 런타임은 백테스트와 라이브 모드 모두 다중 심볼을 지원합니다.
+   - KIS 브로커 preflight만 심볼별 개별 검증을 수행하며, 이는 브로커 고유 제한입니다.
 
 4. **결정성 유지**
    - 백테스트 로직 변경 시 결정성이 유지되도록 테스트를 함께 보강해야 합니다.
+
+5. **대시보드 제어**
+   - `pause`(RUNNING→PAUSED), `resume`(PAUSED→RUNNING), `reset`(EMERGENCY→PAUSED) 세 가지 액션을 지원합니다.
+   - `reset`은 EMERGENCY 해제 후 PAUSED로 복귀하며, RUNNING으로 직접 전환되지 않습니다.
+
+6. **포트폴리오 리스크 (`portfolio_risk`)**
+   - `max_daily_drawdown_pct`(필수), `sl_pct`(선택), `tp_pct`(선택)로 드로우다운 보호를 설정할 수 있습니다.
+   - 예시: `configs/base.yaml` 참조.
 
 ### 7) 앞으로 확장하면 좋은 우선순위
 
