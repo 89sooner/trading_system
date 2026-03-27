@@ -375,11 +375,11 @@ Run backend and frontend together in two terminals:
 # Terminal A: backend API
 UV_CACHE_DIR=.uv-cache uv run --python .venv/bin/python --no-sync -m uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port 8000
 
-# Terminal B: static frontend
-python -m http.server 5173 -d frontend
+# Terminal B: frontend dev server
+cd frontend && npm install && npm run dev
 ```
 
-Open `http://127.0.0.1:5173/index.html`.
+Open `http://127.0.0.1:5173/`.
 
 If your backend runs on a different port (for example `9000`), set the **API Base URL** field in the frontend UI to:
 
@@ -429,11 +429,11 @@ Frontend error handling is separated by path:
 # 터미널 A: 백엔드 API
 UV_CACHE_DIR=.uv-cache uv run --python .venv/bin/python --no-sync -m uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port 8000
 
-# 터미널 B: 정적 프론트엔드 서버
-python -m http.server 5173 -d frontend
+# 터미널 B: 프론트엔드 개발 서버
+cd frontend && npm install && npm run dev
 ```
 
-브라우저에서 `http://127.0.0.1:5173/index.html`를 열면 됩니다.
+브라우저에서 `http://127.0.0.1:5173/`를 열면 됩니다.
 
 백엔드 포트를 다르게 쓴다면(예: `9000`), 프론트 화면의 **API Base URL** 입력값을 아래처럼 바꿔 저장하세요.
 

@@ -114,13 +114,13 @@ uv run --python .venv/bin/python --no-sync -m uvicorn trading_system.api.server:
 
 ##### Frontend Development Server
 
-To serve the static frontend files:
+To start the frontend dev server:
 
 ```bash
-python -m http.server 5173 -d frontend
+cd frontend && npm install && npm run dev
 ```
 
-The frontend can then be accessed at `http://127.0.0.1:5173/index.html`.
+The frontend can then be accessed at `http://127.0.0.1:5173/`.
 
 ##### Command-Line Interface (CLI)
 
@@ -178,13 +178,13 @@ uv run --python .venv/bin/python --no-sync -m uvicorn trading_system.api.server:
 
 ##### 프론트엔드 개발 서버
 
-정적 프론트엔드 파일을 제공합니다:
+프론트엔드 개발 서버를 시작합니다:
 
 ```bash
-python -m http.server 5173 -d frontend
+cd frontend && npm install && npm run dev
 ```
 
-이후 `http://127.0.0.1:5173/index.html`에서 프론트엔드에 접근할 수 있습니다.
+이후 `http://127.0.0.1:5173/`에서 프론트엔드에 접근할 수 있습니다.
 
 ##### 커맨드 라인 인터페이스 (CLI)
 
