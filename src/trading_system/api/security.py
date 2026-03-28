@@ -93,7 +93,7 @@ def _extract_api_key(request: Request) -> str | None:
     return request.headers.get("x-api-key") or request.headers.get("authorization")
 
 
-def build_security_middleware(settings: SecuritySettings):
+def build_security_middleware(settings: SecuritySettings, key_repository=None):
     limiter = SimpleRateLimiter(
         max_requests=settings.rate_limit_max_requests,
         window_seconds=settings.rate_limit_window_seconds,
@@ -115,9 +115,16 @@ def build_security_middleware(settings: SecuritySettings):
                 correlation_id = get_or_create_correlation_id()
                 request.state.correlation_id = correlation_id
 
-            if settings.allowed_api_keys:
+            is_admin_path = request.url.path.startswith("/api/v1/admin/")
+            has_env_keys = bool(settings.allowed_api_keys)
+            has_repo_keys = key_repository is not None and key_repository.has_any_keys()
+
+            if not is_admin_path and (has_env_keys or has_repo_keys):
                 supplied_key = _extract_api_key(request)
-                if supplied_key not in settings.allowed_api_keys:
+                valid = supplied_key in settings.allowed_api_keys
+                if not valid and key_repository is not None:
+                    valid = key_repository.is_valid_key(supplied_key)
+                if not valid:
                     return JSONResponse(
                         status_code=401,
                         content={

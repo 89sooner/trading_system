@@ -1,7 +1,13 @@
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
+from trading_system.api.admin.repository import ApiKeyRepository
 from trading_system.api.errors import RequestValidationError
+from trading_system.api.routes.admin import router as admin_router
 from trading_system.api.routes.analytics import router as analytics_router
 from trading_system.api.routes.backtest import router as backtest_router
 from trading_system.api.routes.dashboard import router as dashboard_router
@@ -12,9 +18,12 @@ from trading_system.api.security import SecuritySettings, build_security_middlew
 from trading_system.app.settings import SettingsValidationError as AppSettingsValidationError
 from trading_system.config.settings import SettingsValidationError as ConfigSettingsValidationError
 
+load_dotenv()
+
 
 def create_app(live_loop=None) -> FastAPI:
     app = FastAPI(title="trading_system API", version="1.0.0")
+    app.include_router(admin_router)
     app.include_router(analytics_router)
     app.include_router(backtest_router)
     app.include_router(patterns_router)
@@ -24,8 +33,12 @@ def create_app(live_loop=None) -> FastAPI:
     # Make the live loop (if any) accessible from dashboard route dependencies
     app.state.live_loop = live_loop
 
+    api_keys_path = Path(os.getenv("TRADING_SYSTEM_API_KEYS_PATH", "data/api_keys.json"))
+    key_repository = ApiKeyRepository(api_keys_path)
+    app.state.api_key_repository = key_repository
+
     security_settings = SecuritySettings.from_env()
-    app.middleware("http")(build_security_middleware(security_settings))
+    app.middleware("http")(build_security_middleware(security_settings, key_repository))
 
     @app.exception_handler(RequestValidationError)
     async def handle_request_validation(
