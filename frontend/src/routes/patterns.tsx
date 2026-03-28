@@ -12,12 +12,12 @@ export const Route = createFileRoute('/patterns')({
 
 function PatternsPage() {
   const childMatches = useChildMatches()
-  if (childMatches.length > 0) return <Outlet />
-
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['patterns'],
     queryFn: listPatternSets,
   })
+
+  if (childMatches.length > 0) return <Outlet />
 
   return (
     <div className="space-y-4">

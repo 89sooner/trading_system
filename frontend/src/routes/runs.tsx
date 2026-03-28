@@ -14,8 +14,6 @@ export const Route = createFileRoute('/runs')({
 
 function RunsPage() {
   const childMatches = useChildMatches()
-  if (childMatches.length > 0) return <Outlet />
-
   const { runs, updateRunStatus } = useRunsStore()
 
   const queries = useQueries({
@@ -26,6 +24,8 @@ function RunsPage() {
       enabled: run.status !== 'succeeded' && run.status !== 'failed',
     })),
   })
+
+  if (childMatches.length > 0) return <Outlet />
 
   function handleRefresh() {
     queries.forEach((q, i) => {
