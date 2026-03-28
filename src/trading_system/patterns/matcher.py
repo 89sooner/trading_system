@@ -16,7 +16,13 @@ class PatternMatcher:
         for pattern in patterns:
             if len(bars) != pattern.lookback:
                 raise ValueError("bar window length must match the learned pattern lookback")
-            similarity = _similarity(pattern.prototype, extract_pattern_vector(bars))
+            extracted = extract_pattern_vector(bars)
+            if len(pattern.prototype) != len(extracted):
+                raise ValueError(
+                    f"pattern '{pattern.label}' prototype has {len(pattern.prototype)} features "
+                    f"but current extractor produces {len(extracted)} — retrain the pattern set"
+                )
+            similarity = _similarity(pattern.prototype, extracted)
             matches.append(
                 PatternMatch(
                     label=pattern.label,
