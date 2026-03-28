@@ -1,116 +1,165 @@
 # Workspace Analysis
 
-This document captures the current implementation state of the trading-system workspace as of March 18, 2026.
+This document captures the current implementation state of the trading-system workspace as of March 28, 2026.
 
 ## Repository state
 
-The repository is no longer only a scaffold. It now includes a deterministic end-to-end backtest path, a CLI app entrypoint, typed configuration loading with validation, and both unit/integration tests for core orchestration.
+The repository is well beyond a scaffold. It now includes deterministic backtesting, guarded live execution paths, a FastAPI surface, a React frontend, pattern/strategy repositories, trade analytics, dashboard control, portfolio persistence, and KIS integration.
 
 Implemented behavior today:
 
-- `app.main` provides CLI entrypoints for `backtest` and a safe `live` mode with `preflight` (default) and explicit `paper` execution options.
-- `app.services` composes strategy, provider, risk, broker simulator, and portfolio services.
-- `backtest.engine.run_backtest` orchestrates signal -> risk -> broker fill -> portfolio updates -> equity curve.
-- `execution.adapters` maps strategy signals to order requests.
-- `execution.broker` provides deterministic fill/fee/slippage policies and a resilient broker wrapper (retry/timeout/circuit-breaker).
-- `config.settings.load_settings` loads YAML into typed settings with human-friendly validation errors.
-- `core.ops` provides structured logging, redaction, correlation IDs, and reusable resilience helpers.
+- `app.main` supports `backtest`, `live` preflight, `live` paper execution, and explicitly gated `live` order submission.
+- `app.services` composes strategy repositories, pattern repositories, data providers, broker adapters, risk controls, portfolio persistence, and live preflight checks.
+- `execution.step.execute_trading_step` is the shared execution core across backtest and live runtime paths.
+- `backtest.engine.run_backtest` orchestrates deterministic replay, event capture, equity tracking, and multi-symbol processing.
+- `api.server` exposes backtests, live preflight, patterns, strategies, analytics, and dashboard routes behind API key, CORS, and rate-limit middleware.
+- `frontend/src/routes` provides browser workflows for pattern management, strategy profiles, run review, and live dashboard monitoring.
+- `execution.reconciliation.reconcile` can align a local `PortfolioBook` with broker snapshots when the broker supports balance snapshots.
 
 ## Layer analysis
 
 ### App
 
-The app layer now exists and separates CLI argument handling (`app.main`) from service wiring (`app.services`).
+The app layer cleanly separates CLI argument handling (`app.main`) from service wiring (`app.services`) and runtime control (`app.loop`).
 
-- `--mode backtest` executes the deterministic backtest path.
-- `--mode live` performs preflight validation by default (including required secret checks), and can run a deterministic paper loop when `--live-execution paper` is provided.
+- `--mode backtest` executes the deterministic replay path.
+- `--mode live` defaults to preflight, can run a paper loop, and can submit live orders only behind explicit KIS-specific guards.
+- `LiveTradingLoop` manages state transitions, heartbeats, reconciliation attempts, and restart-safe portfolio persistence.
+- The dashboard API depends on an attached live loop (`create_app(live_loop=...)`) rather than starting the loop itself.
 
-This keeps live mode safe by default while allowing operators to validate runtime flow without real order submission.
+Current limitation:
+- There is no built-in frontend or API workflow that starts and owns the live loop process end-to-end.
 
 ### Data
 
-`MarketDataProvider` has an `InMemoryMarketDataProvider` implementation suitable for deterministic tests and smoke runs.
+The data layer includes three concrete providers:
+
+- `InMemoryMarketDataProvider` for deterministic tests and smoke scenarios
+- `CsvMarketDataProvider` with resilience policies for file-backed replay
+- `KisQuoteMarketDataProvider` for live quote sampling via KIS
 
 Current limitation:
-- No external historical/live provider adapter is implemented yet.
+- The KIS path is quote-sampling based and does not yet provide a richer historical/live market-data adapter surface.
 
 ### Strategy
 
-`MomentumStrategy` provides a deterministic stateful example strategy based on consecutive closes.
+The strategy layer now supports both example and repository-backed flows:
+
+- `MomentumStrategy` remains the default deterministic example strategy
+- `PatternSignalStrategy` evaluates learned patterns against incoming windows
+- `strategy.factory` resolves inline strategy settings or saved strategy profiles backed by `configs/strategies`
 
 Current limitation:
-- No strategy registry/plugin mechanism yet; selection is currently fixed in service composition.
+- There is still no general strategy plugin registry or direct CLI flag set for selecting saved strategy profiles.
 
 ### Risk
 
-`RiskLimits` enforces max order size, projected position, and projected notional checks.
+Risk enforcement operates at both order and portfolio scopes:
+
+- `RiskLimits` enforces max position, max notional, and max order size
+- `PortfolioRiskLimits` adds optional session drawdown protection and long-position SL/TP handling
+- Emergency drawdown breaches can force liquidation of the active symbol and move runtime state into `EMERGENCY`
 
 Current limitation:
-- Exposure semantics are still single-portfolio and simple (no gross/net portfolio-level policies).
+- Portfolio-level policy remains intentionally simple; there is no gross/net exposure model or richer short-specific risk framework.
 
 ### Execution
 
-Execution now has explicit boundaries:
+Execution now has explicit, reusable boundaries:
 
 - signal-to-order adapter
-- broker simulator interface
-- policy-based fill/fee/slippage simulation
-- resilience wrapper for external-I/O-like failure handling
+- policy-based simulator with fill, slippage, and commission policies
+- resilient broker wrapper with retry, timeout, and circuit-breaker behavior
+- KIS broker adapter for explicit live-order submission
+- reconciliation helper for broker balance snapshots
 
 Current limitation:
-- No real broker adapter or persistent order lifecycle state machine yet.
+- There is no durable order lifecycle store, and the current KIS adapter does not yet expose account balance snapshots for exchange-level reconciliation.
 
 ### Portfolio
 
-`PortfolioBook` supports cash/position updates with fee-aware fill application and deterministic behavior.
+`PortfolioBook` now supports:
+
+- cash and position updates
+- average cost tracking
+- realized and unrealized PnL
+- fee accumulation
+- JSON persistence and reload via `FilePortfolioRepository`
 
 Current limitation:
-- No average price, realized/unrealized PnL decomposition, or storage persistence yet.
+- Portfolio persistence is snapshot based; there is no event-sourced history, snapshot versioning, or external audit trail.
 
 ### Backtest
 
-Backtest orchestration is implemented and deterministic for identical inputs.
+Backtest orchestration is deterministic and uses the same trading-step core as live execution.
+
+- Bars are merged and ordered across symbols
+- Signals, order lifecycle events, and risk rejections are serialized
+- The API stores completed runs for later fetch and analytics inspection
 
 Current limitation:
-- Multi-symbol portfolio accounting is supported for marking existing positions, but the default app path intentionally restricts runtime to one symbol for safety/simplicity.
+- Backtest runs are executed synchronously and stored only in the in-memory API repository, so results do not survive API process restarts.
 
 ### Analytics
 
-`cumulative_return` is available and integrated into `BacktestResult.total_return`.
+Analytics is no longer limited to cumulative return only.
+
+- Backtest result DTOs now expose summary, equity curve, and drawdown curve
+- `/api/v1/analytics/backtests/{run_id}/trades` exposes trade extraction and trade-level summary statistics
+- The frontend renders summary tiles, drawdown/equity charts, and trade tables from these DTOs
 
 Current limitation:
-- Drawdown/trade stats/turnover metrics are not yet part of the default report.
+- There is no persisted analytics store or broader exposure/turnover/benchmark reporting layer yet.
+
+### API and frontend
+
+The operator-facing application surface now exists in addition to the CLI.
+
+- The API covers runtime, patterns, strategies, analytics, and dashboard control
+- The frontend provides routes for new runs, saved runs, pattern sets, strategy profiles, and dashboard inspection
+- Dashboard control officially supports `pause`, `resume`, and `reset`
+
+Current limitation:
+- `/api/v1/live/preflight` still enforces exactly one symbol per request even though the runtime loop and backtest engine can process multiple symbols.
 
 ## Configuration and examples
 
-Configuration shape is now aligned for executable baseline fields:
+Configuration is currently split between two layers:
 
-- `configs/base.yaml` includes `app`, `market_data`, `risk`, and `backtest` sections compatible with typed settings.
-- `examples/sample_backtest.yaml` includes required risk/backtest fields and remains an operator-facing scenario reference.
+- `config.settings.load_settings` validates the baseline YAML schema used for environment, symbols, execution broker, risk, backtest fields, and API CORS settings
+- `app.settings.AppSettings` and API request DTOs validate runtime-only fields such as `live_execution`, strategy configuration, and `portfolio_risk`
+
+Examples and operator artifacts include:
+
+- `configs/base.yaml` for baseline typed YAML loading
+- `configs/patterns/*.json` and `configs/strategies/*.json` for repository-backed pattern and strategy assets
+- `examples/sample_backtest.yaml`, `examples/sample_backtest_krx.yaml`, and `examples/sample_live_kis.yaml` for operator reference
 
 Notes:
-- The example still contains additional strategy metadata that is not yet consumed by the current CLI app composition.
+
+- The commented `portfolio_risk` block in `configs/base.yaml` is a reference example only; `config.settings.load_settings` does not currently parse it.
+- Strategy/profile and pattern-set storage is file backed, not database backed.
 
 ## Test coverage snapshot
 
-Coverage includes:
+Coverage now spans the current operator-facing surface, not only the backtest core.
 
-- Unit tests: strategy/risk/portfolio/analytics/config/app/execution adapters and broker behavior.
-- Integration tests: orchestration happy path, deterministic replay, risk rejection, provider failure, broker failure/timeout paths, config loader invalid schema/type paths.
+- Unit tests: config loading, app wiring, dashboard routes, live loop behavior, KIS integration, portfolio risk, reconciliation, repositories, analytics, and execution adapters
+- Integration tests: backtest run API, pattern/strategy API flow, trade analytics API, config loader failures, and API security/validation
 
-This gives a solid regression baseline for the current deterministic backtest architecture.
+This gives a strong regression baseline for deterministic replay, runtime validation, dashboard control, and repository-backed pattern/strategy workflows.
 
-## Remaining gaps before true live execution
+## Remaining gaps before broader production use
 
-1. **Real adapters**: implement external market data and broker adapters behind existing protocols.
-2. **Live orchestration**: add runtime loop, heartbeat, and durable state transitions for order lifecycle.
-3. **Persistence/recovery**: add checkpointing/event storage for restart-safe operation.
-4. **Operational gates**: formalize pre-production checks (runbook drills, key rotation, alert routing).
-5. **Expanded analytics**: add drawdown and trade-level metrics for operational monitoring.
+1. **Durable run storage**: backtest results and run metadata need persistent storage and, ideally, asynchronous job handling.
+2. **Frontend live orchestration**: there is no first-class UI flow to start, attach, and manage the live loop process lifecycle.
+3. **Config parity**: runtime fields such as `portfolio_risk` and strategy selection are not yet fully represented in the typed YAML loader.
+4. **Exchange snapshot integration**: generic reconciliation exists, but KIS account-balance snapshot support is still missing.
+5. **Operational hardening**: richer auth, alerting, audit export, and deployment guidance are still lighter than a fully managed trading platform would require.
 
 ## Recommended next backlog
 
-1. Introduce a real data-provider adapter with strict timeout/retry configuration.
-2. Add a broker adapter contract test suite (happy path + failure path) using fakes.
-3. Add a dedicated live formatter/status model for paper execution output (currently reuses backtest formatting).
-4. Add release-gate documentation with pass/fail checklist before enabling live order submission.
+1. Add a persistent backtest run repository and asynchronous run execution model.
+2. Extend broker integrations, especially KIS, to expose account balance snapshots for reconciliation.
+3. Decide whether `portfolio_risk` and strategy runtime settings should become first-class YAML fields or remain API/runtime-only inputs.
+4. Add deployment/operator documentation for starting the API server, live loop, and dashboard together.

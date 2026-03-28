@@ -1,7 +1,10 @@
 # Architecture overview
 
-The starter architecture is intentionally split into explicit layers.
+The starter architecture is intentionally split into explicit layers and operator-facing surfaces.
 
+- `app`: CLI entrypoint, service wiring, and live loop runtime
+- `api`: HTTP routes, dashboard attachment, and security middleware
+- `patterns`: pattern training, matching, alerts, and repositories
 - `data`: market data models and provider interfaces
 - `strategy`: signal generation and strategy contracts
 - `risk`: position and order checks
@@ -9,6 +12,7 @@ The starter architecture is intentionally split into explicit layers.
 - `portfolio`: holdings, cash state, and persistence repository
 - `backtest`: orchestration over historical data
 - `analytics`: performance metrics and reporting helpers
+- `integrations`: external clients such as KIS
 
 Suggested flow:
 
@@ -22,5 +26,6 @@ Suggested flow:
 Current implementation note:
 
 - The repository orchestrates both deterministic backtests and continuous live trading loops through a unified execution core (`execute_trading_step`).
+- HTTP APIs expose backtests, pattern/strategy management, analytics, and dashboard control on top of the same runtime services.
 - Live trading is managed by `LiveTradingLoop` with state control (`AppRunnerState`), heartbeat logging, and graceful shutdown.
 - Portfolio manages local persistence (`book.json`) for seamless restart-safe operations across live sessions.
