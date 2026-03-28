@@ -4,6 +4,8 @@
 >
 > - **EN:** This README is maintained in both English and Korean with the same level of detail. Any future README updates must be reflected in **both languages**.
 > - **KO:** 이 README는 영어/한국어를 **동일한 수준의 상세도**로 유지합니다. 앞으로 README를 수정할 때는 **두 언어 모두** 반드시 함께 업데이트해야 합니다.
+> - **EN:** All operator-facing documents under `docs/` must also have both English and Korean versions. Use `.ko.md` for Korean companions of English originals, and `.en.md` for English companions of Korean originals when needed.
+> - **KO:** `docs/` 아래의 운영자 대상 문서도 모두 영어/한국어 버전을 함께 유지합니다. 영어 원문에는 `.ko.md` 한국어 대응 문서를, 한국어 원문에는 필요 시 `.en.md` 영어 대응 문서를 둡니다.
 
 ---
 
@@ -361,13 +363,14 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
 
 ### EN
 
-The repository now includes a minimal static frontend under `frontend/` with five pages:
+The repository now includes a React frontend under `frontend/`, built around TanStack Router and React Query. Current user-facing routes are:
 
-- `frontend/index.html`: backtest run form with optional strategy profile selection
-- `frontend/patterns.html`: label-based pattern training, preview, and save flow
-- `frontend/pattern.html?pattern_set_id=<id>`: saved pattern set detail
-- `frontend/strategies.html`: strategy profile creation from saved pattern sets
-- `frontend/runs.html` and `frontend/run.html?run_id=<id>`: run list plus result details with equity/drawdown charts, strategy signals, and order/risk events
+- `/`: create a new backtest run with optional strategy profile selection
+- `/patterns`: train, preview, save, and list pattern sets
+- `/patterns/$patternSetId`: inspect one saved pattern set
+- `/strategies`: create and list strategy profiles
+- `/runs` and `/runs/$runId`: inspect run history, result charts, signals, fills, rejections, and trade analytics
+- `/dashboard`: inspect live loop status, positions, recent events, and control actions (`pause`, `resume`, `reset`)
 
 Run backend and frontend together in two terminals:
 
@@ -390,22 +393,26 @@ http://127.0.0.1:9000/api/v1
 Local development flow:
 
 1. Start backend API server.
-2. Start frontend static server.
-3. Train and save a pattern set from `patterns.html`.
-4. Create a strategy profile from `strategies.html`.
-5. Submit a run from `index.html`.
-6. Check run status in `runs.html`.
-7. Inspect charts/events in `run.html?run_id=<id>`.
+2. Start frontend dev server.
+3. Open `/patterns` to train and save a pattern set.
+4. Open `/strategies` to create a strategy profile.
+5. Open `/` to submit a backtest run.
+6. Open `/runs` and `/runs/<run_id>` to review results and trade analytics.
+7. Open `/dashboard` to inspect an attached live loop.
 
-API endpoint contract used by frontend client:
+API endpoint contract used by the frontend client:
 
-- `POST /api/v1/backtests` → create run
-- `GET /api/v1/backtests/{run_id}` → fetch run status/result
-- `POST /api/v1/patterns/train` → train preview from labeled examples
-- `POST /api/v1/patterns` → save trained pattern set
-- `GET /api/v1/patterns` and `GET /api/v1/patterns/{pattern_set_id}` → list/detail pattern sets
-- `POST /api/v1/strategies` → save strategy profile
-- `GET /api/v1/strategies` and `GET /api/v1/strategies/{strategy_id}` → list/detail strategy profiles
+- `POST /api/v1/backtests` and `GET /api/v1/backtests/{run_id}`
+- `GET /api/v1/analytics/backtests/{run_id}/trades`
+- `POST /api/v1/patterns/train`
+- `POST /api/v1/patterns`
+- `GET /api/v1/patterns` and `GET /api/v1/patterns/{pattern_set_id}`
+- `POST /api/v1/strategies`
+- `GET /api/v1/strategies` and `GET /api/v1/strategies/{strategy_id}`
+- `GET /api/v1/dashboard/status`
+- `GET /api/v1/dashboard/positions`
+- `GET /api/v1/dashboard/events`
+- `POST /api/v1/dashboard/control`
 
 Frontend error handling is separated by path:
 
@@ -413,15 +420,18 @@ Frontend error handling is separated by path:
 - 4xx failure: validation/input issue from API
 - 5xx failure: runtime/internal server issue
 
+The dashboard route only works when the backend API is started with an attached live loop. Otherwise the dashboard endpoints return `503`.
+
 ### KO
 
-저장소에는 `frontend/` 경로에 최소 정적 프론트엔드가 포함되어 있으며, 이제 다음 5개 페이지를 제공합니다.
+저장소에는 `frontend/` 경로의 React 프론트엔드가 포함되어 있으며, TanStack Router와 React Query를 사용합니다. 현재 사용자 진입 라우트는 다음과 같습니다.
 
-- `frontend/index.html`: 전략 프로필 선택을 포함한 백테스트 실행 폼
-- `frontend/patterns.html`: 라벨 기반 패턴 학습, 미리보기, 저장 화면
-- `frontend/pattern.html?pattern_set_id=<id>`: 저장된 패턴셋 상세
-- `frontend/strategies.html`: 저장된 패턴셋 기반 전략 프로필 생성 화면
-- `frontend/runs.html` 및 `frontend/run.html?run_id=<id>`: 실행 목록과 Equity/Drawdown 차트, 전략 신호, 주문/리스크 이벤트 상세
+- `/`: 전략 프로필 선택을 포함한 신규 백테스트 실행
+- `/patterns`: 패턴셋 학습, 미리보기, 저장, 목록 조회
+- `/patterns/$patternSetId`: 저장된 패턴셋 상세 조회
+- `/strategies`: 전략 프로필 생성 및 목록 조회
+- `/runs`, `/runs/$runId`: 실행 이력, 결과 차트, 신호, 체결/거절, 거래 애널리틱스 조회
+- `/dashboard`: 라이브 루프 상태, 포지션, 최근 이벤트, 제어 액션(`pause`, `resume`, `reset`) 조회
 
 백엔드와 프론트를 각각 다른 터미널에서 실행하세요:
 
@@ -444,22 +454,26 @@ http://127.0.0.1:9000/api/v1
 로컬 개발 흐름:
 
 1. 백엔드 API 서버 실행
-2. 프론트 정적 서버 실행
-3. `patterns.html`에서 패턴셋 학습 및 저장
-4. `strategies.html`에서 전략 프로필 생성
-5. `index.html`에서 실행 요청 제출
-6. `runs.html`에서 상태 확인
-7. `run.html?run_id=<id>`에서 차트/이벤트 상세 확인
+2. 프론트엔드 개발 서버 실행
+3. `/patterns`에서 패턴셋 학습 및 저장
+4. `/strategies`에서 전략 프로필 생성
+5. `/`에서 백테스트 실행 요청 제출
+6. `/runs`, `/runs/<run_id>`에서 결과 및 거래 애널리틱스 확인
+7. `/dashboard`에서 연결된 라이브 루프 상태 확인
 
 프론트 클라이언트가 사용하는 API 계약:
 
-- `POST /api/v1/backtests` → 실행 생성
-- `GET /api/v1/backtests/{run_id}` → 실행 상태/결과 조회
-- `POST /api/v1/patterns/train` → 라벨 예시 기반 패턴 학습 미리보기
-- `POST /api/v1/patterns` → 학습된 패턴셋 저장
-- `GET /api/v1/patterns`, `GET /api/v1/patterns/{pattern_set_id}` → 패턴셋 목록/상세 조회
-- `POST /api/v1/strategies` → 전략 프로필 저장
-- `GET /api/v1/strategies`, `GET /api/v1/strategies/{strategy_id}` → 전략 프로필 목록/상세 조회
+- `POST /api/v1/backtests`, `GET /api/v1/backtests/{run_id}`
+- `GET /api/v1/analytics/backtests/{run_id}/trades`
+- `POST /api/v1/patterns/train`
+- `POST /api/v1/patterns`
+- `GET /api/v1/patterns`, `GET /api/v1/patterns/{pattern_set_id}`
+- `POST /api/v1/strategies`
+- `GET /api/v1/strategies`, `GET /api/v1/strategies/{strategy_id}`
+- `GET /api/v1/dashboard/status`
+- `GET /api/v1/dashboard/positions`
+- `GET /api/v1/dashboard/events`
+- `POST /api/v1/dashboard/control`
 
 프론트 오류 메시지는 다음 경로로 구분해 표시합니다.
 
@@ -467,37 +481,41 @@ http://127.0.0.1:9000/api/v1
 - 4xx 오류: API 입력/검증 문제
 - 5xx 오류: 런타임/서버 내부 문제
 
+대시보드 라우트는 백엔드 API가 활성 라이브 루프와 함께 시작된 경우에만 정상 동작합니다. 그렇지 않으면 대시보드 엔드포인트는 `503`을 반환합니다.
+
 ---
 
 ## 6) What this system can do now / 현재 시스템으로 할 수 있는 것
 
 ### EN
 
-This repository is not a fully live-trading product yet. It is a deterministic, test-centered platform that can:
+This repository is not a fully managed live-trading product yet. It is a deterministic, test-centered platform that can:
 
-1. Execute end-to-end backtests through CLI.
-2. Run live-mode loop (preflight, paper, or real execution) with configuring polling and heartbeat.
-3. Load market data via in-memory provider (`mock`) or CSV provider (`csv`).
-4. Enforce risk limits (`max_position`, `max_notional`, `max_order_size`).
-5. Simulate fills via fill ratio, slippage (bps), and commission (bps).
-6. Update cash/positions and compute equity curve + cumulative return.
-7. Persist portfolio state to disk (in live modes) for restart-safe operations.
-8. Train/match chart patterns and convert matches into strategy signals.
+1. Execute end-to-end backtests through CLI and HTTP API.
+2. Run live-mode preflight, paper execution, and explicitly gated live execution with configurable polling and heartbeat.
+3. Load market data through in-memory (`mock`), CSV (`csv`), and KIS quote-sampling (`kis`) providers.
+4. Train and save pattern sets, create reusable strategy profiles, and execute default momentum or pattern-signal strategies.
+5. Enforce order risk limits and optional portfolio-level risk controls (`portfolio_risk`) through API/app runtime settings.
+6. Simulate fills with policy-based fill ratio, slippage, and commission, or submit real orders through the KIS adapter when explicitly enabled.
+7. Update cash/positions, compute equity and drawdown curves, and persist live portfolio state for restart-safe operation.
+8. Expose trade analytics and live dashboard APIs for run inspection and operator control.
 9. Emit structured logs with sensitive-field redaction and correlation IDs.
+10. Provide a browser UI for pattern management, strategy profiles, run review, and dashboard monitoring.
 
 ### KO
 
-이 저장소는 아직 “완전한 실주문 시스템”은 아니며, 결정성과 테스트 중심의 플랫폼으로 다음을 수행할 수 있습니다.
+이 저장소는 아직 완전 관리형 실거래 제품은 아니며, 결정성과 테스트 중심의 플랫폼으로 다음을 수행할 수 있습니다.
 
-1. CLI 기반 end-to-end 백테스트 실행.
-2. 안정적인 무한 루프 기반 라이브 실행 (preflight, 페이퍼 시뮬레이션, KIS 실주문 모드 지원).
-3. 인메모리(`mock`) 또는 CSV(`csv`) 데이터 공급자 사용.
-4. 리스크 제한(`max_position`, `max_notional`, `max_order_size`) 적용.
-5. 체결 비율/슬리피지(bps)/수수료(bps) 기반 체결 시뮬레이션.
-6. 현금/포지션 갱신 및 equity curve + 누적수익률 계산.
-7. 앱 재기동 복구를 위해 포트폴리오 상태를 디스크에 영속화 (라이브 모드).
-8. 차트 패턴 학습/매칭 및 전략 신호 변환.
+1. CLI와 HTTP API를 통한 end-to-end 백테스트 실행.
+2. 설정 가능한 polling/heartbeat 기반의 라이브 preflight, 페이퍼 실행, 명시적 가드가 있는 라이브 실행.
+3. 인메모리(`mock`), CSV(`csv`), KIS 현재가 샘플링(`kis`) 데이터 공급자 사용.
+4. 패턴셋 학습/저장, 재사용 가능한 전략 프로필 생성, 기본 momentum 전략 또는 pattern-signal 전략 실행.
+5. API/앱 런타임 설정을 통한 주문 리스크 제한과 선택적 포트폴리오 레벨 리스크(`portfolio_risk`) 적용.
+6. 체결 비율/슬리피지/수수료 기반 시뮬레이션 또는 명시적으로 허용된 경우 KIS 어댑터를 통한 실주문 제출.
+7. 현금/포지션 갱신, equity/drawdown curve 계산, 라이브 포트폴리오 상태 영속화 및 재기동 복구.
+8. 실행 결과 조회와 운영자 제어를 위한 거래 애널리틱스 및 라이브 대시보드 API 제공.
 9. 민감정보 마스킹/상관관계 ID를 포함한 구조화 로그 출력.
+10. 패턴 관리, 전략 프로필, 실행 결과 검토, 대시보드 모니터링을 위한 브라우저 UI 제공.
 
 ---
 
@@ -571,6 +589,7 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_PORTFOLIO_DIR` (optional): Directory where the portfolio book JSON is persisted (default: `data/portfolio`)
 - `TRADING_SYSTEM_LIVE_POLL_INTERVAL` (optional): Seconds to wait between live ticks (default: `10`)
 - `TRADING_SYSTEM_HEARTBEAT_INTERVAL` (optional): Seconds between heartbeat logs (default: `60`)
+- `TRADING_SYSTEM_RECONCILIATION_INTERVAL` (optional): Seconds between broker balance reconciliation attempts in the live loop (default: `300`)
 
 ### KO
 
@@ -592,6 +611,7 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_PORTFOLIO_DIR` (선택): 포트폴리오 상태(JSON)가 영속화되는 디렉터리 (기본값: `data/portfolio`)
 - `TRADING_SYSTEM_LIVE_POLL_INTERVAL` (선택): 라이브 루프에서 시세를 받아오는 간격 초 단위 (기본값: `10`)
 - `TRADING_SYSTEM_HEARTBEAT_INTERVAL` (선택): 하트비트 로그 기록 간격 (기본값: `60`)
+- `TRADING_SYSTEM_RECONCILIATION_INTERVAL` (선택): 라이브 루프의 브로커 잔고 대사 시도 간격 초 단위 (기본값: `300`)
 
 ---
 
@@ -618,6 +638,11 @@ Required root sections:
 
 All numeric amount/quantity fields are parsed as `Decimal`.
 
+Note:
+- `load_settings()` currently covers the baseline YAML schema above.
+- `portfolio_risk` is supported in API request payloads and `trading_system.app.settings.AppSettings`, but is not yet parsed by `trading_system.config.settings.load_settings()`.
+- The commented `portfolio_risk` block in `configs/base.yaml` is therefore an operator reference example, not an active typed YAML field today.
+
 ### KO
 
 `src/trading_system/config/settings.py`에서 타입 기반 YAML 로딩 및 검증을 제공합니다.
@@ -638,6 +663,11 @@ settings = load_settings("configs/base.yaml")
 - `api` (선택): `cors_allow_origins` (list[str], 기본값 `[*]`)
 
 금액/수량 계열 숫자 필드는 모두 `Decimal`로 파싱됩니다.
+
+참고:
+- `load_settings()`는 현재 위의 기본 YAML 스키마까지만 타입 검증을 제공합니다.
+- `portfolio_risk`는 API 요청 payload와 `trading_system.app.settings.AppSettings`에서는 지원되지만, `trading_system.config.settings.load_settings()`에서는 아직 파싱되지 않습니다.
+- 따라서 `configs/base.yaml`의 주석 처리된 `portfolio_risk` 블록은 현재 기준으로는 운영 참고 예시이며, 활성 typed YAML 필드는 아닙니다.
 
 ---
 
@@ -699,21 +729,21 @@ settings = load_settings("configs/base.yaml")
 
 1. **Live order submission is opt-in and KIS-only**: `live` mode defaults to preflight, supports paper simulation with `--live-execution paper`, and only allows real order submission when `--provider kis --broker kis --live-execution live` and `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true` are set. One execution cycle samples KIS quotes using `TRADING_SYSTEM_LIVE_BAR_SAMPLES` (default `2`).
 2. **Secret handling**: inject credentials via environment/secret manager only.
-3. **Multi-symbol live mode**: the runtime supports multi-symbol operation for both backtest and live modes. The only remaining single-symbol restriction is KIS broker-specific preflight, which checks each symbol individually.
+3. **Multi-symbol behavior**: the backtest engine and live loop both support multiple symbols, but `POST /api/v1/live/preflight` currently requires exactly one symbol per request.
 4. **Determinism first**: any backtest logic change should ship with deterministic regression tests.
-5. **Dashboard controls**: the live dashboard exposes three operator actions — `pause`, `resume`, and `reset`. `pause` transitions a RUNNING loop to PAUSED; `resume` transitions PAUSED back to RUNNING; `reset` clears an EMERGENCY state and returns to PAUSED (not directly to RUNNING). Invalid or no-op transitions are silently accepted and return the current state.
-6. **Portfolio-level risk (`portfolio_risk`)**: optional drawdown protection can be configured via `portfolio_risk` in the YAML config or app settings. Available fields: `max_daily_drawdown_pct` (required), `sl_pct` (optional per-position stop-loss), `tp_pct` (optional per-position take-profit). See `configs/base.yaml` for an example.
-7. **Reconciliation**: the live loop persists the `PortfolioBook` to disk after each cycle. On restart the portfolio is reloaded automatically. If the loop is in PAUSED or EMERGENCY state, reconciliation writes are skipped to avoid inconsistent snapshots.
+5. **Dashboard controls**: the live dashboard exposes only `pause`, `resume`, and `reset`. Dashboard endpoints require the API app to be started with an attached live loop; otherwise they return `503`.
+6. **Portfolio-level risk (`portfolio_risk`)**: optional drawdown protection supports `max_daily_drawdown_pct`, `sl_pct`, and `tp_pct`, but it currently enters the runtime through API payloads or `AppSettings`, not through `config.settings.load_settings()`.
+7. **Persistence and reconciliation**: the live loop persists `PortfolioBook` after processed live cycles and reloads it on restart. Generic reconciliation only runs when a broker provides account balance snapshots. The current KIS adapter does not expose balance snapshots, so exchange-balance sync remains future work.
 
 ### KO
 
 1. **실주문은 명시적 활성화 + KIS 전용**: `live` 모드는 기본 preflight이며, `--live-execution paper`로 페이퍼 실행이 가능하고, `--provider kis --broker kis --live-execution live` + `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true` 조합일 때만 실주문을 허용합니다. 실행 1회당 KIS 시세 샘플 수는 `TRADING_SYSTEM_LIVE_BAR_SAMPLES`(기본 `2`)로 제어합니다.
 2. **시크릿 관리**: 인증정보는 환경변수/시크릿 매니저로만 주입하세요.
-3. **다중 심볼 라이브 모드**: 런타임은 백테스트와 라이브 모드 모두 다중 심볼 운영을 지원합니다. 유일하게 남아있는 단일 심볼 제한은 KIS 브로커 전용 preflight으로, 각 심볼을 개별적으로 검증합니다.
+3. **다중 심볼 동작 범위**: 백테스트 엔진과 라이브 루프는 모두 다중 심볼을 지원하지만, `POST /api/v1/live/preflight`는 현재 요청당 정확히 1개 심볼만 허용합니다.
 4. **결정성 우선**: 백테스트 로직 변경 시 결정성 회귀 테스트를 함께 추가하세요.
-5. **대시보드 제어**: 라이브 대시보드는 `pause`, `resume`, `reset` 세 가지 운영 액션을 제공합니다. `pause`는 RUNNING 루프를 PAUSED로 전환하고, `resume`은 PAUSED를 RUNNING으로 되돌리며, `reset`은 EMERGENCY 상태를 해제하고 PAUSED로 복귀합니다(RUNNING으로 직접 전환하지 않음). 유효하지 않거나 중복 전환은 무시되고 현재 상태를 반환합니다.
-6. **포트폴리오 레벨 리스크 (`portfolio_risk`)**: YAML 설정 또는 앱 설정의 `portfolio_risk`를 통해 선택적 드로우다운 보호를 구성할 수 있습니다. 사용 가능한 필드: `max_daily_drawdown_pct`(필수), `sl_pct`(선택, 포지션별 손절), `tp_pct`(선택, 포지션별 익절). 예시는 `configs/base.yaml`을 참조하세요.
-7. **조정(Reconciliation)**: 라이브 루프는 매 사이클 후 `PortfolioBook`을 디스크에 저장합니다. 재시작 시 포트폴리오가 자동으로 복원됩니다. 루프가 PAUSED 또는 EMERGENCY 상태이면 일관성 문제를 방지하기 위해 조정 기록을 건너뜁니다.
+5. **대시보드 제어**: 라이브 대시보드는 `pause`, `resume`, `reset`만 공식 지원합니다. 대시보드 엔드포인트는 API 앱이 활성 라이브 루프와 함께 시작된 경우에만 동작하며, 그렇지 않으면 `503`을 반환합니다.
+6. **포트폴리오 레벨 리스크 (`portfolio_risk`)**: `max_daily_drawdown_pct`, `sl_pct`, `tp_pct`를 지원하지만, 현재는 API payload 또는 `AppSettings` 경로로만 런타임에 반영되며 `config.settings.load_settings()` YAML 로더에서는 아직 처리되지 않습니다.
+7. **영속화와 대사(Reconciliation)**: 라이브 루프는 처리된 라이브 사이클 이후 `PortfolioBook`을 저장하고 재시작 시 다시 로드합니다. 일반 대사는 브로커가 계좌 스냅샷을 제공할 때만 동작하며, 현재 KIS 어댑터는 잔고 스냅샷을 제공하지 않으므로 거래소 잔고 동기화는 향후 작업입니다.
 
 ---
 
@@ -737,11 +767,12 @@ settings = load_settings("configs/base.yaml")
 
 ## 14) Related docs / 관련 문서
 
-- Architecture overview: `docs/architecture/overview.md`
-- Workspace analysis: `docs/architecture/workspace-analysis.md`
-- Incident runbook: `docs/runbooks/incident-response.md`
-- Release gates: `docs/runbooks/release-gate-checklist.md`
-- KRX CSV verification loop note: `docs/runbooks/krx-csv-verification-loop.md`
+- Architecture overview: `docs/architecture/overview.md` / `docs/architecture/overview.ko.md`
+- Workspace analysis: `docs/architecture/workspace-analysis.md` / `docs/architecture/workspace-analysis.ko.md`
+- User use cases: `docs/architecture/user-use-cases.md` / `docs/architecture/user-use-cases.ko.md`
+- Incident runbook: `docs/runbooks/incident-response.en.md` / `docs/runbooks/incident-response.md`
+- Release gates: `docs/runbooks/release-gate-checklist.en.md` / `docs/runbooks/release-gate-checklist.md`
+- KRX CSV verification loop note: `docs/runbooks/krx-csv-verification-loop.md` / `docs/runbooks/krx-csv-verification-loop.ko.md`
 
 ---
 
@@ -754,150 +785,3 @@ This repository is a reliable deterministic backtest-and-validation foundation, 
 ### KO
 
 이 저장소는 결정적 백테스트/검증 기반을 제공하며, uv 기반 Python 3.12 실행 환경과 이벤트 단위 관측성 강화를 통해 운영 전 단계 품질을 높인 상태입니다.
-Run the example matcher with:
-
-```bash
-uv run --python .venv/bin/python --no-sync -m trading_system.patterns.example
-```
-
----
-
-## 한국어 상세 가이드
-
-이 섹션은 현재 시스템이 **실제로 할 수 있는 일**, 최근 변경 사항(호환성/관측성 강화), 운영 시 주의사항을 한국어로 정리한 문서입니다.
-
-### 1) 이 시스템으로 할 수 있는 것
-
-현재 저장소는 “실주문 브로커 연동 완성본”이 아니라, 아래 기능을 갖춘 **결정적(deterministic) 트레이딩 백테스트/검증 플랫폼**입니다.
-
-1. **CLI 기반 백테스트 실행**
-   - 전략 신호 생성 → 주문 변환 → 리스크 검증 → 체결 시뮬레이션 → 포트폴리오 반영 → 성과 계산을 일괄 수행합니다.
-
-2. **라이브 실행(preflight/paper/live) 지원**
-   - `--mode live`는 기본적으로 preflight를 수행하며, `--live-execution paper`로 페이퍼 실행 루프를 수행합니다.
-   - 실주문은 `--provider kis --broker kis --live-execution live` + `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true` 조합에서만 허용됩니다.
-   - 실주문 실행 1회당 시세 샘플 수는 `TRADING_SYSTEM_LIVE_BAR_SAMPLES`(기본 `2`)로 제어합니다.
-
-3. **시장 데이터 공급 선택**
-   - `mock` 인메모리 데이터(테스트/스모크용)
-   - `csv` 데이터(심볼별 CSV 파일 로딩, KRX 심볼 포함)
-   - `kis` 데이터(한국투자 Open API 현재가 기반 라이브 프리플라이트)
-
-4. **리스크 가드레일 적용**
-   - `max_position`, `max_notional`, `max_order_size` 제약으로 비정상 주문을 차단합니다.
-
-5. **체결 정책 시뮬레이션**
-   - 부분 체결/미체결(fill ratio)
-   - 슬리피지(BPS)
-   - 수수료(BPS)
-
-6. **포트폴리오/성과 계산**
-   - 현금 및 포지션 갱신, 수수료 반영
-   - equity curve 및 누적 수익률 산출
-
-7. **패턴 학습/매칭 파이프라인**
-   - 라벨링된 바 윈도우 학습
-   - 현재 윈도우와 유사도 매칭
-   - 알림 생성 및 전략 신호 변환
-
-8. **구조화 로깅/복원력 공통 유틸**
-   - JSON/key-value 로그
-   - 민감 정보 마스킹
-   - 상관관계 ID(correlation id)
-   - 재시도/타임아웃/서킷브레이커
-
-### 2) 최근 핵심 변경 사항 (호환성 + 관측성)
-
-#### A. Python 3.12 표준화
-
-`src/trading_system/core/compat.py`를 추가하여 다음을 제공하도록 개선했습니다.
-
-- `StrEnum`:
-  - Python 3.11+에서는 표준 `enum.StrEnum`
-  - 하위 버전에서는 `str + Enum` 폴백
-- `UTC`:
-  - Python 3.11+에서는 `datetime.UTC`
-  - 하위 버전에서는 `timezone.utc` 폴백
-
-현재 저장소의 기본 실행 환경은 `uv` 기반 Python 3.12이며, 호환성 유틸은 버전 차이를 흡수하는 안전장치로 유지됩니다.
-
-#### B. 백테스트 관측성(Observability) 강화
-
-백테스트 엔진에서 구조화 이벤트를 실제 방출하도록 개선했습니다.
-
-- `order.created`: 주문 생성
-- `order.filled`: 체결 성공
-- `order.rejected`: 주문은 생성됐으나 미체결
-- `risk.rejected`: 리스크 룰로 주문 차단
-
-이벤트가 추가되면서, 단순히 “최종 수익률”만 보는 것이 아니라 **중간 의사결정 경로(신호→리스크→체결)를 운영/테스트에서 추적**할 수 있습니다.
-
-### 3) 아키텍처 레이어별 역할 요약
-
-- **app**: CLI 입력 처리, 서비스 조립, 모드 분기(backtest/live preflight/paper)
-- **data**: 데이터 공급자 인터페이스 및 구현(mock/csv)
-- **strategy**: 전략 신호 생성
-- **risk**: 주문 가능 여부 검증
-- **execution**: 주문 모델, 체결 정책, 복원력 래퍼 브로커
-- **portfolio**: 체결 결과 반영(현금/포지션)
-- **backtest**: 오케스트레이션 및 성과 집계
-- **analytics**: 성과 지표 계산(예: cumulative return)
-- **core**: 로깅, redaction, correlation, resilience, compat 유틸
-
-### 4) 설정 방법 요약
-
-- YAML 기반 설정은 `src/trading_system/config/settings.py`에서 파싱/검증합니다.
-- 주요 섹션
-  - `app`: 실행 환경/타임존/모드
-  - `market_data`: 공급자/심볼 목록
-  - `execution`: 주문 제출 브로커 선택(`paper`/`kis`)
-  - `risk`: 포지션/노셔널/주문량 제한
-  - `backtest`: 시작자금/수수료/거래수량
-- 수치형 값은 `Decimal`로 파싱되어 금액 계산 오차를 줄입니다.
-
-### 5) 테스트 및 검증 전략
-
-- 단위 테스트 + 통합 테스트를 통해 전략/리스크/실행/오케스트레이션을 검증합니다.
-- 대표 실행
-  - `uv run --python .venv/bin/python --no-sync pytest -m smoke -q`
-  - `uv run --python .venv/bin/python --no-sync pytest -m "not smoke" -q`
-- 최근 추가된 회귀 검증
-  - compat 모듈(`StrEnum`, `UTC`) 동작 확인
-  - 백테스트 이벤트 방출(`order.created`, `order.filled`, `risk.rejected`) 확인
-
-### 6) 운영 시 주의사항
-
-1. **실주문은 명시적 활성화**
-   - 현재 `live`는 기본 preflight이며, `--live-execution paper`로 페이퍼 실행이 가능합니다.
-   - 실주문은 `--provider kis --broker kis --live-execution live`와 `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true`를 함께 지정해야 동작합니다.
-   - 실행 1회당 시세 샘플 수는 `TRADING_SYSTEM_LIVE_BAR_SAMPLES`(기본 `2`)로 제어합니다.
-
-2. **시크릿 관리**
-   - API 키는 반드시 환경변수/시크릿 매니저로 주입하고 코드/로그에 직접 남기지 마세요.
-
-3. **다중 심볼 라이브 모드**
-   - 런타임은 백테스트와 라이브 모드 모두 다중 심볼을 지원합니다.
-   - KIS 브로커 preflight만 심볼별 개별 검증을 수행하며, 이는 브로커 고유 제한입니다.
-
-4. **결정성 유지**
-   - 백테스트 로직 변경 시 결정성이 유지되도록 테스트를 함께 보강해야 합니다.
-
-5. **대시보드 제어**
-   - `pause`(RUNNING→PAUSED), `resume`(PAUSED→RUNNING), `reset`(EMERGENCY→PAUSED) 세 가지 액션을 지원합니다.
-   - `reset`은 EMERGENCY 해제 후 PAUSED로 복귀하며, RUNNING으로 직접 전환되지 않습니다.
-
-6. **포트폴리오 리스크 (`portfolio_risk`)**
-   - `max_daily_drawdown_pct`(필수), `sl_pct`(선택), `tp_pct`(선택)로 드로우다운 보호를 설정할 수 있습니다.
-   - 예시: `configs/base.yaml` 참조.
-
-### 7) 앞으로 확장하면 좋은 우선순위
-
-1. 실데이터/실브로커 어댑터 추가(기존 프로토콜 뒤에 연결)
-2. 라이브 루프(heartbeat, 상태전이, 재기동 복구) 구현
-3. 주문/포지션 영속화 및 리플레이 체계
-4. 고급 리스크(포트폴리오 레벨) 및 고급 지표(드로우다운/트레이드 통계) 확장
-
-### 8) 한 줄 요약
-
-이 저장소는 현재 **신뢰 가능한 백테스트/검증 기반을 제공하는 트레이딩 시스템 골격**이며,
-호환성(3.10+)과 관측성(구조화 이벤트) 강화로 실제 서비스 전개 전 단계의 품질 기준을 충족하도록 발전하고 있습니다.
