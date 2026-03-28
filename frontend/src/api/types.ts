@@ -157,6 +157,21 @@ export interface PatternSetDTO {
   patterns: PatternDTO[]
 }
 
+// Admin
+export interface ApiKeyListItem {
+  key_id: string
+  name: string
+  key_preview: string
+  created_at: string
+}
+
+export interface CreateApiKeyResponse {
+  key_id: string
+  name: string
+  key: string
+  created_at: string
+}
+
 // Strategies
 export interface StrategyProfileDTO {
   strategy_id: string

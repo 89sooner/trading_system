@@ -6,6 +6,7 @@ const NAV_LINKS = [
   { to: '/runs', label: 'Runs' },
   { to: '/patterns', label: 'Patterns' },
   { to: '/strategies', label: 'Strategies' },
+  { to: '/admin', label: 'Admin' },
 ] as const
 
 export function NavBar() {

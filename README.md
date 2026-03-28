@@ -483,6 +483,90 @@ http://127.0.0.1:9000/api/v1
 
 대시보드 라우트는 백엔드 API가 활성 라이브 루프와 함께 시작된 경우에만 정상 동작합니다. 그렇지 않으면 대시보드 엔드포인트는 `503`을 반환합니다.
 
+### 5.11 API key management / API Key 관리
+
+### EN
+
+The server supports two complementary ways to enforce API key authentication on all non-admin endpoints. Both can be used simultaneously.
+
+**Method 1 — Static keys via `.env`**
+
+Set one or more comma-separated keys in `.env`:
+
+```
+TRADING_SYSTEM_ALLOWED_API_KEYS=my-secret-key,another-key
+```
+
+These keys are loaded at startup and are never shown in the Admin UI. Restart the server to add or remove them.
+
+**Method 2 — Dynamic keys via Admin UI**
+
+Open `http://127.0.0.1:5173/admin` in your browser:
+
+1. Enter a name for the key (e.g. `Trading Bot`) and click **Generate Key**.
+2. Copy the key from the one-time reveal box — it is not stored in plain text and cannot be retrieved again.
+3. To revoke a key, click **Revoke** next to it in the Active Keys table.
+
+Dynamic keys are stored in `data/api_keys.json` and take effect immediately without a server restart.
+
+**Using a key**
+
+Pass the key in the `X-API-Key` request header:
+
+```bash
+curl -H "X-API-Key: <your-key>" http://127.0.0.1:8000/api/v1/strategies
+```
+
+In the frontend UI, enter the key in the **API Key** field in the settings bar — it is kept in memory only and is not persisted to `localStorage`.
+
+**Authentication rules**
+
+- If neither source has any keys configured, the API is open (no auth required).
+- If at least one key exists in either source, all non-admin requests must supply a valid key.
+- The `/admin` endpoints are always accessible without a key (bootstrap safety — you need a way to add the first key).
+- Rate limiting applies to all endpoints regardless of authentication status.
+
+### KO
+
+서버는 모든 비어드민 엔드포인트에 API Key 인증을 적용하는 두 가지 방법을 지원합니다. 두 방식을 동시에 사용할 수 있습니다.
+
+**방법 1 — `.env`를 통한 정적 키**
+
+`.env`에 쉼표로 구분된 키를 설정합니다:
+
+```
+TRADING_SYSTEM_ALLOWED_API_KEYS=my-secret-key,another-key
+```
+
+이 키들은 서버 시작 시 로드되며 Admin UI에는 표시되지 않습니다. 추가/삭제 후 서버를 재시작해야 반영됩니다.
+
+**방법 2 — Admin UI를 통한 동적 키**
+
+브라우저에서 `http://127.0.0.1:5173/admin`을 여세요:
+
+1. 키 이름(예: `Trading Bot`)을 입력하고 **Generate Key**를 클릭합니다.
+2. 일회성 표시 박스에서 키를 복사하세요 — 평문으로 저장되지 않으며 이후 다시 조회할 수 없습니다.
+3. 키를 비활성화하려면 Active Keys 표에서 **Revoke**를 클릭합니다.
+
+동적 키는 `data/api_keys.json`에 저장되며, 서버 재시작 없이 즉시 적용됩니다.
+
+**키 사용 방법**
+
+요청 헤더 `X-API-Key`에 키를 포함합니다:
+
+```bash
+curl -H "X-API-Key: <your-key>" http://127.0.0.1:8000/api/v1/strategies
+```
+
+프론트엔드 UI에서는 설정 바의 **API Key** 입력란에 키를 입력합니다 — 메모리에만 유지되며 `localStorage`에는 저장되지 않습니다.
+
+**인증 규칙**
+
+- 어느 쪽에도 키가 설정되지 않으면 API는 인증 없이 열려 있습니다.
+- 어느 한 쪽이라도 키가 존재하면, 모든 비어드민 요청은 유효한 키를 제공해야 합니다.
+- `/admin` 엔드포인트는 항상 키 없이 접근 가능합니다 (첫 번째 키를 추가하기 위한 부트스트랩 안전장치).
+- 인증 여부와 관계없이 모든 엔드포인트에 레이트 리밋이 적용됩니다.
+
 ---
 
 ## 6) What this system can do now / 현재 시스템으로 할 수 있는 것
