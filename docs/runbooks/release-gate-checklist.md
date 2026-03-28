@@ -1,48 +1,47 @@
-# Release gate checklist
+# Release Gate Checklist
 
 ## Purpose
 
-라이브 주문 전환 전에 필수 운영 게이트를 동일한 기준으로 점검한다.
-현재 저장소 기준으로 `--mode live`는 기본 preflight를 수행하고,
-`--live-execution paper` 지정 시 실주문 없이 페이퍼 실행 루프를 수행한다.
-KIS 실주문 경로는 구현되어 있지만 `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true` 뒤에 명시적으로 가드되어 있다.
+Use a single operational standard before enabling live order submission.
+In the current repository, `--mode live` defaults to preflight, and `--live-execution paper` runs the paper loop without submitting real orders.
+The KIS live-order path exists, but it is explicitly gated behind `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true`.
 
 ## Gate 1: Test baseline
 
-- [ ] `uv run --python .venv/bin/python --no-sync pytest -m smoke -q` 통과
-- [ ] `uv run --python .venv/bin/python --no-sync pytest -m "not smoke" -q` 통과
-- [ ] 최근 변경 영역(설정/리스크/실행 경계)에 대한 신규 회귀 테스트 포함
+- [ ] `uv run --python .venv/bin/python --no-sync pytest -m smoke -q` passes
+- [ ] `uv run --python .venv/bin/python --no-sync pytest -m "not smoke" -q` passes
+- [ ] Recent changes in config, risk, and execution boundaries include new regression coverage
 
 ## Gate 2: Config and secret baseline
 
-- [ ] `configs/base.yaml`이 현재 `config.settings.load_settings()` 스키마와 일치
-- [ ] `portfolio_risk`를 사용할 경우 API payload 또는 앱 런타임 설정 경로로 주입 계획이 문서화되어 있음 (`configs/base.yaml` 주석 예시는 참고용임)
-- [ ] 운영 환경의 `TRADING_SYSTEM_API_KEY` 또는 KIS 자격증명 주입 확인
-- [ ] 시크릿이 코드/로그/티켓에 노출되지 않음
+- [ ] `configs/base.yaml` matches the current `config.settings.load_settings()` schema
+- [ ] If `portfolio_risk` is used, the injection path is documented through API payloads or app runtime settings (`configs/base.yaml` comments are reference-only today)
+- [ ] Production environment injection for `TRADING_SYSTEM_API_KEY` or KIS credentials is confirmed
+- [ ] No secrets are exposed in code, logs, or tickets
 
 ## Gate 3: Runtime preflight baseline
 
-- [ ] `TRADING_SYSTEM_API_KEY=dummy-key uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode live --symbols BTCUSDT` preflight 성공
-- [ ] `TRADING_SYSTEM_API_KEY=dummy-key uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode live --symbols BTCUSDT --live-execution paper` paper 실행 성공
-- [ ] KIS 실주문 전환 대상이면 `--provider kis --broker kis` 조합의 preflight 성공
-- [ ] 잘못된 설정 입력 시 명확한 사용자 오류 메시지 반환 확인
-- [ ] 운영자가 백테스트/라이브 루프의 다중 심볼 지원 범위와 `/api/v1/live/preflight`의 단일 심볼 제한을 모두 이해함
-- [ ] 대시보드 사용 대상이면 API 서버가 활성 live loop와 함께 시작되는 배포 방식이 준비됨
+- [ ] `TRADING_SYSTEM_API_KEY=dummy-key uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode live --symbols BTCUSDT` succeeds
+- [ ] `TRADING_SYSTEM_API_KEY=dummy-key uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode live --symbols BTCUSDT --live-execution paper` succeeds
+- [ ] If transitioning to KIS live orders, preflight succeeds with `--provider kis --broker kis`
+- [ ] Invalid configuration inputs return clear user-facing errors
+- [ ] Operators understand both the multi-symbol capabilities of the backtest/live loop and the single-symbol restriction of `/api/v1/live/preflight`
+- [ ] If the dashboard will be used, deployment is ready to start the API server with an attached live loop
 
 ## Gate 4: Incident drill baseline
 
-- [ ] 데이터 끊김 시나리오 점검(incident-response 시나리오 A)
-- [ ] 리스크 거절/비상 정지 시나리오 점검(incident-response 시나리오 B)
-- [ ] 주문 실패/브로커 오류 시나리오 점검(incident-response 시나리오 C)
-- [ ] 브로커 스냅샷 사용 환경이면 대사 불일치 시나리오 점검(incident-response 시나리오 D)
+- [ ] Data disconnect scenario reviewed (incident-response scenario A)
+- [ ] Risk rejection / emergency scenario reviewed (incident-response scenario B)
+- [ ] Order failure / broker error scenario reviewed (incident-response scenario C)
+- [ ] If the environment uses broker snapshots, reconciliation mismatch scenario reviewed (incident-response scenario D)
 
 ## Gate 5: Sign-off
 
-- [ ] 개발 책임자 승인
-- [ ] 운영 책임자 승인
-- [ ] 롤백 담당자 및 연락 채널 확인
+- [ ] Engineering owner approval
+- [ ] Operations owner approval
+- [ ] Rollback owner and contact channel confirmed
 
 ## Notes
 
-- KIS 실주문 경로는 존재하지만, 모든 게이트 통과 전까지 `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true`를 활성화하지 않는다.
-- 일반 대사(reconciliation) 경로는 브로커 잔고 스냅샷이 있을 때만 동작한다. 현재 KIS 어댑터는 계좌 잔고 스냅샷을 제공하지 않는다.
+- Even though the KIS live-order path exists, do not enable `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true` until all gates are complete.
+- Generic reconciliation only works when the broker exposes account balance snapshots. The current KIS adapter does not expose account balance snapshots.

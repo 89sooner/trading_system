@@ -1,72 +1,80 @@
-# Incident runbook
+# Incident Runbook
 
 ## Scope
 
-운영 경계 계층(`app`, `api`, `data`, `execution`, `portfolio`)에서 발생하는 장애를 빠르게 분류하고 복구한다.
-모든 로그는 구조화 포맷(JSON 또는 key-value)과 `correlation_id`를 포함한다.
+Classify and recover incidents quickly across operational boundary layers (`app`, `api`, `data`, `execution`, `portfolio`).
+All logs are expected to use a structured format (JSON or key-value) and include a `correlation_id`.
 
-## 공통 점검 절차
+## Common checks
 
-1. `correlation_id` 기준으로 `system.error`, `system.heartbeat`, `system.control`, `order.created`, `order.rejected`, `order.filled`, `risk.rejected`, `risk.daily_limit_breached`, `portfolio.reconciliation.*` 이벤트를 시간순으로 조회한다.
-2. 민감정보(`api_key`, `token`, `password`, `secret`)가 로그에 마스킹(`***`)되었는지 확인한다.
-3. 외부 I/O 경계(`data` 공급자, `execution` 브로커 어댑터)의 재시도/타임아웃/서킷브레이커 상태를 확인한다.
-4. 대시보드가 연결된 환경이면 `/api/v1/dashboard/status`, `/api/v1/dashboard/events` 결과와 로그 이벤트를 함께 대조한다.
+1. Review `system.error`, `system.heartbeat`, `system.control`, `order.created`, `order.rejected`, `order.filled`, `risk.rejected`, `risk.daily_limit_breached`, and `portfolio.reconciliation.*` events in time order using the same `correlation_id`.
+2. Confirm that sensitive fields (`api_key`, `token`, `password`, `secret`) are masked as `***`.
+3. Check retry, timeout, and circuit-breaker status for external I/O boundaries such as data providers and broker adapters.
+4. If a dashboard is attached, compare `/api/v1/dashboard/status` and `/api/v1/dashboard/events` output against the log stream.
 
-## 시나리오 A: 데이터 끊김(data disconnect)
+## Scenario A: data disconnect
 
-증상:
-- `data.load.success` 이벤트가 중단됨
-- `system.error` 이벤트에서 CSV/KIS 또는 브로커 호출 관련 오류 증가
-- 라이브 preflight 또는 paper loop가 반복적으로 일시정지됨
+Symptoms:
 
-대응:
-1. 데이터 소스 접근성 확인(파일 경로, 네트워크, 권한).
-2. 서킷브레이커 열림 여부 확인. 열려 있으면 `reset_timeout_seconds` 경과 후 재시도.
-3. KIS 경로라면 인증정보, `TRADING_SYSTEM_KIS_BASE_URL`, `TRADING_SYSTEM_KIS_MARKET_DIV`, 네트워크 상태를 함께 점검한다.
-4. 장애 구간을 건너뛰지 말고 재수집 후 재실행(결정론 보존).
+- `data.load.success` events stop appearing
+- `system.error` starts showing CSV, KIS, or broker-call related failures
+- live preflight or paper loops pause repeatedly
 
-## 시나리오 B: 리스크 거절(risk rejection) 또는 비상 정지(emergency)
+Response:
 
-증상:
-- `risk.rejected` 급증
-- `risk.daily_limit_breached`, `risk.emergency_liquidation`, `risk.sl_triggered`, `risk.tp_triggered` 이벤트 발생
-- 대시보드 상태가 `EMERGENCY` 또는 `PAUSED`로 유지됨
+1. Check data-source accessibility first: file path, network, permissions.
+2. Check whether the circuit breaker is open. If so, wait for `reset_timeout_seconds` before retrying.
+3. For KIS paths, also validate credentials, `TRADING_SYSTEM_KIS_BASE_URL`, `TRADING_SYSTEM_KIS_MARKET_DIV`, and network reachability.
+4. Do not skip the affected interval. Recollect the missing data and rerun to preserve determinism.
 
-대응:
-1. `risk.rejected`와 `order.rejected`를 구분해 원인이 리스크 가드인지 체결 실패인지 먼저 분리한다.
-2. `risk.rejected` payload의 `requested_quantity`, `current_position`, `price`를 검토해 `max_position`, `max_notional`, `max_order_size`를 재검증한다.
-3. `risk.daily_limit_breached`가 발생한 경우 현재 세션 peak equity와 손실 구간을 확인하고, `reset` 전에는 원인과 포지션 상태를 먼저 점검한다.
-4. `sl_pct` 또는 `tp_pct`를 사용하는 경우 평균 단가와 mark 가격 계산이 운영 기대와 일치하는지 확인한다.
+## Scenario B: risk rejection or emergency state
 
-## 시나리오 C: 주문 실패(order failure) 또는 브로커 오류
+Symptoms:
 
-증상:
-- `order.rejected` 증가
-- `system.error`에서 브로커 제출 오류, 타임아웃, HTTP/transport 오류가 관측됨
-- `order.created`는 있으나 `order.filled`가 기대보다 적음
+- `risk.rejected` increases sharply
+- `risk.daily_limit_breached`, `risk.emergency_liquidation`, `risk.sl_triggered`, or `risk.tp_triggered` events appear
+- dashboard state remains `EMERGENCY` or `PAUSED`
 
-대응:
-1. 시뮬레이터 경로라면 `order.rejected`가 `unfilled`인지 확인하고 fill policy 설정을 재검토한다.
-2. KIS 경로라면 인증정보, `tr_id`, 네트워크, base URL, 시장 구분 코드 설정을 확인한다.
-3. 재시도/타임아웃 이후 외부에서 중복 주문이 실제로 발생하지 않았는지 브로커 측 주문 내역을 점검한다.
-4. 원인이 미확정이면 대시보드에서 `pause` 후 상태를 고정하고 로그를 수집한다.
+Response:
 
-## 시나리오 D: 대사(reconciliation) 불일치
+1. Separate `risk.rejected` from `order.rejected` first so you know whether the issue is a risk guard or an execution failure.
+2. Review `requested_quantity`, `current_position`, and `price` in `risk.rejected` payloads against `max_position`, `max_notional`, and `max_order_size`.
+3. If `risk.daily_limit_breached` fired, inspect current session peak equity and the loss path before using `reset`.
+4. If `sl_pct` or `tp_pct` is enabled, confirm that average-cost and mark-price calculations match operator expectations.
 
-증상:
+## Scenario C: order failure or broker error
+
+Symptoms:
+
+- `order.rejected` increases
+- `system.error` shows broker submission failures, timeouts, or HTTP/transport errors
+- `order.created` appears, but `order.filled` is lower than expected
+
+Response:
+
+1. On simulator paths, confirm whether `order.rejected` means `unfilled` and recheck fill-policy settings.
+2. On KIS paths, inspect credentials, `tr_id`, network health, base URL, and market-division settings.
+3. After retries or timeouts, verify with the broker that duplicate orders were not actually submitted.
+4. If the cause is still unclear, `pause` the runtime from the dashboard and collect logs before resuming.
+
+## Scenario D: reconciliation mismatch
+
+Symptoms:
+
 - `portfolio.reconciliation.cash_adjusted`
 - `portfolio.reconciliation.position_adjusted`
 - `portfolio.reconciliation.cash_frozen`
 - `portfolio.reconciliation.symbol_skipped`
 
-대응:
-1. 현재 브로커가 계좌 스냅샷을 제공하는 경로인지 먼저 확인한다.
-2. `cash_frozen` 또는 `symbol_skipped`가 발생하면 `pending_symbols`에 기록된 심볼의 체결 중 상태를 우선 확인한다.
-3. 포지션 차이가 설명되지 않으면 루프를 `pause`한 뒤 로컬 `PortfolioBook`과 브로커 상태를 수동 대조한다.
-4. 현재 KIS 어댑터는 계좌 잔고 스냅샷을 제공하지 않으므로, KIS 환경에서는 자동 거래소 잔고 동기화를 기대하지 않는다.
+Response:
 
-## 시크릿 운영 원칙
+1. First confirm that the active broker path actually provides account balance snapshots.
+2. If `cash_frozen` or `symbol_skipped` appears, inspect the `pending_symbols` list for in-flight orders.
+3. If a position difference cannot be explained, `pause` the loop and compare the local `PortfolioBook` against broker state manually.
+4. The current KIS adapter does not expose account balance snapshots, so do not expect automatic exchange-balance sync in KIS environments today.
 
-- API 키는 `TRADING_SYSTEM_API_KEY` 같은 환경변수 또는 시크릿 매니저에서만 주입한다.
-- KIS 자격증명은 `TRADING_SYSTEM_KIS_APP_KEY`, `TRADING_SYSTEM_KIS_APP_SECRET`, `TRADING_SYSTEM_KIS_CANO`, `TRADING_SYSTEM_KIS_ACNT_PRDT_CD`로만 주입한다.
-- 코드 저장소, 설정 파일, 로그, 티켓에 시크릿을 남기지 않는다.
+## Secret-handling rules
+
+- Inject API keys only through environment variables such as `TRADING_SYSTEM_API_KEY` or through a secret manager.
+- Inject KIS credentials only through `TRADING_SYSTEM_KIS_APP_KEY`, `TRADING_SYSTEM_KIS_APP_SECRET`, `TRADING_SYSTEM_KIS_CANO`, and `TRADING_SYSTEM_KIS_ACNT_PRDT_CD`.
+- Do not leave secrets in the repository, config files, logs, or tickets.
