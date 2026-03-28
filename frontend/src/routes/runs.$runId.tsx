@@ -24,7 +24,10 @@ function RunDetailPage() {
   const runQuery = useQuery({
     queryKey: ['run', runId],
     queryFn: () => getBacktestRun(runId),
-    staleTime: 0,
+    staleTime: (query) =>
+      (query.state.data as { status?: string } | undefined)?.status === 'succeeded'
+        ? Infinity
+        : 10_000,
   })
 
   const isSucceeded = runQuery.data?.status === 'succeeded'
@@ -36,7 +39,7 @@ function RunDetailPage() {
     staleTime: isSucceeded ? Infinity : 10_000,
   })
 
-  if (runQuery.isLoading) return <p className="text-sm text-zinc-400">Loading run...</p>
+  if (runQuery.isPending) return <p className="text-sm text-zinc-400">Loading run...</p>
   if (runQuery.error) return <ErrorBanner error={runQuery.error} />
 
   const run = runQuery.data!

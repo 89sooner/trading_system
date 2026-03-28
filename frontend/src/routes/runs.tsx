@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, Outlet, useChildMatches } from '@tanstack/react-router'
 import { useQueries } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,9 @@ export const Route = createFileRoute('/runs')({
 })
 
 function RunsPage() {
+  const childMatches = useChildMatches()
+  if (childMatches.length > 0) return <Outlet />
+
   const { runs, updateRunStatus } = useRunsStore()
 
   const queries = useQueries({

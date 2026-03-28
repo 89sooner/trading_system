@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Outlet, useChildMatches } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,9 @@ export const Route = createFileRoute('/patterns')({
 })
 
 function PatternsPage() {
+  const childMatches = useChildMatches()
+  if (childMatches.length > 0) return <Outlet />
+
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['patterns'],
     queryFn: listPatternSets,
