@@ -19,6 +19,7 @@ from trading_system.api.schemas import (
 )
 from trading_system.app.state import AppRunnerState
 from trading_system.core.compat import UTC
+from trading_system.integrations.kis import is_krx_market_open
 
 if TYPE_CHECKING:
     from trading_system.app.loop import LiveTradingLoop
@@ -66,10 +67,26 @@ async def get_status(loop: LoopDep) -> DashboardStatusDTO:
         else None
     )
     last_hb = loop._last_heartbeat  # noqa: SLF001
+    runtime = getattr(loop, "runtime", None)
+    recon_at = getattr(runtime, "last_reconciliation_at", None) if runtime else None
+    recon_status = getattr(runtime, "last_reconciliation_status", None) if runtime else None
+    services = getattr(loop, "services", None)
+    provider = getattr(services, "provider", None) if services else None
+    symbols = list(getattr(services, "symbols", ())) if services else None
+
+    market_session: str | None = None
+    if provider == "kis":
+        market_session = "open" if is_krx_market_open() else "closed"
+
     return DashboardStatusDTO(
         state=loop.state.value,
         last_heartbeat=last_hb.isoformat() if last_hb is not None else None,
         uptime_seconds=uptime,
+        provider=provider,
+        symbols=symbols if symbols else None,
+        market_session=market_session,
+        last_reconciliation_at=recon_at.isoformat() if recon_at is not None else None,
+        last_reconciliation_status=recon_status,
     )
 
 

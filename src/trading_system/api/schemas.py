@@ -103,6 +103,9 @@ class BacktestRunStatusDTO(BaseModel):
 class LivePreflightResponseDTO(BaseModel):
     status: Literal["ok"] = "ok"
     message: str
+    ready: bool = True
+    reasons: list[str] = Field(default_factory=list)
+    quote_summary: dict[str, str] | None = None
     paper_result: BacktestResultDTO | None = None
 
 
@@ -181,6 +184,11 @@ class DashboardStatusDTO(BaseModel):
     state: str
     last_heartbeat: str | None
     uptime_seconds: float | None
+    provider: str | None = None
+    symbols: list[str] | None = None
+    market_session: str | None = None
+    last_reconciliation_at: str | None = None
+    last_reconciliation_status: str | None = None
 
 
 class PositionDTO(BaseModel):

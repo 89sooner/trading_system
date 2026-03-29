@@ -3,9 +3,15 @@ import { cn } from '@/lib/utils'
 
 function severityClass(sev: string): string {
   if (!sev) return 'text-zinc-400'
-  if (sev.includes('WARNING')) return 'text-amber-400'
-  if (sev.includes('ERROR') || sev.includes('CRITICAL')) return 'text-red-400'
+  if (sev.includes('WARNING') || sev === '30') return 'text-amber-400'
+  if (sev.includes('ERROR') || sev.includes('CRITICAL') || sev === '40' || sev === '50') return 'text-red-400'
   return 'text-blue-400'
+}
+
+function eventNameClass(event: string): string {
+  if (event.startsWith('portfolio.reconciliation.')) return 'text-amber-300'
+  if (event.startsWith('risk.')) return 'text-red-300'
+  return 'text-zinc-200'
 }
 
 export function EventFeed({ events }: { events: EventRecord[] }) {
@@ -26,7 +32,7 @@ export function EventFeed({ events }: { events: EventRecord[] }) {
             <span className={cn('shrink-0 font-semibold', severityClass(e.severity))}>
               {e.severity}
             </span>
-            <span className="text-zinc-200 shrink-0 font-semibold">{e.event}</span>
+            <span className={cn('shrink-0 font-semibold', eventNameClass(e.event))}>{e.event}</span>
             <span className="text-zinc-400 truncate">{payloadStr}</span>
           </div>
         )

@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 
+from trading_system.core.ops import StructuredLogFormat, StructuredLogger
 from trading_system.core.types import MarketBar
 from trading_system.execution.adapters import signal_to_order_request
 from trading_system.execution.broker import (
@@ -10,6 +11,9 @@ from trading_system.execution.broker import (
     FixedRatioFillPolicy,
     PolicyBrokerSimulator,
 )
+from trading_system.execution.step import TradingContext, execute_trading_step
+from trading_system.portfolio.book import PortfolioBook
+from trading_system.risk.limits import RiskLimits
 from trading_system.strategy.base import SignalSide, StrategySignal
 
 
@@ -59,6 +63,36 @@ def test_policy_broker_simulator_returns_unfilled_event() -> None:
     assert fill.status == FillStatus.UNFILLED
     assert fill.filled_quantity == Decimal("0")
     assert fill.fee == Decimal("0")
+
+
+def test_accepted_but_unfilled_order_does_not_change_portfolio() -> None:
+    broker = PolicyBrokerSimulator(
+        fill_quantity_policy=FixedRatioFillPolicy(fill_ratio=Decimal("0")),
+        slippage_policy=BpsSlippagePolicy(),
+        commission_policy=BpsCommissionPolicy(),
+    )
+    portfolio = PortfolioBook(
+        cash=Decimal("10000"),
+        positions={},
+        average_costs={},
+    )
+    risk_limits = RiskLimits(
+        max_position=Decimal("10"),
+        max_notional=Decimal("1000000"),
+        max_order_size=Decimal("5"),
+    )
+    logger = StructuredLogger("test.step.unfilled", log_format=StructuredLogFormat.JSON)
+    context = TradingContext(portfolio=portfolio, risk_limits=risk_limits, broker=broker, logger=logger)
+
+    class _BuyStrategy:
+        name = "test_buy"
+
+        def evaluate(self, bar):  # noqa: ANN001
+            return StrategySignal(side=SignalSide.BUY, quantity=Decimal("1"), reason="entry")
+
+    execute_trading_step(_bar(), _BuyStrategy(), context)
+
+    assert portfolio.positions == {}
 
 
 def _bar() -> MarketBar:

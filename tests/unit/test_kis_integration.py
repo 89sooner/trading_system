@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from urllib.parse import parse_qs, urlparse
 
@@ -10,7 +10,11 @@ from trading_system.execution.orders import OrderRequest, OrderSide
 from trading_system.integrations.kis import (
     HttpResponse,
     KisApiClient,
+    KisQuote,
     KisResponseError,
+    KST,
+    _validate_quote,
+    is_krx_market_open,
 )
 
 
@@ -119,6 +123,97 @@ def test_kis_api_client_submit_order_raises_response_error_on_rejection() -> Non
         )
 
 
+def test_kis_quote_validation_rejects_zero_price() -> None:
+    quote = KisQuote(
+        symbol="005930",
+        price=Decimal("0"),
+        volume=Decimal("1000"),
+        as_of=datetime(2024, 1, 2, tzinfo=timezone.utc),
+    )
+
+    with pytest.raises(KisResponseError, match="invalid price"):
+        _validate_quote(quote)
+
+
+def test_kis_quote_validation_rejects_negative_volume() -> None:
+    quote = KisQuote(
+        symbol="005930",
+        price=Decimal("70300"),
+        volume=Decimal("-1"),
+        as_of=datetime(2024, 1, 2, tzinfo=timezone.utc),
+    )
+
+    with pytest.raises(KisResponseError, match="invalid volume"):
+        _validate_quote(quote)
+
+
+def test_kis_quote_validation_passes_valid_quote() -> None:
+    quote = KisQuote(
+        symbol="005930",
+        price=Decimal("70300"),
+        volume=Decimal("0"),
+        as_of=datetime(2024, 1, 2, tzinfo=timezone.utc),
+    )
+
+    result = _validate_quote(quote)
+
+    assert result.symbol == "005930"
+    assert result.price == Decimal("70300")
+    assert result.volume == Decimal("0")
+
+
+def test_kis_order_result_includes_receipt_metadata() -> None:
+    client = KisApiClient.from_env(
+        secret_provider=_StubSecretProvider(),
+        transport=_OrderSuccessTransport(),
+    )
+
+    result = client.submit_order(
+        OrderRequest(symbol="005930", side=OrderSide.BUY, quantity=Decimal("1"))
+    )
+
+    assert result.result_code == "0"
+    assert result.message != ""
+
+
+def test_kis_api_client_inquire_balance_returns_structured_data() -> None:
+    client = KisApiClient.from_env(
+        secret_provider=_StubSecretProvider(),
+        transport=_BalanceTransport(),
+    )
+
+    balance = client.inquire_balance(access_token="kis-access-token")
+
+    assert "cash" in balance
+    assert "positions" in balance
+    assert "average_costs" in balance
+    assert "pending_symbols" in balance
+    assert balance["cash"] == Decimal("5000000")
+    assert balance["positions"]["005930"] == Decimal("10")
+    assert balance["average_costs"]["005930"] == Decimal("70000")
+
+
+def test_is_krx_market_open_during_trading_hours() -> None:
+    # Monday at 10:00 KST
+    now = datetime(2024, 1, 8, 10, 0, 0, tzinfo=KST)
+
+    assert is_krx_market_open(now=now) is True
+
+
+def test_is_krx_market_open_outside_trading_hours() -> None:
+    # Monday at 16:00 KST
+    now = datetime(2024, 1, 8, 16, 0, 0, tzinfo=KST)
+
+    assert is_krx_market_open(now=now) is False
+
+
+def test_is_krx_market_open_on_weekend() -> None:
+    # Saturday at 10:00 KST
+    now = datetime(2024, 1, 6, 10, 0, 0, tzinfo=KST)
+
+    assert is_krx_market_open(now=now) is False
+
+
 class _StubSecretProvider:
     def get_secret(self, name: str) -> str:
         values = {
@@ -218,6 +313,25 @@ class _PriceTransport:
         return HttpResponse(
             status_code=200,
             body={"output": {"stck_prpr": "70300", "acml_vol": "123456"}},
+        )
+
+
+class _BalanceTransport:
+    def request(self, method: str, url: str, *, headers: dict[str, str], body=None) -> HttpResponse:
+        del method, url, headers, body
+        return HttpResponse(
+            status_code=200,
+            body={
+                "output1": [
+                    {
+                        "pdno": "005930",
+                        "hldg_qty": "10",
+                        "pchs_avg_pric": "70000",
+                        "ord_psbl_qty": "10",
+                    },
+                ],
+                "output2": [{"dnca_tot_amt": "5000000"}],
+            },
         )
 
 

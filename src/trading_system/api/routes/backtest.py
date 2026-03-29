@@ -228,10 +228,10 @@ def get_backtest_run(run_id: str) -> BacktestRunStatusDTO:
 def run_live_preflight(payload: LivePreflightRequestDTO) -> LivePreflightResponseDTO:
     settings = _to_app_settings(payload)
     services = build_services(settings)
-    message = services.preflight_live()
-    paper_result = None
-    if settings.live_execution == LiveExecutionMode.PAPER:
-        services.run_live_paper()
-    if settings.live_execution == LiveExecutionMode.LIVE:
-        services.run_live_execution()
-    return LivePreflightResponseDTO(message=message, paper_result=paper_result)
+    result = services.preflight_live()
+    return LivePreflightResponseDTO(
+        message=result.message,
+        ready=result.ready,
+        reasons=result.reasons,
+        quote_summary=result.quote_summary,
+    )

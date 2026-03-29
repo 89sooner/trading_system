@@ -4,7 +4,7 @@ from decimal import Decimal
 from trading_system.core.types import MarketBar
 from trading_system.execution.broker import AccountBalanceSnapshot, FillEvent, FillStatus
 from trading_system.execution.orders import OrderRequest
-from trading_system.integrations.kis import KisApiClient, KisOrderResult
+from trading_system.integrations.kis import KisApiClient, KisApiError, KisOrderResult
 
 
 @dataclass(slots=True)
@@ -16,7 +16,22 @@ class KisBrokerAdapter:
         return _to_fill_event(result=result, order=order, fallback_price=bar.close)
 
     def get_account_balance(self) -> AccountBalanceSnapshot | None:
-        return None
+        """Build a safe snapshot from KIS balance query.
+
+        Returns ``None`` if any part of the query fails, ensuring
+        reconciliation is skipped rather than applied with partial data.
+        """
+        try:
+            access_token = self.client.issue_access_token()
+            balance = self.client.inquire_balance(access_token=access_token)
+            return AccountBalanceSnapshot(
+                cash=balance["cash"],
+                positions=balance["positions"],
+                average_costs=balance["average_costs"],
+                pending_symbols=balance["pending_symbols"],
+            )
+        except (KisApiError, KeyError, Exception):
+            return None
 
 
 def _to_fill_event(

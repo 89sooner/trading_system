@@ -15,7 +15,7 @@ from trading_system.core.ops import (
     execute_with_resilience,
 )
 from trading_system.core.types import MarketBar
-from trading_system.integrations.kis import KisApiClient
+from trading_system.integrations.kis import KisApiClient, KisQuote
 
 
 class MarketDataProvider(Protocol):
@@ -79,6 +79,23 @@ class CsvMarketDataProvider:
         )
 
 
+def quote_to_bar(quote: KisQuote) -> MarketBar:
+    """Convert a KIS quote snapshot into a single MarketBar.
+
+    All OHLC fields are set to the quote price since a single tick
+    does not carry intra-bar granularity.
+    """
+    return MarketBar(
+        symbol=quote.symbol,
+        timestamp=quote.as_of,
+        open=quote.price,
+        high=quote.price,
+        low=quote.price,
+        close=quote.price,
+        volume=quote.volume,
+    )
+
+
 @dataclass(slots=True)
 class KisQuoteMarketDataProvider:
     client: KisApiClient
@@ -89,15 +106,5 @@ class KisQuoteMarketDataProvider:
         bars: list[MarketBar] = []
         for _ in range(sample_size):
             quote = self.client.preflight_symbol(symbol)
-            bars.append(
-                MarketBar(
-                    symbol=symbol,
-                    timestamp=quote.as_of,
-                    open=quote.price,
-                    high=quote.price,
-                    low=quote.price,
-                    close=quote.price,
-                    volume=quote.volume,
-                )
-            )
+            bars.append(quote_to_bar(quote))
         return bars

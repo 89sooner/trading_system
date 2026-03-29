@@ -37,7 +37,7 @@ def test_structured_logger_emits_json_with_correlation_id(caplog) -> None:
             logger.emit(
                 "order.created",
                 logging.INFO,
-                event_payload(OrderCreatedEvent("BTCUSDT", "buy", Decimal("1"))),
+                event_payload(OrderCreatedEvent("BTCUSDT", "buy", Decimal("1"), "2024-01-01T00:00:00Z")),
             )
 
     message = caplog.records[-1].message

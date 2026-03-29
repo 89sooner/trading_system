@@ -164,6 +164,13 @@ class LiveTradingLoop:
         snapshot = self.services.broker_simulator.get_account_balance()
         if snapshot is None:
             self._last_reconciliation = now
+            self.runtime.last_reconciliation_at = now
+            self.runtime.last_reconciliation_status = "skipped"
+            self.services.logger.emit(
+                "portfolio.reconciliation.skipped",
+                severity=30,
+                payload={"reason": "snapshot_unavailable"},
+            )
             return
         reconcile(
             book=self.services.portfolio,
@@ -171,3 +178,5 @@ class LiveTradingLoop:
             logger=self.services.logger,
         )
         self._last_reconciliation = now
+        self.runtime.last_reconciliation_at = now
+        self.runtime.last_reconciliation_status = "completed"

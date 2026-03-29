@@ -51,20 +51,40 @@ def reconcile(
 
         target_qty = snapshot.positions.get(symbol, ZERO)
         current_qty = book.positions.get(symbol, ZERO)
-        if current_qty == target_qty:
+
+        qty_changed = current_qty != target_qty
+        if qty_changed:
+            adjusted_symbols.append(symbol)
+            logger.emit(
+                "portfolio.reconciliation.position_adjusted",
+                severity=30,
+                payload={"symbol": symbol, "from": str(current_qty), "to": str(target_qty)},
+            )
+
+        if target_qty == ZERO:
+            if qty_changed:
+                book.positions.pop(symbol, None)
+                book.average_costs.pop(symbol, None)
             continue
 
-        adjusted_symbols.append(symbol)
-        logger.emit(
-            "portfolio.reconciliation.position_adjusted",
-            severity=30,
-            payload={"symbol": symbol, "from": str(current_qty), "to": str(target_qty)},
-        )
-        if target_qty == ZERO:
-            book.positions.pop(symbol, None)
-            book.average_costs.pop(symbol, None)
-        else:
+        if qty_changed:
             book.positions[symbol] = target_qty
+
+        broker_avg_cost = snapshot.average_costs.get(symbol)
+        if broker_avg_cost is not None:
+            local_avg_cost = book.average_costs.get(symbol, ZERO)
+            if local_avg_cost != broker_avg_cost:
+                logger.emit(
+                    "portfolio.reconciliation.average_cost_adjusted",
+                    severity=30,
+                    payload={
+                        "symbol": symbol,
+                        "from": str(local_avg_cost),
+                        "to": str(broker_avg_cost),
+                    },
+                )
+            book.average_costs[symbol] = broker_avg_cost
+        else:
             book.average_costs[symbol] = book.average_costs.get(symbol, ZERO)
 
     return ReconciliationResult(
