@@ -19,3 +19,5 @@ class LiveRuntimeState:
     started_at: datetime | None = None
     last_heartbeat: datetime | None = None
     last_marks: dict[str, Decimal] = field(default_factory=dict)
+    last_reconciliation_at: datetime | None = None
+    last_reconciliation_status: str | None = None

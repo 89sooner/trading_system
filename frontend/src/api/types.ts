@@ -3,6 +3,11 @@ export interface DashboardStatus {
   state: string
   last_heartbeat: string | null
   uptime_seconds: number | null
+  provider?: string | null
+  symbols?: string[] | null
+  market_session?: string | null
+  last_reconciliation_at?: string | null
+  last_reconciliation_status?: string | null
 }
 
 export interface Position {

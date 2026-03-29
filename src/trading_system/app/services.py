@@ -29,7 +29,7 @@ from trading_system.execution.broker import (
     ResilientBroker,
 )
 from trading_system.execution.kis_adapter import KisBrokerAdapter
-from trading_system.integrations.kis import KisApiClient
+from trading_system.integrations.kis import KisApiClient, is_krx_market_open
 from trading_system.patterns.repository import PatternSetRepository
 from trading_system.portfolio.book import PortfolioBook
 from trading_system.portfolio.repository import (
@@ -41,6 +41,15 @@ from trading_system.risk.portfolio_limits import PortfolioRiskLimits
 from trading_system.strategy.base import Strategy
 from trading_system.strategy.factory import build_strategies
 from trading_system.strategy.repository import StrategyProfileRepository
+
+
+@dataclass(slots=True)
+class PreflightCheckResult:
+    """Structured result of a single-symbol preflight check."""
+    ready: bool
+    reasons: list[str]
+    quote_summary: dict[str, str] | None
+    message: str
 
 
 @dataclass(slots=True)
@@ -56,7 +65,7 @@ class AppServices:
     portfolio: PortfolioBook
     symbols: tuple[str, ...]
     logger: StructuredLogger
-    live_preflight_check: Callable[[str], str] | None = None
+    live_preflight_check: Callable[[str], PreflightCheckResult] | None = None
     portfolio_repository: PortfolioRepository | None = None
     strategies: dict[str, Strategy] | None = None
     portfolio_risk: PortfolioRiskLimits | None = None
@@ -82,15 +91,19 @@ class AppServices:
             strategy_by_symbol=self.strategies,
         )
 
-    def preflight_live(self) -> str:
+    def preflight_live(self) -> PreflightCheckResult:
         if self.mode != AppMode.LIVE:
             raise RuntimeError(f"Unsupported mode '{self.mode}'.")
 
         if self.live_preflight_check is not None:
-            # Broker-specific preflight (e.g. KIS) checks each symbol individually.
-            results = [self.live_preflight_check(s) for s in self.symbols]
-            return " ".join(results)
-        return "Live mode preflight passed (no orders were submitted)."
+            return self.live_preflight_check(self.symbols[0])
+
+        return PreflightCheckResult(
+            ready=True,
+            reasons=[],
+            quote_summary=None,
+            message="Live mode preflight passed (no orders were submitted).",
+        )
 
     def run_live_paper(self) -> None:
         if self.mode != AppMode.LIVE:
@@ -112,6 +125,11 @@ class AppServices:
             raise RuntimeError(
                 "Live order submission is disabled. "
                 "Set TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true to enable."
+            )
+        if not is_krx_market_open():
+            raise RuntimeError(
+                "Live order submission is blocked outside KRX market hours "
+                "(weekdays 09:00-15:30 KST)."
             )
         self.run_live_paper()
 
@@ -281,16 +299,49 @@ def _build_live_preflight(
     settings: AppSettings,
     *,
     kis_client: KisApiClient | None,
-) -> Callable[[str], str] | None:
+) -> Callable[[str], PreflightCheckResult] | None:
     if settings.mode != AppMode.LIVE or kis_client is None:
         return None
 
-    def preflight(symbol: str) -> str:
-        quote = kis_client.preflight_symbol(symbol)
-        return (
-            "KIS live preflight passed "
-            f"(symbol={quote.symbol}, price={quote.price}, volume={quote.volume}). "
-            "No orders were submitted."
+    def preflight(symbol: str) -> PreflightCheckResult:
+        reasons: list[str] = []
+        ready = True
+        quote_summary: dict[str, str] | None = None
+
+        market_open = is_krx_market_open()
+        if not market_open:
+            reasons.append("market_closed")
+            if settings.live_execution == LiveExecutionMode.LIVE:
+                ready = False
+
+        try:
+            quote = kis_client.preflight_symbol(symbol)
+            quote_summary = {
+                "symbol": quote.symbol,
+                "price": str(quote.price),
+                "volume": str(quote.volume),
+            }
+            if quote.volume == 0:
+                reasons.append("zero_volume")
+        except Exception as exc:
+            reasons.append(f"quote_error: {exc}")
+            ready = False
+
+        if ready and not reasons:
+            message = (
+                f"KIS live preflight passed "
+                f"(symbol={symbol}, price={quote_summary['price'] if quote_summary else 'N/A'}, "
+                f"volume={quote_summary['volume'] if quote_summary else 'N/A'}). "
+                f"No orders were submitted."
+            )
+        else:
+            message = f"KIS live preflight completed with issues: {', '.join(reasons)}"
+
+        return PreflightCheckResult(
+            ready=ready,
+            reasons=reasons,
+            quote_summary=quote_summary,
+            message=message,
         )
 
     return preflight

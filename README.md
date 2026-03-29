@@ -817,7 +817,9 @@ settings = load_settings("configs/base.yaml")
 4. **Determinism first**: any backtest logic change should ship with deterministic regression tests.
 5. **Dashboard controls**: the live dashboard exposes only `pause`, `resume`, and `reset`. Dashboard endpoints require the API app to be started with an attached live loop; otherwise they return `503`.
 6. **Portfolio-level risk (`portfolio_risk`)**: optional drawdown protection supports `max_daily_drawdown_pct`, `sl_pct`, and `tp_pct`, but it currently enters the runtime through API payloads or `AppSettings`, not through `config.settings.load_settings()`.
-7. **Persistence and reconciliation**: the live loop persists `PortfolioBook` after processed live cycles and reloads it on restart. Generic reconciliation only runs when a broker provides account balance snapshots. The current KIS adapter does not expose balance snapshots, so exchange-balance sync remains future work.
+7. **Persistence and reconciliation**: the live loop persists `PortfolioBook` after processed live cycles and reloads it on restart. The KIS adapter queries broker balance snapshots (cash, positions, average costs) and reconciles them with the local portfolio. Symbols with pending/unresolved orders are skipped to prevent in-transit corruption, and cash is frozen when any pending order exists.
+8. **KRX market hours guard**: live order submission (`--live-execution live`) is blocked outside KRX trading hours (weekdays 09:00-15:30 KST). Preflight mode reports `market_closed` as a structured reason but does not block.
+9. **Structured preflight readiness**: `/api/v1/live/preflight` returns a structured result with `ready`, `reasons` (e.g. `market_closed`, `zero_volume`, `quote_error`), and `quote_summary` fields instead of a plain message.
 
 ### KO
 
@@ -827,7 +829,9 @@ settings = load_settings("configs/base.yaml")
 4. **결정성 우선**: 백테스트 로직 변경 시 결정성 회귀 테스트를 함께 추가하세요.
 5. **대시보드 제어**: 라이브 대시보드는 `pause`, `resume`, `reset`만 공식 지원합니다. 대시보드 엔드포인트는 API 앱이 활성 라이브 루프와 함께 시작된 경우에만 동작하며, 그렇지 않으면 `503`을 반환합니다.
 6. **포트폴리오 레벨 리스크 (`portfolio_risk`)**: `max_daily_drawdown_pct`, `sl_pct`, `tp_pct`를 지원하지만, 현재는 API payload 또는 `AppSettings` 경로로만 런타임에 반영되며 `config.settings.load_settings()` YAML 로더에서는 아직 처리되지 않습니다.
-7. **영속화와 대사(Reconciliation)**: 라이브 루프는 처리된 라이브 사이클 이후 `PortfolioBook`을 저장하고 재시작 시 다시 로드합니다. 일반 대사는 브로커가 계좌 스냅샷을 제공할 때만 동작하며, 현재 KIS 어댑터는 잔고 스냅샷을 제공하지 않으므로 거래소 잔고 동기화는 향후 작업입니다.
+7. **영속화와 대사(Reconciliation)**: 라이브 루프는 처리된 라이브 사이클 이후 `PortfolioBook`을 저장하고 재시작 시 다시 로드합니다. KIS 어댑터는 브로커 잔고 스냅샷(현금, 포지션, 평균단가)을 조회하여 로컬 포트폴리오와 대사합니다. 미체결 주문이 있는 심볼은 건너뛰어 인트랜짓 데이터 손상을 방지하며, 미체결 주문 존재 시 현금도 동결됩니다.
+8. **KRX 장시간 가드**: 라이브 실주문(`--live-execution live`)은 KRX 거래 시간(평일 09:00-15:30 KST) 외에는 차단됩니다. Preflight 모드는 `market_closed`를 구조화 사유로 보고하지만 차단하지 않습니다.
+9. **구조화된 프리플라이트 결과**: `/api/v1/live/preflight`는 단순 메시지 대신 `ready`, `reasons`(`market_closed`, `zero_volume`, `quote_error` 등), `quote_summary` 필드가 포함된 구조화된 결과를 반환합니다.
 
 ---
 
@@ -838,14 +842,14 @@ settings = load_settings("configs/base.yaml")
 1. ~~**Real-time Live Dashboard:**~~ ✅ Delivered — the frontend dashboard monitors loop state, heartbeat, positions, and events in real-time with `pause`/`resume`/`reset` controls.
 2. ~~**Advanced Risk & Analytics:**~~ ✅ Delivered — `portfolio_risk` provides portfolio-level drawdown controls, SL/TP, and the dedicated `/api/v1/analytics/backtests/{run_id}/trades` endpoint exposes trade-level statistics.
 3. ~~**Multi-symbol Orchestration:**~~ ✅ Delivered — both backtest and live engines handle multiple symbols under a shared portfolio.
-4. **Exchange Reconciliation:** Synchronize `PortfolioBook` directly from KIS or other exchange balances, automatically adjusting for external deposits or withdrawals. (Portfolio persistence to disk is implemented; exchange-level sync is future work.)
+4. ~~**Exchange Reconciliation:**~~ ✅ Delivered — the KIS adapter queries broker balance snapshots (cash, positions, average costs, pending orders) and the live loop reconciles them with the local `PortfolioBook`. Pending symbols are skipped to prevent in-transit corruption. Quote validation, KRX market hours guard, and structured preflight readiness are included.
 
 ### KO
 
 1. ~~**실시간 라이브 대시보드:**~~ ✅ 완료 — 프론트엔드 대시보드에서 루프 상태, heartbeat, 포지션, 이벤트를 실시간 모니터링하며 `pause`/`resume`/`reset` 제어가 가능합니다.
 2. ~~**고급 리스크 및 분석:**~~ ✅ 완료 — `portfolio_risk`로 포트폴리오 레벨 드로우다운 제한, SL/TP를 제공하며, `/api/v1/analytics/backtests/{run_id}/trades` 전용 엔드포인트에서 트레이드 통계를 조회할 수 있습니다.
 3. ~~**다중 심볼 오케스트레이션:**~~ ✅ 완료 — 백테스트와 라이브 엔진 모두 공유 포트폴리오 하에서 다중 심볼을 처리합니다.
-4. **거래소 잔고 대사(Reconciliation):** KIS 등 실제 거래소의 잔고를 조회하여 `PortfolioBook`과 직접 동기화하고, 외부 입출금을 자동 반영합니다. (디스크 기반 포트폴리오 영속화는 구현됨; 거래소 레벨 동기화는 향후 작업.)
+4. ~~**거래소 잔고 대사(Reconciliation):**~~ ✅ 완료 — KIS 어댑터가 브로커 잔고 스냅샷(현금, 포지션, 평균단가, 미체결 주문)을 조회하고 라이브 루프가 로컬 `PortfolioBook`과 대사합니다. 미체결 심볼은 건너뛰어 인트랜짓 손상을 방지합니다. 현재가 검증, KRX 장시간 가드, 구조화된 프리플라이트 결과가 포함됩니다.
 
 ---
 
@@ -857,6 +861,7 @@ settings = load_settings("configs/base.yaml")
 - Incident runbook: `docs/runbooks/incident-response.en.md` / `docs/runbooks/incident-response.md`
 - Release gates: `docs/runbooks/release-gate-checklist.en.md` / `docs/runbooks/release-gate-checklist.md`
 - KRX CSV verification loop note: `docs/runbooks/krx-csv-verification-loop.md` / `docs/runbooks/krx-csv-verification-loop.ko.md`
+- KIS domestic live operations: `docs/runbooks/kis-domestic-live-operations.md` / `docs/runbooks/kis-domestic-live-operations.ko.md`
 
 ---
 

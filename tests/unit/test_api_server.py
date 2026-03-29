@@ -88,7 +88,7 @@ def test_backtest_accepts_multiple_symbols() -> None:
     assert response.status_code == 201
 
 
-def test_live_execution_requires_opt_in_flag(monkeypatch) -> None:
+def test_live_preflight_returns_readiness_without_executing(monkeypatch) -> None:
     class _StubServicesKisClient:
         def preflight_symbol(self, symbol: str):
             class Quote:
@@ -111,5 +111,7 @@ def test_live_execution_requires_opt_in_flag(monkeypatch) -> None:
 
     response = client.post("/api/v1/live/preflight", json=payload)
 
-    assert response.status_code == 500
-    assert response.json()["error_code"] == "runtime_error"
+    assert response.status_code == 200
+    body = response.json()
+    assert "ready" in body
+    assert "reasons" in body

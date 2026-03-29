@@ -39,6 +39,7 @@ class FillEvent:
 class AccountBalanceSnapshot:
     cash: Decimal
     positions: dict[str, Decimal]
+    average_costs: dict[str, Decimal] = field(default_factory=dict)
     pending_symbols: tuple[str, ...] = ()
 
 

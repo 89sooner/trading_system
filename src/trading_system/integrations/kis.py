@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Protocol
 from urllib.error import HTTPError, URLError
@@ -14,6 +14,8 @@ from urllib.request import Request, urlopen
 from trading_system.core.compat import UTC
 from trading_system.core.ops import EnvSecretProvider, SecretProvider
 from trading_system.execution.orders import OrderRequest, OrderSide
+
+KST = timezone(timedelta(hours=9))
 
 
 @dataclass(slots=True)
@@ -41,6 +43,8 @@ class KisOrderResult:
     filled_quantity: Decimal
     fill_price: Decimal
     fee: Decimal
+    result_code: str = ""
+    message: str = ""
 
 
 @dataclass(slots=True)
@@ -118,6 +122,7 @@ class KisApiClient:
     _MOCK_BASE_URL = "https://openapivts.koreainvestment.com:29443"
     _PRICE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price"
     _ORDER_PATH = "/uapi/domestic-stock/v1/trading/order-cash"
+    _BALANCE_PATH = "/uapi/domestic-stock/v1/trading/inquire-balance"
     _DEFAULT_MARKET_DIV = "J"
     _SYMBOL_PATTERN = re.compile(r"^\d{6}$")
 
@@ -181,12 +186,13 @@ class KisApiClient:
         output = _as_dict(response.body.get("output"), "output")
         current_price = _as_decimal(output.get("stck_prpr"), "stck_prpr")
         volume = _as_decimal(output.get("acml_vol"), "acml_vol", default=Decimal("0"))
-        return KisQuote(
+        quote = KisQuote(
             symbol=validated_symbol,
             price=current_price,
             volume=volume,
             as_of=datetime.now(tz=UTC),
         )
+        return _validate_quote(quote)
 
     def _market_div_code(self) -> str:
         configured = os.getenv("TRADING_SYSTEM_KIS_MARKET_DIV", self._DEFAULT_MARKET_DIV)
@@ -219,11 +225,13 @@ class KisApiClient:
         return access_token
 
     def _price_tr_id(self) -> str:
-        return os.getenv("TRADING_SYSTEM_KIS_PRICE_TR_ID", "FHKST01010100")
+        configured = os.getenv("TRADING_SYSTEM_KIS_PRICE_TR_ID", "FHKST01010100")
+        return configured.strip() or "FHKST01010100"
 
     def _order_tr_id(self, side: OrderSide) -> str:
         default = "TTTC0802U" if side == OrderSide.BUY else "TTTC0801U"
-        return os.getenv("TRADING_SYSTEM_KIS_ORDER_TR_ID", default)
+        configured = os.getenv("TRADING_SYSTEM_KIS_ORDER_TR_ID", default)
+        return configured.strip() or default
 
     def _order_headers(self, *, access_token: str, side: OrderSide) -> dict[str, str]:
         return {
@@ -244,6 +252,81 @@ class KisApiClient:
             "ORD_QTY": str(order.quantity),
             "ORD_UNPR": str(order.limit_price or Decimal("0")),
         }
+
+    def inquire_balance(self, *, access_token: str) -> dict[str, Any]:
+        """Query KIS account balance, holdings, and average costs.
+
+        Returns a dict with keys ``cash``, ``positions``, ``average_costs``.
+        """
+        params = urlencode(
+            {
+                "CANO": self._credentials.account_number,
+                "ACNT_PRDT_CD": self._credentials.product_code,
+                "AFHR_FLPR_YN": "N",
+                "OFL_YN": "",
+                "INQR_DVSN": "02",
+                "UNPR_DVSN": "01",
+                "FUND_STTL_ICLD_YN": "N",
+                "FNCG_AMT_AUTO_RDPT_YN": "N",
+                "PRCS_DVSN": "01",
+                "CTX_AREA_FK100": "",
+                "CTX_AREA_NK100": "",
+            }
+        )
+        response = self._transport.request(
+            "GET",
+            f"{self._base_url}{self._BALANCE_PATH}?{params}",
+            headers={
+                "authorization": f"Bearer {access_token}",
+                "appkey": self._credentials.app_key,
+                "appsecret": self._credentials.app_secret,
+                "tr_id": self._balance_tr_id(),
+            },
+        )
+
+        output1 = response.body.get("output1")
+        if not isinstance(output1, list):
+            raise KisResponseError("KIS balance response 'output1' was missing or invalid.")
+
+        output2 = response.body.get("output2")
+        if not isinstance(output2, list) or not output2:
+            raise KisResponseError("KIS balance response 'output2' was missing or invalid.")
+
+        positions: dict[str, Decimal] = {}
+        average_costs: dict[str, Decimal] = {}
+        pending_symbols: list[str] = []
+
+        for item in output1:
+            symbol = str(item.get("pdno", "")).strip()
+            if not symbol:
+                continue
+            hldg_qty = _as_decimal(item.get("hldg_qty"), "hldg_qty", default=Decimal("0"))
+            if hldg_qty > 0:
+                positions[symbol] = hldg_qty
+                avg_price = _as_decimal(
+                    item.get("pchs_avg_pric"), "pchs_avg_pric", default=Decimal("0")
+                )
+                average_costs[symbol] = avg_price
+                ord_psbl_qty = _as_decimal(
+                    item.get("ord_psbl_qty"), "ord_psbl_qty", default=hldg_qty
+                )
+                if ord_psbl_qty < hldg_qty:
+                    pending_symbols.append(symbol)
+
+        cash = _as_decimal(
+            output2[0].get("dnca_tot_amt"), "dnca_tot_amt", default=Decimal("0")
+        )
+
+        return {
+            "cash": cash,
+            "positions": positions,
+            "average_costs": average_costs,
+            "pending_symbols": tuple(sorted(pending_symbols)),
+        }
+
+    def _balance_tr_id(self) -> str:
+        configured = os.getenv("TRADING_SYSTEM_KIS_BALANCE_TR_ID", "TTTC8434R")
+        return configured.strip() or "TTTC8434R"
 
     def _parse_order_response(
         self, *, order: OrderRequest, response: HttpResponse
@@ -279,6 +362,8 @@ class KisApiClient:
             filled_quantity=filled_quantity,
             fill_price=fill_price,
             fee=Decimal("0"),
+            result_code=result_code,
+            message=message,
         )
 
 
@@ -307,3 +392,31 @@ def _validate_domestic_symbol(symbol: str) -> str:
         "KIS domestic symbol format invalid "
         f"(input={symbol!r}, expected='6-digit numeric code, e.g. 005930')."
     )
+
+
+def _validate_quote(quote: KisQuote) -> KisQuote:
+    """Validate that a KIS quote has sane field values."""
+    if quote.price <= 0:
+        raise KisResponseError(
+            f"KIS quote for '{quote.symbol}' has invalid price: {quote.price}"
+        )
+    if quote.volume < 0:
+        raise KisResponseError(
+            f"KIS quote for '{quote.symbol}' has invalid volume: {quote.volume}"
+        )
+    return quote
+
+
+def is_krx_market_open(*, now: datetime | None = None) -> bool:
+    """Return True if the current time is within KRX regular trading hours.
+
+    Regular session: weekdays 09:00-15:30 KST.
+    Does NOT account for public holidays or ad-hoc closures.
+    """
+    current = now or datetime.now(tz=KST)
+    kst_time = current.astimezone(KST)
+    if kst_time.weekday() >= 5:  # Saturday=5, Sunday=6
+        return False
+    market_open = kst_time.replace(hour=9, minute=0, second=0, microsecond=0)
+    market_close = kst_time.replace(hour=15, minute=30, second=0, microsecond=0)
+    return market_open <= kst_time <= market_close

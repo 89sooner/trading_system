@@ -22,12 +22,18 @@ def _make_loop(state: AppRunnerState = AppRunnerState.RUNNING) -> MagicMock:
     loop._last_heartbeat = None  # noqa: SLF001
     loop._started_at = None  # noqa: SLF001
 
+    # Runtime mock
+    loop.runtime.last_reconciliation_at = None
+    loop.runtime.last_reconciliation_status = None
+
     # Services mock
     portfolio = MagicMock()
     portfolio.cash = Decimal("9800.00")
     portfolio.positions = {"BTCUSDT": Decimal("0.2")}
     portfolio.average_costs = {"BTCUSDT": Decimal("50000")}
     loop.services.portfolio = portfolio
+    loop.services.provider = "mock"
+    loop.services.symbols = ("BTCUSDT",)
 
     # Logger with empty buffer
     logger = MagicMock()
@@ -38,6 +44,14 @@ def _make_loop(state: AppRunnerState = AppRunnerState.RUNNING) -> MagicMock:
 
 
 def _make_client(loop=None) -> TestClient:
+    import os
+    import tempfile
+
+    empty_keys = os.path.join(tempfile.gettempdir(), "test_empty_api_keys.json")
+    if not os.path.exists(empty_keys):
+        with open(empty_keys, "w") as f:
+            f.write("[]")
+    os.environ["TRADING_SYSTEM_API_KEYS_PATH"] = empty_keys
     app = create_app(live_loop=loop)
     return TestClient(app, raise_server_exceptions=False)
 

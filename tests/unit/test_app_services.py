@@ -104,6 +104,10 @@ def test_live_mode_kis_preflight_uses_kis_quote(monkeypatch) -> None:
         "trading_system.app.services.KisApiClient.from_env",
         lambda: _StubKisClient(),
     )
+    monkeypatch.setattr(
+        "trading_system.app.services.is_krx_market_open",
+        lambda: True,
+    )
 
     settings = AppSettings.from_cli(
         mode="live",
@@ -121,17 +125,22 @@ def test_live_mode_kis_preflight_uses_kis_quote(monkeypatch) -> None:
     settings.validate()
 
     services = build_services(settings)
+    result = services.preflight_live()
 
-    assert services.preflight_live() == (
-        "KIS live preflight passed (symbol=005930, price=70200, volume=1200). "
-        "No orders were submitted."
-    )
+    assert result.ready is True
+    assert result.quote_summary is not None
+    assert result.quote_summary["symbol"] == "005930"
+    assert result.quote_summary["price"] == "70200"
 
 
 def test_live_preflight_supports_multi_symbol(monkeypatch) -> None:
     monkeypatch.setattr(
         "trading_system.app.services.KisApiClient.from_env",
         lambda: _StubKisClient(),
+    )
+    monkeypatch.setattr(
+        "trading_system.app.services.is_krx_market_open",
+        lambda: True,
     )
 
     settings = AppSettings.from_cli(
@@ -152,8 +161,10 @@ def test_live_preflight_supports_multi_symbol(monkeypatch) -> None:
     services = build_services(settings)
     result = services.preflight_live()
 
-    assert "005930" in result
-    assert "035720" in result
+    # Single-symbol preflight for first symbol
+    assert result.ready is True
+    assert result.quote_summary is not None
+    assert result.quote_summary["symbol"] == "005930"
 
 
 def test_live_preflight_no_broker_check_multi_symbol(monkeypatch) -> None:
@@ -178,7 +189,8 @@ def test_live_preflight_no_broker_check_multi_symbol(monkeypatch) -> None:
     services = build_services(settings)
     result = services.preflight_live()
 
-    assert result == "Live mode preflight passed (no orders were submitted)."
+    assert result.ready is True
+    assert result.message == "Live mode preflight passed (no orders were submitted)."
 
 
 def test_build_services_uses_kis_broker_adapter_when_broker_is_kis(monkeypatch) -> None:
@@ -240,6 +252,10 @@ def test_live_execution_runs_when_opted_in(monkeypatch) -> None:
         "trading_system.app.services.KisApiClient.from_env",
         lambda: _StubKisClient(),
     )
+    monkeypatch.setattr(
+        "trading_system.app.services.is_krx_market_open",
+        lambda: True,
+    )
     monkeypatch.setenv("TRADING_SYSTEM_ENABLE_LIVE_ORDERS", "true")
 
     settings = AppSettings.from_cli(
@@ -268,14 +284,19 @@ def test_live_execution_runs_when_opted_in(monkeypatch) -> None:
     services.run_live_execution()
 
 
-def test_live_execution_can_submit_order_with_moving_quotes(monkeypatch) -> None:
+def test_live_execution_can_submit_order_with_moving_quotes(monkeypatch, tmp_path) -> None:
     client = _MovingQuoteKisClient()
     monkeypatch.setattr(
         "trading_system.app.services.KisApiClient.from_env",
         lambda: client,
     )
+    monkeypatch.setattr(
+        "trading_system.app.services.is_krx_market_open",
+        lambda: True,
+    )
     monkeypatch.setenv("TRADING_SYSTEM_ENABLE_LIVE_ORDERS", "true")
     monkeypatch.setenv("TRADING_SYSTEM_LIVE_BAR_SAMPLES", "2")
+    monkeypatch.setenv("TRADING_SYSTEM_PORTFOLIO_DIR", str(tmp_path))
 
     settings = AppSettings.from_cli(
         mode="live",
@@ -303,6 +324,67 @@ def test_live_execution_can_submit_order_with_moving_quotes(monkeypatch) -> None
     services.run_live_execution()
 
     assert client.order_requests == 1
+
+
+def test_live_execution_blocked_outside_market_hours(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "trading_system.app.services.KisApiClient.from_env",
+        lambda: _StubKisClient(),
+    )
+    monkeypatch.setattr(
+        "trading_system.app.services.is_krx_market_open",
+        lambda: False,
+    )
+    monkeypatch.setenv("TRADING_SYSTEM_ENABLE_LIVE_ORDERS", "true")
+
+    settings = AppSettings.from_cli(
+        mode="live",
+        symbols="005930",
+        provider="kis",
+        broker="kis",
+        live_execution="live",
+        starting_cash="1000000",
+        fee_bps="5",
+        trade_quantity="1",
+        max_position="10",
+        max_notional="100000000",
+        max_order_size="5",
+    )
+    settings.validate()
+    services = build_services(settings)
+    with pytest.raises(RuntimeError, match="KRX market hours"):
+        services.run_live_execution()
+
+
+def test_live_preflight_includes_market_closed_reason(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "trading_system.app.services.KisApiClient.from_env",
+        lambda: _StubKisClient(),
+    )
+    monkeypatch.setattr(
+        "trading_system.app.services.is_krx_market_open",
+        lambda: False,
+    )
+
+    settings = AppSettings.from_cli(
+        mode="live",
+        symbols="005930",
+        provider="kis",
+        broker="kis",
+        live_execution="preflight",
+        starting_cash="1000000",
+        fee_bps="5",
+        trade_quantity="1",
+        max_position="10",
+        max_notional="100000000",
+        max_order_size="5",
+    )
+    settings.validate()
+
+    services = build_services(settings)
+    result = services.preflight_live()
+
+    assert "market_closed" in result.reasons
 
 
 def test_live_execution_rejects_invalid_live_sample_env(monkeypatch) -> None:
