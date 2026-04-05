@@ -1,5 +1,10 @@
 # GEMINI.md - Trading System Workspace Context
 
+> **Source of truth / 기준 문서**
+>
+> - **EN:** `AGENTS.md` is the primary repository instruction file for workflow, testing expectations, code style, and local skill usage. This file should stay aligned with it, not diverge from it.
+> - **KO:** `AGENTS.md`는 워크플로, 테스트 기대치, 코드 스타일, 로컬 스킬 사용에 대한 기본 저장소 지침 문서입니다. 이 문서는 `AGENTS.md`와 정렬되어야 하며, 별도 규칙을 만들지 않아야 합니다.
+
 > **Language policy / 언어 정책**
 >
 > - **EN:** This document is maintained in both English and Korean. Any future updates must be reflected in **both languages**.
@@ -14,7 +19,7 @@
 `trading_system` is a modular Python-based trading workspace designed for both deterministic backtesting and live trading operations. The system is architected with clear service boundaries, emphasizing testability and safe evolution from research to production.
 
 - **Backend:** A Python application built with **FastAPI** serving a REST API for running and managing trading sessions. It uses `uv` for dependency and environment management. The core logic is separated into distinct layers: `data`, `strategy`, `risk`, `execution`, `portfolio`, `backtest`, and `analytics`.
-- **Frontend:** A minimal, static vanilla JavaScript frontend is provided for interacting with the backtesting API. It allows users to create backtest runs and view results, including equity curves and event logs.
+- **Frontend:** A React 19 + TypeScript frontend under `frontend/` is provided for operator-facing workflows. It currently uses Vite 6, TanStack Router, TanStack Query, Zustand, Recharts, and shadcn/ui-style primitives to manage dashboard control, runs, strategies, patterns, and admin surfaces.
 - **Configuration:** The system is configured via YAML files (e.g., `configs/base.yaml`) and environment variables, which are parsed and validated by typed settings models.
 
 ### KO
@@ -22,7 +27,7 @@
 `trading_system`은 결정적 백테스팅과 실시간 트레이딩 운영을 모두 지원하도록 설계된 모듈형 Python 기반 트레이딩 워크스페이스입니다. 이 시스템은 명확한 서비스 경계를 갖도록 설계되었으며, 테스트 용이성과 연구에서 운영 환경으로의 안전한 진화를 강조합니다.
 
 - **백엔드:** **FastAPI**로 구축된 Python 애플리케이션으로, 트레이딩 세션을 실행하고 관리하기 위한 REST API를 제공합니다. 의존성 및 환경 관리를 위해 `uv`를 사용합니다. 핵심 로직은 `data`, `strategy`, `risk`, `execution`, `portfolio`, `backtest`, `analytics`와 같은 명확한 레이어로 분리되어 있습니다.
-- **프론트엔드:** 백테스팅 API와 상호작용하기 위한 최소한의 정적 바닐라 JavaScript 프론트엔드가 제공됩니다. 사용자는 이를 통해 백테스트 실행을 생성하고, 자산 곡선 및 이벤트 로그를 포함한 결과를 볼 수 있습니다.
+- **프론트엔드:** 운영자용 워크플로를 위한 React 19 + TypeScript 프론트엔드가 `frontend/` 아래에 존재합니다. 현재 Vite 6, TanStack Router, TanStack Query, Zustand, Recharts, shadcn/ui 스타일 프리미티브를 사용하여 대시보드 제어, 실행 이력, 전략, 패턴, 관리 화면을 제공합니다.
 - **설정:** 시스템은 YAML 파일(예: `configs/base.yaml`)과 환경 변수를 통해 구성되며, 이는 타입이 지정된 설정 모델에 의해 파싱되고 검증됩니다.
 
 ---
@@ -40,9 +45,12 @@
   - `app/loop.py`: Contains `LiveTradingLoop` for continuous paper/live trading with graceful shutdown.
   - `backtest/engine.py`: Contains the core logic for orchestrating deterministic backtests.
   - `execution/step.py`: The unified execution core shared by both backtest and live engines.
-- `frontend/`: Contains the static web interface (HTML, JS, CSS).
-  - `index.html`: The main page for creating new backtest runs.
-  - `src/api/client.js`: The JavaScript client for making requests to the backend API.
+- `frontend/`: Contains the React/Vite operator-facing frontend.
+  - `vite.config.ts`: Vite frontend build configuration.
+  - `src/routes/`: TanStack Router route definitions for dashboard, runs, strategies, patterns, and admin pages.
+  - `src/api/client.ts`: The TypeScript client for making requests to the backend API.
+  - `src/components/`: UI, dashboard, runs, strategies, patterns, and chart components.
+  - `src/store/apiStore.ts`: Persisted API base URL/API key state for operator-side API access.
 - `tests/`: Contains unit and integration tests, separated by `pytest` markers (`smoke`, `extended`).
 - `.github/workflows/tests.yml`: The GitHub Actions workflow for running tests automatically on pull requests and pushes to `main`.
 - `scripts/run_engine.sh`: A convenience script for setting up the environment and running the trading engine.
@@ -58,9 +66,12 @@
   - `app/loop.py`: 안전한 종료 기능을 갖춘 연속적인 페이퍼/라이브 트레이딩을 위한 `LiveTradingLoop`를 포함합니다.
   - `backtest/engine.py`: 결정적 백테스트를 조율하기 위한 핵심 로직을 포함합니다.
   - `execution/step.py`: 백테스트와 라이브 엔진 모두가 공유하는 통합 핵심 실행 로직입니다.
-- `frontend/`: 정적 웹 인터페이스(HTML, JS, CSS)를 포함합니다.
-  - `index.html`: 새로운 백테스트 실행을 생성하기 위한 메인 페이지입니다.
-  - `src/api/client.js`: 백엔드 API에 요청을 보내기 위한 JavaScript 클라이언트입니다.
+- `frontend/`: React/Vite 기반 운영자용 프론트엔드를 포함합니다.
+  - `vite.config.ts`: Vite 프론트엔드 빌드 설정입니다.
+  - `src/routes/`: dashboard, runs, strategies, patterns, admin 페이지용 TanStack Router 라우트 정의입니다.
+  - `src/api/client.ts`: 백엔드 API에 요청을 보내기 위한 TypeScript 클라이언트입니다.
+  - `src/components/`: UI, dashboard, runs, strategies, patterns, 차트 컴포넌트 모음입니다.
+  - `src/store/apiStore.ts`: 운영자 측 API base URL/API key 상태를 저장하는 persisted store입니다.
 - `tests/`: `pytest` 마커(`smoke`, `extended`)로 분리된 단위 및 통합 테스트를 포함합니다.
 - `.github/workflows/tests.yml`: `main` 브랜치에 대한 pull request 및 push 발생 시 자동으로 테스트를 실행하는 GitHub Actions 워크플로우입니다.
 - `scripts/run_engine.sh`: 환경을 설정하고 트레이딩 엔진을 실행하기 위한 편의 스크립트입니다.
@@ -211,6 +222,7 @@ uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode bac
 - **Bilingual Documentation:** The main `README.md` is maintained in both English and Korean.
 - **Dashboard Controls:** The live dashboard supports `pause`, `resume`, and `reset` actions via `POST /api/v1/dashboard/control`. `reset` clears EMERGENCY state and returns to PAUSED. See `README.md` §12 for full semantics.
 - **Portfolio Risk:** Optional `portfolio_risk` configuration enables drawdown protection (`max_daily_drawdown_pct`), per-position stop-loss (`sl_pct`), and take-profit (`tp_pct`). Documented in `configs/base.yaml`.
+- **Agent Workflow:** Follow `AGENTS.md` for repo-local skills and execution workflow. Current local skills include planning/execution skills such as `feature-planner`, `plan-mode-orchestrator`, `build-mode-executor`, `verify-loop-inspector`, plus newer repo-local skills like `frontend-product-designer`, `phase-planner`, and `claude-code-session-handoff`.
 
 ### KO
 
@@ -222,3 +234,4 @@ uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode bac
 - **이중 언어 문서:** 주요 `README.md`는 영어와 한국어로 모두 유지 관리됩니다.
 - **대시보드 제어:** 라이브 대시보드는 `POST /api/v1/dashboard/control`을 통해 `pause`, `resume`, `reset` 액션을 지원합니다. `reset`은 EMERGENCY 상태를 해제하고 PAUSED로 복귀합니다. 전체 의미는 `README.md` §12를 참조하세요.
 - **포트폴리오 리스크:** 선택적 `portfolio_risk` 설정으로 드로우다운 보호(`max_daily_drawdown_pct`), 포지션별 손절(`sl_pct`), 익절(`tp_pct`)을 활성화할 수 있습니다. `configs/base.yaml`에 문서화되어 있습니다.
+- **에이전트 워크플로:** repo-local skill과 실행 워크플로는 `AGENTS.md`를 따릅니다. 현재 로컬 스킬에는 `feature-planner`, `plan-mode-orchestrator`, `build-mode-executor`, `verify-loop-inspector` 같은 계획/실행 스킬과, 새로 추가된 `frontend-product-designer`, `phase-planner`, `claude-code-session-handoff`가 포함됩니다.
