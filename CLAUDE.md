@@ -1,25 +1,53 @@
 # CLAUDE.md
 
-This repository uses `AGENTS.md` as the primary repo-wide instruction file.
+@AGENTS.md
 
-## Read first
+## Claude Code specific rules
 
-- Follow `@AGENTS.md` for working defaults, workflow, code style, testing expectations, and repo-local skills.
-- Treat `AGENTS.md` as the source of truth when this file is less specific.
+- Use `AGENTS.md` as the shared repository policy, then apply the Claude-specific command policy below.
+- Prefer `rg` over `grep` for text search.
+- Prefer `fd` or `fdfind` over `find` for file discovery.
+- Prefer `jq` for JSON inspection.
+- Prefer `git grep` when searching tracked files only.
+- Prefer `sed`, `head`, and `tail` over broad `cat`.
+- Prefer non-interactive commands when possible.
+- Prefer machine-readable output such as JSON when available.
+- Keep shell output narrow. Read the smallest relevant scope first, then expand only if needed.
+- Search the smallest relevant package or directory first before scanning the whole repository.
+- If `rg`, `fd` or `fdfind`, or `jq` are missing, install them before broad repository analysis.
+- If modern tools are unavailable, install them first when practical. Otherwise use the narrowest compatible fallback.
 
-## Claude-specific note
+## Install-first policy
 
-- Use the local skill directories documented in `AGENTS.md` when a task matches their purpose.
-- Pay special attention to repository planning, execution, and frontend skills such as `feature-planner`, `plan-mode-orchestrator`, `build-mode-executor`, `verify-loop-inspector`, `frontend-product-designer`, `phase-planner`, and `claude-code-session-handoff`.
+If required tools are missing, install them first.
 
-## Working summary
+Debian or Ubuntu:
 
-- Python 3.12
-- App code under `src/trading_system/`
-- Tests under `tests/`
-- Keep strategy, risk, execution, portfolio, and analytics concerns separated
-- Preserve deterministic backtest behavior and unified execution via `step.py`
-- When trading logic changes, update tests in the same change
-- When configuration shape changes, update `configs/`, `examples/`, and `README.md` together
+- `apt-get update && apt-get install -y ripgrep fd-find jq`
 
-For full repository guidance, read `@AGENTS.md`.
+If `fd` is installed as `fdfind`:
+
+- `alias fd=fdfind`
+
+macOS with Homebrew:
+
+- `brew install ripgrep fd jq`
+
+## Search policy
+
+- Do not use `grep`, `egrep`, `fgrep`, or `find` for normal repository exploration when `rg`, `fd` or `fdfind`, `jq`, `git grep`, `sed`, `head`, or `tail` can answer the same question.
+- Use `git grep` instead of plain `grep` when the search target is tracked files.
+- Search the smallest relevant package or directory first.
+- Avoid broad recursive scans unless they are necessary.
+- Prefer filename-only searches when possible.
+- Prefer count or scoped searches before opening many files.
+- Prefer machine-readable command output when a tool supports it.
+
+## Practical defaults
+
+- For text search, start with `rg`.
+- For file discovery, start with `fd` or `fdfind`.
+- For tracked code search, use `git grep`.
+- For JSON output, parse with `jq`.
+- For file reads, use `sed -n`, `head`, or `tail` before broader reads.
+- For API or CLI inspection, prefer JSON output and narrow filtering over verbose raw output.
