@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
+import { useForm, Controller } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -11,11 +13,22 @@ import { createStrategyProfile } from '@/lib/api/strategies'
 import { listPatternSets } from '@/lib/api/patterns'
 import { parseMap } from '@/lib/strategyParser'
 import { userMessageForError } from '@/lib/api/client'
+import { useState } from 'react'
+
+const schema = z.object({
+  strategyId: z.string().min(1, 'Required'),
+  strategyName: z.string().min(1, 'Required'),
+  patternSetId: z.string().min(1, 'Select a pattern set'),
+  tradeQuantity: z.string().optional(),
+  labelMap: z.string().optional(),
+  thresholds: z.string().optional(),
+})
+
+type FormValues = z.infer<typeof schema>
 
 export function StrategyForm() {
   const qc = useQueryClient()
-  const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null)
-  const [patternSetId, setPatternSetId] = useState('')
+  const [serverMessage, setServerMessage] = useState<{ text: string; isError: boolean } | null>(null)
 
   const { data: patternSets } = useQuery({
     queryKey: ['patterns'],
@@ -23,72 +36,103 @@ export function StrategyForm() {
     staleTime: 30_000,
   })
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const fd = new FormData(e.currentTarget)
-    const tradeQtyStr = String(fd.get('strategyTradeQuantity')).trim()
+  const {
+    register,
+    handleSubmit,
+    control,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { patternSetId: '' },
+  })
+
+  async function onSubmit(values: FormValues) {
+    setServerMessage(null)
     try {
       const created = await createStrategyProfile({
-        strategy_id: String(fd.get('strategyId')).trim(),
-        name: String(fd.get('strategyName')).trim(),
+        strategy_id: values.strategyId,
+        name: values.strategyName,
         strategy: {
           type: 'pattern_signal',
-          pattern_set_id: patternSetId,
-          label_to_side: parseMap(String(fd.get('strategyLabelMap'))),
-          trade_quantity: tradeQtyStr ? Number(tradeQtyStr) : null,
-          threshold_overrides: parseMap(String(fd.get('strategyThresholds')), Number),
+          pattern_set_id: values.patternSetId,
+          label_to_side: parseMap(values.labelMap ?? ''),
+          trade_quantity: values.tradeQuantity ? Number(values.tradeQuantity) : null,
+          threshold_overrides: parseMap(values.thresholds ?? '', (v) => Number(v)),
         },
       })
-      setMessage({ text: `Saved: ${created.strategy_id}`, isError: false })
+      setServerMessage({ text: `Saved: ${created.strategy_id}`, isError: false })
       await qc.invalidateQueries({ queryKey: ['strategies'] })
+      reset()
     } catch (err) {
-      setMessage({ text: userMessageForError(err), isError: true })
+      setServerMessage({ text: userMessageForError(err), isError: true })
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <div className="space-y-1">
         <Label htmlFor="strategyId">Strategy ID</Label>
-        <Input id="strategyId" name="strategyId" required placeholder="ma-crossover-1" />
+        <Input id="strategyId" placeholder="ma-crossover-1" {...register('strategyId')} />
+        {errors.strategyId && <p className="text-xs text-danger">{errors.strategyId.message}</p>}
       </div>
+
       <div className="space-y-1">
         <Label htmlFor="strategyName">Name</Label>
-        <Input id="strategyName" name="strategyName" required placeholder="MA Crossover" />
+        <Input id="strategyName" placeholder="MA Crossover" {...register('strategyName')} />
+        {errors.strategyName && <p className="text-xs text-danger">{errors.strategyName.message}</p>}
       </div>
+
       <div className="space-y-1">
         <Label>Pattern Set</Label>
-        <Select value={patternSetId} onValueChange={(v) => setPatternSetId(v ?? '')}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select pattern set" />
-          </SelectTrigger>
-          <SelectContent>
-            {(patternSets ?? []).map((ps) => (
-              <SelectItem key={ps.pattern_set_id} value={ps.pattern_set_id}>
-                {ps.name} ({ps.pattern_set_id})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Controller
+          control={control}
+          name="patternSetId"
+          render={({ field }) => (
+            <Select
+              value={field.value}
+              onValueChange={(v) => field.onChange(v === null ? '' : v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select pattern set" />
+              </SelectTrigger>
+              <SelectContent>
+                {(patternSets ?? []).map((ps) => (
+                  <SelectItem key={ps.pattern_set_id} value={ps.pattern_set_id}>
+                    {ps.name} ({ps.pattern_set_id})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
+        {errors.patternSetId && <p className="text-xs text-danger">{errors.patternSetId.message}</p>}
       </div>
+
       <div className="space-y-1">
-        <Label htmlFor="strategyTradeQuantity">Trade Quantity</Label>
-        <Input id="strategyTradeQuantity" name="strategyTradeQuantity" type="number" step="any" placeholder="0.1" />
+        <Label htmlFor="tradeQuantity">Trade Quantity</Label>
+        <Input id="tradeQuantity" type="number" step="any" placeholder="0.1" {...register('tradeQuantity')} />
       </div>
+
       <div className="space-y-1">
-        <Label htmlFor="strategyLabelMap">Label → Side (key=value per line)</Label>
-        <Textarea id="strategyLabelMap" name="strategyLabelMap" rows={3} placeholder={'bullish=buy\nbearish=sell'} />
+        <Label htmlFor="labelMap">Label → Side (key=value per line)</Label>
+        <Textarea id="labelMap" rows={3} placeholder={'bullish=buy\nbearish=sell'} {...register('labelMap')} />
       </div>
+
       <div className="space-y-1">
-        <Label htmlFor="strategyThresholds">Threshold Overrides (key=value per line)</Label>
-        <Textarea id="strategyThresholds" name="strategyThresholds" rows={3} placeholder={'bullish=0.7\nbearish=0.6'} />
+        <Label htmlFor="thresholds">Threshold Overrides (key=value per line)</Label>
+        <Textarea id="thresholds" rows={3} placeholder={'bullish=0.7\nbearish=0.6'} {...register('thresholds')} />
       </div>
+
       <div className="col-span-full">
-        <Button type="submit">Save Strategy Profile</Button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Saving...' : 'Save Strategy Profile'}
+        </Button>
       </div>
-      {message && (
-        <p className={`col-span-full text-xs ${message.isError ? 'text-danger' : 'text-success'}`}>
-          {message.text}
+
+      {serverMessage && (
+        <p className={`col-span-full text-xs ${serverMessage.isError ? 'text-danger' : 'text-success'}`}>
+          {serverMessage.text}
         </p>
       )}
     </form>

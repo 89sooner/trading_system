@@ -35,7 +35,7 @@ export function useDashboardPolling() {
     eventsQuery.dataUpdatedAt,
   )
 
-  const [now, setNow] = useState(Date.now())
+  const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 3000)
     return () => clearInterval(id)

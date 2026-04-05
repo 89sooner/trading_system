@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Trading System — Frontend
+
+Next.js 16 + App Router frontend for the trading system operator UI.
+
+## Stack
+
+- **Framework**: Next.js 16 (App Router)
+- **Language**: TypeScript 5
+- **Styling**: Tailwind CSS v4 + CSS variables (semantic tokens)
+- **UI Primitives**: Base UI (`@base-ui/react`) + shadcn-compatible component wrappers
+- **Charts**: Recharts
+- **State**: Zustand (operator API settings)
+- **Data fetching**: TanStack Query v5
+- **Forms**: react-hook-form + zod
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+cp .env.local.example .env.local   # set NEXT_PUBLIC_API_BASE_URL
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Default | Description |
+|---|---|---|
+| `NEXT_PUBLIC_API_BASE_URL` | `http://127.0.0.1:8000/api/v1` | Backend API base URL |
 
-## Learn More
+The base URL and API key can also be changed at runtime via the **ApiSettingsBar** in the top nav (persisted in localStorage).
 
-To learn more about Next.js, take a look at the following resources:
+## Routes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Path | Description |
+|---|---|
+| `/` | Redirect to dashboard |
+| `/dashboard` | Live trading system monitoring (5 s polling) |
+| `/runs` | Backtest run history |
+| `/runs/[runId]` | Run detail — equity curve, drawdown, trade analytics, signals, fills |
+| `/strategies` | Strategy profiles — list and create |
+| `/patterns` | Pattern sets — list and train |
+| `/patterns/[patternSetId]` | Pattern set detail |
+| `/admin` | Admin operations |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Scripts
 
-## Deploy on Vercel
+```bash
+npm run dev      # development server
+npm run build    # production build
+npm run lint     # ESLint
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Design System
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Semantic color tokens defined in `app/globals.css`:
+
+- `success`, `danger`, `warning`, `info`, `muted`
+
+Domain components in `components/domain/`:
+
+- `MetricCard` — numeric KPI tile with trend indicator
+- `DataTable` — column-defined table with empty/loading states
+- `StatusIndicator` — dot + label (online/offline/warning/error)
+- `ChartContainer` — chart wrapper with loading/empty/error states
+- `StatTile`, `StatusBadge`, `ErrorBanner`
+
+## Backend
+
+See the root `README.md` for backend setup and the full run script.
