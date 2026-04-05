@@ -21,3 +21,4 @@ data/api_keys.json
 frontend/node_modules/
 frontend/dist/
 data/portfolio/book.json
+data/api_keys.json
