@@ -43,6 +43,8 @@ def test_kis_preflight_returns_structured_readiness(monkeypatch) -> None:
     assert result.quote_summary is not None
     assert result.quote_summary["symbol"] == "005930"
     assert result.quote_summary["price"] == "70200"
+    assert result.quote_summaries == [result.quote_summary]
+    assert result.symbol_count == 1
     assert result.reasons == []
 
 
@@ -110,6 +112,42 @@ def test_kis_preflight_quote_error_blocks_readiness(monkeypatch) -> None:
 
     assert result.ready is False
     assert any("quote_error" in r for r in result.reasons)
+
+
+def test_kis_preflight_returns_multi_symbol_readiness(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "trading_system.app.services.KisApiClient.from_env",
+        lambda: _StubKisClient(),
+    )
+    monkeypatch.setattr(
+        "trading_system.app.services.is_krx_market_open",
+        lambda: True,
+    )
+
+    settings = AppSettings.from_cli(
+        mode="live",
+        symbols="005930,035720",
+        provider="kis",
+        broker="kis",
+        live_execution="preflight",
+        starting_cash="1000000",
+        fee_bps="5",
+        trade_quantity="1",
+        max_position="10",
+        max_notional="100000000",
+        max_order_size="5",
+    )
+    settings.validate()
+
+    services = build_services(settings)
+    result = services.preflight_live()
+
+    assert result.ready is True
+    assert result.symbol_count == 2
+    assert result.quote_summary is not None
+    assert result.quote_summary["symbol"] == "005930"
+    assert result.quote_summaries is not None
+    assert [quote["symbol"] for quote in result.quote_summaries] == ["005930", "035720"]
 
 
 class _StubKisClient:

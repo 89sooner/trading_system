@@ -38,12 +38,6 @@ _MAX_FEE_BPS = Decimal("1000")
 
 
 def _validate_request_payload(payload: BacktestRunRequestDTO | LivePreflightRequestDTO) -> None:
-    if payload.mode == "live" and len(payload.symbols) != 1:
-        raise RequestValidationError(
-            error_code="invalid_symbols",
-            message="Exactly one symbol is required for live API runtime.",
-        )
-
     for symbol in payload.symbols:
         normalized = symbol.strip().upper()
         if not normalized or not normalized.replace("-", "").isalnum():
@@ -79,8 +73,7 @@ def _validate_strategy_payload(strategy: StrategyConfigDTO | None) -> None:
             raise RequestValidationError(
                 error_code="invalid_strategy",
                 message=(
-                    "strategy.profile_id cannot be combined with "
-                    "inline pattern strategy fields."
+                    "strategy.profile_id cannot be combined with inline pattern strategy fields."
                 ),
             )
         return
@@ -141,8 +134,7 @@ def _to_strategy_settings(
         profile_id=strategy.profile_id,
         pattern_set_id=strategy.pattern_set_id,
         label_to_side={
-            label: SignalSide(side)
-            for label, side in sorted(strategy.label_to_side.items())
+            label: SignalSide(side) for label, side in sorted(strategy.label_to_side.items())
         },
         trade_quantity=strategy.trade_quantity,
         threshold_overrides={
@@ -165,8 +157,7 @@ def _to_api_result_dto(result: SerializedBacktestResultDTO) -> BacktestResultDTO
             "win_rate": result.summary.win_rate,
         },
         equity_curve=[
-            {"timestamp": point.timestamp, "equity": point.equity}
-            for point in result.equity_curve
+            {"timestamp": point.timestamp, "equity": point.equity} for point in result.equity_curve
         ],
         drawdown_curve=[
             {"timestamp": point.timestamp, "drawdown": point.drawdown}
@@ -175,8 +166,7 @@ def _to_api_result_dto(result: SerializedBacktestResultDTO) -> BacktestResultDTO
         signals=[{"event": event.event, "payload": event.payload} for event in result.signals],
         orders=[{"event": event.event, "payload": event.payload} for event in result.orders],
         risk_rejections=[
-            {"event": event.event, "payload": event.payload}
-            for event in result.risk_rejections
+            {"event": event.event, "payload": event.payload} for event in result.risk_rejections
         ],
     )
 
@@ -234,4 +224,6 @@ def run_live_preflight(payload: LivePreflightRequestDTO) -> LivePreflightRespons
         ready=result.ready,
         reasons=result.reasons,
         quote_summary=result.quote_summary,
+        quote_summaries=result.quote_summaries,
+        symbol_count=result.symbol_count,
     )

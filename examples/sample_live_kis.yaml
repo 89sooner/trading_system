@@ -10,6 +10,7 @@ app:
   environment: local
   timezone: Asia/Seoul
   mode: live
+  reconciliation_interval: 300
 market_data:
   provider: kis
   symbols:
@@ -24,3 +25,8 @@ backtest:
   starting_cash: 10000000
   fee_bps: 5
   trade_quantity: 1
+
+portfolio_risk:
+  max_daily_drawdown_pct: 0.05
+  sl_pct: 0.02
+  tp_pct: 0.04

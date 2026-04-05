@@ -2,6 +2,7 @@ app:
   environment: local
   timezone: Asia/Seoul
   mode: backtest
+  reconciliation_interval: 300
 
 market_data:
   provider: mock
@@ -24,10 +25,10 @@ backtest:
 # Portfolio-level risk controls (optional).
 # When set, the runtime enforces drawdown protection and optional SL/TP exits.
 #
-# portfolio_risk:
-#   max_daily_drawdown_pct: 0.05   # halt trading when session drawdown exceeds 5%
-#   sl_pct: 0.02                   # per-position stop-loss at 2% (optional)
-#   tp_pct: 0.04                   # per-position take-profit at 4% (optional)
+portfolio_risk:
+  max_daily_drawdown_pct: 0.05
+  sl_pct: 0.02
+  tp_pct: 0.04
 
 api:
   cors_allow_origins:

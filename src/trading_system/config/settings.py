@@ -24,6 +24,7 @@ class AppSettings:
     environment: str
     timezone: str
     mode: AppMode
+    reconciliation_interval: int | None = None
 
 
 @dataclass(slots=True)
@@ -37,6 +38,13 @@ class RiskSettings:
     max_position: Decimal
     max_notional: Decimal
     max_order_size: Decimal
+
+
+@dataclass(slots=True)
+class PortfolioRiskSettings:
+    max_daily_drawdown_pct: Decimal
+    sl_pct: Decimal | None = None
+    tp_pct: Decimal | None = None
 
 
 @dataclass(slots=True)
@@ -62,6 +70,7 @@ class Settings:
     market_data: MarketDataSettings
     execution: ExecutionSettings
     risk: RiskSettings
+    portfolio_risk: PortfolioRiskSettings | None
     backtest: BacktestSettings
     api: ApiSettings
 
@@ -91,6 +100,7 @@ def load_settings(path: str | Path) -> Settings:
     risk_section = _as_dict(payload["risk"], "risk")
     backtest_section = _as_dict(payload["backtest"], "backtest")
     api_section = _as_dict(payload.get("api", {}), "api")
+    portfolio_risk_section = _as_optional_dict(payload.get("portfolio_risk"), "portfolio_risk")
 
     settings = Settings(
         app=AppSettings(
@@ -105,6 +115,11 @@ def load_settings(path: str | Path) -> Settings:
             mode=_as_mode(
                 _require_key(app_section, "mode", "app.mode"),
                 "app.mode",
+            ),
+            reconciliation_interval=_as_optional_int(
+                app_section.get("reconciliation_interval"),
+                "app.reconciliation_interval",
+                minimum=1,
             ),
         ),
         market_data=MarketDataSettings(
@@ -140,6 +155,32 @@ def load_settings(path: str | Path) -> Settings:
                 minimum=Decimal("0"),
             ),
         ),
+        portfolio_risk=(
+            PortfolioRiskSettings(
+                max_daily_drawdown_pct=_as_decimal(
+                    _require_key(
+                        portfolio_risk_section,
+                        "max_daily_drawdown_pct",
+                        "portfolio_risk.max_daily_drawdown_pct",
+                    ),
+                    "portfolio_risk.max_daily_drawdown_pct",
+                    minimum=Decimal("0"),
+                    maximum=Decimal("1"),
+                ),
+                sl_pct=_as_optional_decimal(
+                    portfolio_risk_section.get("sl_pct"),
+                    "portfolio_risk.sl_pct",
+                    minimum=Decimal("0"),
+                ),
+                tp_pct=_as_optional_decimal(
+                    portfolio_risk_section.get("tp_pct"),
+                    "portfolio_risk.tp_pct",
+                    minimum=Decimal("0"),
+                ),
+            )
+            if portfolio_risk_section is not None
+            else None
+        ),
         backtest=BacktestSettings(
             starting_cash=_as_decimal(
                 _require_key(backtest_section, "starting_cash", "backtest.starting_cash"),
@@ -172,6 +213,12 @@ def load_settings(path: str | Path) -> Settings:
             "must be less than or equal to 'risk.max_position'."
         )
 
+    if settings.portfolio_risk is not None:
+        if settings.portfolio_risk.max_daily_drawdown_pct >= Decimal("1"):
+            raise SettingsValidationError(
+                "Invalid value for 'portfolio_risk.max_daily_drawdown_pct': must be less than 1."
+            )
+
     return settings
 
 
@@ -185,6 +232,12 @@ def _as_dict(value: Any, path: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise SettingsValidationError(f"Invalid type for '{path}': expected mapping.")
     return value
+
+
+def _as_optional_dict(value: Any, path: str) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    return _as_dict(value, path)
 
 
 def _as_non_empty_str(value: Any, path: str) -> str:
@@ -212,9 +265,7 @@ def _as_execution_broker(value: Any, path: str) -> str:
     allowed_brokers = ("paper", "kis")
     if parsed not in allowed_brokers:
         allowed = ", ".join(allowed_brokers)
-        raise SettingsValidationError(
-            f"Invalid value for '{path}': expected one of [{allowed}]."
-        )
+        raise SettingsValidationError(f"Invalid value for '{path}': expected one of [{allowed}].")
     return parsed
 
 
@@ -275,3 +326,26 @@ def _as_decimal(
         )
 
     return number
+
+
+def _as_optional_decimal(
+    value: Any,
+    path: str,
+    minimum: Decimal | None = None,
+    maximum: Decimal | None = None,
+) -> Decimal | None:
+    if value is None:
+        return None
+    return _as_decimal(value, path, minimum=minimum, maximum=maximum)
+
+
+def _as_optional_int(value: Any, path: str, minimum: int | None = None) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise SettingsValidationError(f"Invalid type for '{path}': expected integer.")
+    if minimum is not None and value < minimum:
+        raise SettingsValidationError(
+            f"Invalid value for '{path}': must be greater than or equal to {minimum}."
+        )
+    return value

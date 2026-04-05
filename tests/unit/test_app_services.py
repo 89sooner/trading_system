@@ -10,9 +10,7 @@ from trading_system.execution.orders import OrderSide
 from trading_system.integrations.kis import KisOrderResult
 
 
-def test_build_services_uses_csv_provider_for_domestic_symbol(
-    tmp_path, monkeypatch
-) -> None:
+def test_build_services_uses_csv_provider_for_domestic_symbol(tmp_path, monkeypatch) -> None:
     csv_path = tmp_path / "005930.csv"
     csv_path.write_text(
         "timestamp,open,high,low,close,volume\n"
@@ -44,9 +42,7 @@ def test_build_services_uses_csv_provider_for_domestic_symbol(
     assert bars[0].timestamp == datetime(2024, 1, 2, tzinfo=timezone.utc)
 
 
-def test_build_services_raises_clear_error_when_csv_file_missing(
-    tmp_path, monkeypatch
-) -> None:
+def test_build_services_raises_clear_error_when_csv_file_missing(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("TRADING_SYSTEM_CSV_DIR", str(tmp_path))
 
     settings = AppSettings.from_cli(
@@ -131,6 +127,8 @@ def test_live_mode_kis_preflight_uses_kis_quote(monkeypatch) -> None:
     assert result.quote_summary is not None
     assert result.quote_summary["symbol"] == "005930"
     assert result.quote_summary["price"] == "70200"
+    assert result.quote_summaries == [result.quote_summary]
+    assert result.symbol_count == 1
 
 
 def test_live_preflight_supports_multi_symbol(monkeypatch) -> None:
@@ -161,10 +159,60 @@ def test_live_preflight_supports_multi_symbol(monkeypatch) -> None:
     services = build_services(settings)
     result = services.preflight_live()
 
-    # Single-symbol preflight for first symbol
     assert result.ready is True
     assert result.quote_summary is not None
     assert result.quote_summary["symbol"] == "005930"
+    assert result.quote_summaries is not None
+    assert [quote["symbol"] for quote in result.quote_summaries] == ["005930", "035720"]
+    assert result.symbol_count == 2
+    assert "symbols=2" in result.message
+
+
+def test_live_preflight_primary_quote_summary_tracks_first_requested_symbol(monkeypatch) -> None:
+    class _PartialFailingKisClient:
+        def preflight_symbol(self, symbol: str):
+            if symbol == "005930":
+                raise RuntimeError("primary quote unavailable")
+
+            class Quote:
+                def __init__(self, quote_symbol: str) -> None:
+                    self.symbol = quote_symbol
+                    self.price = Decimal("70200")
+                    self.volume = Decimal("1200")
+
+            return Quote(symbol)
+
+    monkeypatch.setattr(
+        "trading_system.app.services.KisApiClient.from_env",
+        lambda: _PartialFailingKisClient(),
+    )
+    monkeypatch.setattr(
+        "trading_system.app.services.is_krx_market_open",
+        lambda: True,
+    )
+
+    settings = AppSettings.from_cli(
+        mode="live",
+        symbols="005930,035720",
+        provider="kis",
+        broker="kis",
+        live_execution="preflight",
+        starting_cash="1000000",
+        fee_bps="5",
+        trade_quantity="1",
+        max_position="10",
+        max_notional="100000000",
+        max_order_size="5",
+    )
+    settings.validate()
+
+    services = build_services(settings)
+    result = services.preflight_live()
+
+    assert result.ready is False
+    assert result.quote_summary is None
+    assert result.quote_summaries is not None
+    assert [quote["symbol"] for quote in result.quote_summaries] == ["035720"]
 
 
 def test_live_preflight_no_broker_check_multi_symbol(monkeypatch) -> None:
@@ -190,6 +238,8 @@ def test_live_preflight_no_broker_check_multi_symbol(monkeypatch) -> None:
     result = services.preflight_live()
 
     assert result.ready is True
+    assert result.symbol_count == 2
+    assert result.quote_summaries is None
     assert result.message == "Live mode preflight passed (no orders were submitted)."
 
 

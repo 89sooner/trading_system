@@ -45,10 +45,11 @@ from trading_system.strategy.repository import StrategyProfileRepository
 
 @dataclass(slots=True)
 class PreflightCheckResult:
-    """Structured result of a single-symbol preflight check."""
     ready: bool
     reasons: list[str]
     quote_summary: dict[str, str] | None
+    quote_summaries: list[dict[str, str]] | None
+    symbol_count: int
     message: str
 
 
@@ -65,7 +66,7 @@ class AppServices:
     portfolio: PortfolioBook
     symbols: tuple[str, ...]
     logger: StructuredLogger
-    live_preflight_check: Callable[[str], PreflightCheckResult] | None = None
+    live_preflight_check: Callable[[tuple[str, ...]], PreflightCheckResult] | None = None
     portfolio_repository: PortfolioRepository | None = None
     strategies: dict[str, Strategy] | None = None
     portfolio_risk: PortfolioRiskLimits | None = None
@@ -96,12 +97,14 @@ class AppServices:
             raise RuntimeError(f"Unsupported mode '{self.mode}'.")
 
         if self.live_preflight_check is not None:
-            return self.live_preflight_check(self.symbols[0])
+            return self.live_preflight_check(self.symbols)
 
         return PreflightCheckResult(
             ready=True,
             reasons=[],
             quote_summary=None,
+            quote_summaries=None,
+            symbol_count=len(self.symbols),
             message="Live mode preflight passed (no orders were submitted).",
         )
 
@@ -118,9 +121,7 @@ class AppServices:
         if self.live_execution != LiveExecutionMode.LIVE:
             raise RuntimeError("run_live_execution requires --live-execution live.")
         if self.provider != "kis" or self.broker != "kis":
-            raise RuntimeError(
-                "Live order submission requires '--provider kis --broker kis'."
-            )
+            raise RuntimeError("Live order submission requires '--provider kis --broker kis'.")
         if not _is_live_orders_enabled():
             raise RuntimeError(
                 "Live order submission is disabled. "
@@ -140,11 +141,7 @@ class AppServices:
 
     def _merged_bars(self):
         symbol_order = {symbol: idx for idx, symbol in enumerate(self.symbols)}
-        merged = [
-            bar
-            for symbol in self.symbols
-            for bar in self.data_provider.load_bars(symbol)
-        ]
+        merged = [bar for symbol in self.symbols for bar in self.data_provider.load_bars(symbol)]
         return sorted(merged, key=lambda bar: (bar.timestamp, symbol_order[bar.symbol]))
 
 
@@ -172,9 +169,7 @@ def build_services(settings: AppSettings) -> AppServices:
         )
     else:
         portfolio = PortfolioBook(cash=settings.backtest.starting_cash)
-        logger.emit(
-            "portfolio.initialized", severity=20, payload={"cash": str(portfolio.cash)}
-        )
+        logger.emit("portfolio.initialized", severity=20, payload={"cash": str(portfolio.cash)})
 
     strategies = build_strategies(
         settings,
@@ -205,9 +200,7 @@ def build_services(settings: AppSettings) -> AppServices:
         symbols=settings.symbols,
         logger=logger,
         live_preflight_check=_build_live_preflight(settings, kis_client=kis_client),
-        portfolio_repository=(
-            portfolio_repository if settings.mode == AppMode.LIVE else None
-        ),
+        portfolio_repository=(portfolio_repository if settings.mode == AppMode.LIVE else None),
     )
 
 
@@ -240,9 +233,7 @@ def _build_data_provider(
     kis_client: KisApiClient | None,
 ) -> MarketDataProvider:
     if settings.provider == "mock":
-        bars_by_symbol = {
-            symbol: build_sample_bars(symbol=symbol) for symbol in settings.symbols
-        }
+        bars_by_symbol = {symbol: build_sample_bars(symbol=symbol) for symbol in settings.symbols}
         return InMemoryMarketDataProvider(bars_by_symbol=bars_by_symbol)
     if settings.provider == "kis":
         if kis_client is None:
@@ -265,8 +256,7 @@ def _build_data_provider(
     if missing_symbols:
         missing = ", ".join(missing_symbols)
         raise RuntimeError(
-            "CSV provider requires symbol files under "
-            f"'{csv_dir}' (missing: {missing})."
+            f"CSV provider requires symbol files under '{csv_dir}' (missing: {missing})."
         )
 
     return CsvMarketDataProvider(csv_by_symbol=csv_by_symbol)
@@ -299,14 +289,15 @@ def _build_live_preflight(
     settings: AppSettings,
     *,
     kis_client: KisApiClient | None,
-) -> Callable[[str], PreflightCheckResult] | None:
+) -> Callable[[tuple[str, ...]], PreflightCheckResult] | None:
     if settings.mode != AppMode.LIVE or kis_client is None:
         return None
 
-    def preflight(symbol: str) -> PreflightCheckResult:
+    def preflight(symbols: tuple[str, ...]) -> PreflightCheckResult:
         reasons: list[str] = []
         ready = True
-        quote_summary: dict[str, str] | None = None
+        quote_summaries: list[dict[str, str]] = []
+        primary_quote_summary: dict[str, str] | None = None
 
         market_open = is_krx_market_open()
         if not market_open:
@@ -314,24 +305,29 @@ def _build_live_preflight(
             if settings.live_execution == LiveExecutionMode.LIVE:
                 ready = False
 
-        try:
-            quote = kis_client.preflight_symbol(symbol)
-            quote_summary = {
-                "symbol": quote.symbol,
-                "price": str(quote.price),
-                "volume": str(quote.volume),
-            }
-            if quote.volume == 0:
-                reasons.append("zero_volume")
-        except Exception as exc:
-            reasons.append(f"quote_error: {exc}")
-            ready = False
+        for symbol in symbols:
+            try:
+                quote = kis_client.preflight_symbol(symbol)
+                quote_summary = {
+                    "symbol": quote.symbol,
+                    "price": str(quote.price),
+                    "volume": str(quote.volume),
+                }
+                if primary_quote_summary is None and quote.symbol == symbols[0]:
+                    primary_quote_summary = quote_summary
+                quote_summaries.append(quote_summary)
+                if quote.volume == 0:
+                    reasons.append(f"zero_volume:{symbol}")
+            except Exception as exc:
+                reasons.append(f"quote_error:{symbol}: {exc}")
+                ready = False
 
         if ready and not reasons:
             message = (
                 f"KIS live preflight passed "
-                f"(symbol={symbol}, price={quote_summary['price'] if quote_summary else 'N/A'}, "
-                f"volume={quote_summary['volume'] if quote_summary else 'N/A'}). "
+                f"(symbols={len(symbols)}, primary_symbol={symbols[0] if symbols else 'N/A'}, "
+                f"primary_price={primary_quote_summary['price'] if primary_quote_summary else 'N/A'}, "
+                f"primary_volume={primary_quote_summary['volume'] if primary_quote_summary else 'N/A'}). "
                 f"No orders were submitted."
             )
         else:
@@ -340,7 +336,9 @@ def _build_live_preflight(
         return PreflightCheckResult(
             ready=ready,
             reasons=reasons,
-            quote_summary=quote_summary,
+            quote_summary=primary_quote_summary,
+            quote_summaries=quote_summaries or None,
+            symbol_count=len(symbols),
             message=message,
         )
 
@@ -352,10 +350,7 @@ def _is_live_orders_enabled() -> bool:
 
 
 def _resolve_kis_live_sample_size(settings: AppSettings) -> int:
-    if (
-        settings.mode != AppMode.LIVE
-        or settings.live_execution != LiveExecutionMode.LIVE
-    ):
+    if settings.mode != AppMode.LIVE or settings.live_execution != LiveExecutionMode.LIVE:
         return 1
 
     configured = os.getenv("TRADING_SYSTEM_LIVE_BAR_SAMPLES", "2").strip()
@@ -376,6 +371,4 @@ def _resolve_strategy_dir() -> Path:
 
 
 def _resolve_portfolio_path() -> Path:
-    return (
-        Path(os.getenv("TRADING_SYSTEM_PORTFOLIO_DIR", "data/portfolio")) / "book.json"
-    )
+    return Path(os.getenv("TRADING_SYSTEM_PORTFOLIO_DIR", "data/portfolio")) / "book.json"

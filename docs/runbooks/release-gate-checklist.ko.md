@@ -16,7 +16,7 @@ KIS 실주문 경로는 구현되어 있지만 `TRADING_SYSTEM_ENABLE_LIVE_ORDER
 ## Gate 2: Config and secret baseline
 
 - [ ] `configs/base.yaml`이 현재 `config.settings.load_settings()` 스키마와 일치
-- [ ] `portfolio_risk`를 사용할 경우 API payload 또는 앱 런타임 설정 경로로 주입 계획이 문서화되어 있음 (`configs/base.yaml` 주석 예시는 참고용임)
+- [ ] `portfolio_risk`를 사용할 경우 API payload, 앱 런타임 설정, 또는 typed YAML 설정 경로(`configs/base.yaml`, `examples/sample_live_kis.yaml`)가 문서화되어 있음
 - [ ] 운영 환경의 `TRADING_SYSTEM_API_KEY` 또는 KIS 자격증명 주입 확인
 - [ ] 시크릿이 코드/로그/티켓에 노출되지 않음
 
@@ -26,7 +26,7 @@ KIS 실주문 경로는 구현되어 있지만 `TRADING_SYSTEM_ENABLE_LIVE_ORDER
 - [ ] `TRADING_SYSTEM_API_KEY=dummy-key uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode live --symbols BTCUSDT --live-execution paper` paper 실행 성공
 - [ ] KIS 실주문 전환 대상이면 `--provider kis --broker kis` 조합의 preflight 성공
 - [ ] 잘못된 설정 입력 시 명확한 사용자 오류 메시지 반환 확인
-- [ ] 운영자가 백테스트/라이브 루프의 다중 심볼 지원 범위와 `/api/v1/live/preflight`의 단일 심볼 제한을 모두 이해함
+- [ ] 운영자가 백테스트/라이브 루프의 다중 심볼 지원 범위와 `/api/v1/live/preflight`의 하위 호환 응답 형태(`quote_summary` vs `quote_summaries`/`symbol_count`)를 이해함
 - [ ] 대시보드 사용 대상이면 API 서버가 활성 live loop와 함께 시작되는 배포 방식이 준비됨
 
 ## Gate 4: Incident drill baseline
@@ -45,4 +45,4 @@ KIS 실주문 경로는 구현되어 있지만 `TRADING_SYSTEM_ENABLE_LIVE_ORDER
 ## Notes
 
 - KIS 실주문 경로는 존재하지만, 모든 게이트 통과 전까지 `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true`를 활성화하지 않는다.
-- 일반 대사(reconciliation) 경로는 브로커 잔고 스냅샷이 있을 때만 동작한다. 현재 KIS 어댑터는 계좌 잔고 스냅샷을 제공하지 않는다.
+- 일반 대사(reconciliation) 경로는 브로커 잔고 스냅샷이 있을 때만 동작한다. 현재 KIS 어댑터는 계좌 잔고 스냅샷을 제공하며, pending-order 신호가 불완전하면 fail-closed로 대사를 건너뛴다.

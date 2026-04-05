@@ -202,7 +202,7 @@ The intended high-value workflow today is:
 - Preconditions:
   - required credentials exist
   - KIS credentials are set when provider or broker is `kis`
-  - exactly one symbol is supplied for live API runtime
+  - at least one symbol is supplied for live API runtime
 - Main flow:
   1. The user requests live mode in preflight.
   2. The system validates runtime settings and required secrets.
@@ -211,7 +211,7 @@ The intended high-value workflow today is:
 - Outputs:
   - operator-readable preflight pass/fail message
 - Current constraints:
-  - live API runtime currently enforces a single symbol
+  - legacy consumers may still assume a single `quote_summary` field and should migrate to `quote_summaries`/`symbol_count` for multi-symbol detail
   - preflight validates the route to the provider/broker but is not a full exchange or deployment readiness checklist
 
 ### UC-07. Run live paper execution

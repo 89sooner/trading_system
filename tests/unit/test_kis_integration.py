@@ -193,6 +193,37 @@ def test_kis_api_client_inquire_balance_returns_structured_data() -> None:
     assert balance["average_costs"]["005930"] == Decimal("70000")
 
 
+def test_kis_api_client_inquire_balance_marks_pending_symbols_from_available_quantity() -> None:
+    client = KisApiClient.from_env(
+        secret_provider=_StubSecretProvider(),
+        transport=_PendingBalanceTransport(),
+    )
+
+    balance = client.inquire_balance(access_token="kis-access-token")
+
+    assert balance["pending_symbols"] == ("005930",)
+
+
+def test_kis_api_client_inquire_balance_requires_pending_signal_for_held_symbol() -> None:
+    client = KisApiClient.from_env(
+        secret_provider=_StubSecretProvider(),
+        transport=_MissingPendingSignalBalanceTransport(),
+    )
+
+    with pytest.raises(KisResponseError, match="missing ord_psbl_qty"):
+        client.inquire_balance(access_token="kis-access-token")
+
+
+def test_kis_broker_adapter_returns_none_when_pending_signal_is_unavailable() -> None:
+    client = KisApiClient.from_env(
+        secret_provider=_StubSecretProvider(),
+        transport=_MissingPendingSignalBalanceTransport(),
+    )
+    adapter = KisBrokerAdapter(client=client)
+
+    assert adapter.get_account_balance() is None
+
+
 def test_is_krx_market_open_during_trading_hours() -> None:
     # Monday at 10:00 KST
     now = datetime(2024, 1, 8, 10, 0, 0, tzinfo=KST)
@@ -328,6 +359,43 @@ class _BalanceTransport:
                         "hldg_qty": "10",
                         "pchs_avg_pric": "70000",
                         "ord_psbl_qty": "10",
+                    },
+                ],
+                "output2": [{"dnca_tot_amt": "5000000"}],
+            },
+        )
+
+
+class _PendingBalanceTransport:
+    def request(self, method: str, url: str, *, headers: dict[str, str], body=None) -> HttpResponse:
+        del method, url, headers, body
+        return HttpResponse(
+            status_code=200,
+            body={
+                "output1": [
+                    {
+                        "pdno": "005930",
+                        "hldg_qty": "10",
+                        "pchs_avg_pric": "70000",
+                        "ord_psbl_qty": "7",
+                    },
+                ],
+                "output2": [{"dnca_tot_amt": "5000000"}],
+            },
+        )
+
+
+class _MissingPendingSignalBalanceTransport:
+    def request(self, method: str, url: str, *, headers: dict[str, str], body=None) -> HttpResponse:
+        del method, url, headers, body
+        return HttpResponse(
+            status_code=200,
+            body={
+                "output1": [
+                    {
+                        "pdno": "005930",
+                        "hldg_qty": "10",
+                        "pchs_avg_pric": "70000",
                     },
                 ],
                 "output2": [{"dnca_tot_amt": "5000000"}],

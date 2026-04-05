@@ -307,15 +307,10 @@ class KisApiClient:
                     item.get("pchs_avg_pric"), "pchs_avg_pric", default=Decimal("0")
                 )
                 average_costs[symbol] = avg_price
-                ord_psbl_qty = _as_decimal(
-                    item.get("ord_psbl_qty"), "ord_psbl_qty", default=hldg_qty
-                )
-                if ord_psbl_qty < hldg_qty:
+                if _has_pending_balance_signal(item=item, symbol=symbol, holding_qty=hldg_qty):
                     pending_symbols.append(symbol)
 
-        cash = _as_decimal(
-            output2[0].get("dnca_tot_amt"), "dnca_tot_amt", default=Decimal("0")
-        )
+        cash = _as_decimal(output2[0].get("dnca_tot_amt"), "dnca_tot_amt", default=Decimal("0"))
 
         return {
             "cash": cash,
@@ -367,6 +362,22 @@ class KisApiClient:
         )
 
 
+def _has_pending_balance_signal(
+    *,
+    item: dict[str, Any],
+    symbol: str,
+    holding_qty: Decimal,
+) -> bool:
+    raw_available_qty = item.get("ord_psbl_qty")
+    if raw_available_qty is None or str(raw_available_qty).strip() == "":
+        raise KisResponseError(
+            f"KIS balance response missing ord_psbl_qty for held symbol '{symbol}'."
+        )
+
+    available_qty = _as_decimal(raw_available_qty, "ord_psbl_qty")
+    return available_qty < holding_qty
+
+
 def _as_dict(value: Any, field_name: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise KisResponseError(f"KIS response field '{field_name}' was missing or invalid.")
@@ -397,13 +408,9 @@ def _validate_domestic_symbol(symbol: str) -> str:
 def _validate_quote(quote: KisQuote) -> KisQuote:
     """Validate that a KIS quote has sane field values."""
     if quote.price <= 0:
-        raise KisResponseError(
-            f"KIS quote for '{quote.symbol}' has invalid price: {quote.price}"
-        )
+        raise KisResponseError(f"KIS quote for '{quote.symbol}' has invalid price: {quote.price}")
     if quote.volume < 0:
-        raise KisResponseError(
-            f"KIS quote for '{quote.symbol}' has invalid volume: {quote.volume}"
-        )
+        raise KisResponseError(f"KIS quote for '{quote.symbol}' has invalid volume: {quote.volume}")
     return quote
 
 

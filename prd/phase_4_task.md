@@ -1,5 +1,11 @@
 # Phase 4 Task Breakdown
 
+## Status Note (2026-03-31)
+
+- 이 문서는 React frontend 전환 작업의 historical task record다.
+- 아래 unchecked 항목 중 manual browser verification 성격의 항목은 "current PRD blocker"가 아니라 manual-pending verification history로 본다.
+- `frontend/routeTree.gen.ts` 관련 체크는 당시 delivery bookkeeping 메모로 유지하며, 현재 활성 backlog는 `prd/phase_6_prd.md` 기준으로 추적한다.
+
 ## Epic A - Scaffold and Core Infrastructure
 
 - [x] Create `frontend/package.json` with React 19, TanStack Router v1, TanStack Query v5, Zustand v5, Recharts v2, shadcn/ui Radix primitives, lucide-react, Tailwind CSS v4, Vite 6

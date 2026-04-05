@@ -63,6 +63,7 @@ def test_live_preflight_returns_ok_message(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     assert "preflight passed" in response.json()["message"]
+    assert response.json()["symbol_count"] == 1
 
 
 def test_settings_validation_errors_return_422() -> None:
@@ -115,3 +116,33 @@ def test_live_preflight_returns_readiness_without_executing(monkeypatch) -> None
     body = response.json()
     assert "ready" in body
     assert "reasons" in body
+    assert body["symbol_count"] == 1
+    assert body["quote_summary"]["symbol"] == "005930"
+
+
+def test_live_preflight_accepts_multiple_symbols_for_kis(monkeypatch) -> None:
+    class _StubServicesKisClient:
+        def preflight_symbol(self, symbol: str):
+            class Quote:
+                def __init__(self, quote_symbol: str) -> None:
+                    self.symbol = quote_symbol
+                    self.price = "70000"
+                    self.volume = "1000"
+
+            return Quote(symbol)
+
+    monkeypatch.setattr(
+        "trading_system.app.services.KisApiClient.from_env",
+        lambda: _StubServicesKisClient(),
+    )
+    client = _build_client()
+    payload = _base_payload(mode="live", provider="kis", broker="kis")
+    payload["symbols"] = ["005930", "035720"]
+
+    response = client.post("/api/v1/live/preflight", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["symbol_count"] == 2
+    assert body["quote_summary"]["symbol"] == "005930"
+    assert [quote["symbol"] for quote in body["quote_summaries"]] == ["005930", "035720"]
