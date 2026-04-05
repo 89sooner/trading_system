@@ -363,7 +363,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
 
 ### EN
 
-The repository now includes a React frontend under `frontend/`, built around TanStack Router and React Query. Current user-facing routes are:
+The repository now includes a Next.js frontend under `frontend/`. Current user-facing routes are:
 
 - `/`: create a new backtest run with optional strategy profile selection
 - `/patterns`: train, preview, save, and list pattern sets
@@ -372,7 +372,19 @@ The repository now includes a React frontend under `frontend/`, built around Tan
 - `/runs` and `/runs/$runId`: inspect run history, result charts, signals, fills, rejections, and trade analytics
 - `/dashboard`: inspect live loop status, positions, recent events, and control actions (`pause`, `resume`, `reset`)
 
-Run backend and frontend together in two terminals:
+**One-stop script (recommended):**
+
+```bash
+./scripts/run_all.sh            # Start both backend API + frontend dev server
+./scripts/run_all.sh --backend  # Backend only
+./scripts/run_all.sh --frontend # Frontend only
+```
+
+- The script auto-creates `.venv`, installs Python/npm dependencies on first run, copies `.env.local` from the example file, and starts both servers in a single process.
+- Backend defaults to port `8000`, frontend to port `3000`. Override with `API_PORT` and `FRONTEND_PORT` environment variables.
+- Press `Ctrl+C` to stop all services.
+
+**Manual two-terminal alternative:**
 
 ```bash
 # Terminal A: backend API
@@ -382,7 +394,7 @@ UV_CACHE_DIR=.uv-cache uv run --python .venv/bin/python --no-sync -m uvicorn tra
 cd frontend && npm install && npm run dev
 ```
 
-Open `http://127.0.0.1:5173/`.
+Open `http://localhost:3000/`.
 
 If your backend runs on a different port (for example `9000`), set the **API Base URL** field in the frontend UI to:
 
@@ -424,7 +436,7 @@ The dashboard route only works when the backend API is started with an attached 
 
 ### KO
 
-저장소에는 `frontend/` 경로의 React 프론트엔드가 포함되어 있으며, TanStack Router와 React Query를 사용합니다. 현재 사용자 진입 라우트는 다음과 같습니다.
+저장소에는 `frontend/` 경로의 Next.js 프론트엔드가 포함되어 있습니다. 현재 사용자 진입 라우트는 다음과 같습니다.
 
 - `/`: 전략 프로필 선택을 포함한 신규 백테스트 실행
 - `/patterns`: 패턴셋 학습, 미리보기, 저장, 목록 조회
@@ -433,7 +445,19 @@ The dashboard route only works when the backend API is started with an attached 
 - `/runs`, `/runs/$runId`: 실행 이력, 결과 차트, 신호, 체결/거절, 거래 애널리틱스 조회
 - `/dashboard`: 라이브 루프 상태, 포지션, 최근 이벤트, 제어 액션(`pause`, `resume`, `reset`) 조회
 
-백엔드와 프론트를 각각 다른 터미널에서 실행하세요:
+**원스톱 스크립트 (권장):**
+
+```bash
+./scripts/run_all.sh            # 백엔드 API + 프론트엔드 개발 서버 동시 실행
+./scripts/run_all.sh --backend  # 백엔드만 실행
+./scripts/run_all.sh --frontend # 프론트엔드만 실행
+```
+
+- 스크립트는 첫 실행 시 `.venv` 생성, Python/npm 의존성 설치, `.env.local` 예제 파일 복사를 자동으로 수행하고 두 서버를 하나의 프로세스로 시작합니다.
+- 백엔드 기본 포트는 `8000`, 프론트엔드는 `3000`입니다. `API_PORT`, `FRONTEND_PORT` 환경변수로 변경할 수 있습니다.
+- `Ctrl+C`로 모든 서비스를 한 번에 종료합니다.
+
+**수동 두 터미널 방식 (대안):**
 
 ```bash
 # 터미널 A: 백엔드 API
@@ -443,7 +467,7 @@ UV_CACHE_DIR=.uv-cache uv run --python .venv/bin/python --no-sync -m uvicorn tra
 cd frontend && npm install && npm run dev
 ```
 
-브라우저에서 `http://127.0.0.1:5173/`를 열면 됩니다.
+브라우저에서 `http://localhost:3000/`를 열면 됩니다.
 
 백엔드 포트를 다르게 쓴다면(예: `9000`), 프론트 화면의 **API Base URL** 입력값을 아래처럼 바꿔 저장하세요.
 
