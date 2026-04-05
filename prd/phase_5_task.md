@@ -7,6 +7,12 @@
 - 각 slice가 끝날 때 `Execution Log`를 갱신한다.
 - PRD 수준 범위는 `phase_5_prd.md`, 상세 설계와 순서는 `phase_5_implementation_plan.md`를 기준으로 한다.
 
+## Status Note (2026-03-31)
+
+- Phase 5는 이 문서 기준으로 closed 상태다.
+- `### Risks / follow-up`에 남은 4개 항목은 active backlog로 승격되었으며, Phase 6 초안은 `prd/phase_6_prd.md`를 따른다.
+- 이 문서의 체크리스트와 execution log는 historical delivery record로 유지한다.
+
 ## Phase 5-0. Baseline Alignment
 
 - [x] `/api/v1/live/preflight` 단일 심볼 제약을 Phase 5 범위로 고정

@@ -79,6 +79,6 @@ The `/dashboard` UI shows:
 
 ## Known Constraints
 
-1. `/api/v1/live/preflight` processes the first symbol only when multiple symbols are provided
-2. KIS unresolved-order detection uses `hldg_qty != ord_psbl_qty` heuristic
-3. Reconciliation interval is environment-configurable but not YAML-configurable
+1. `/api/v1/live/preflight` now supports multiple symbols; legacy consumers may still read `quote_summary`, while newer consumers should prefer `quote_summaries` plus `symbol_count`
+2. KIS unresolved-order detection currently depends on broker-reported `ord_psbl_qty` from the balance snapshot; if that signal is unavailable for a held symbol, reconciliation is skipped fail-closed instead of assuming no pending order
+3. Reconciliation interval can be declared in YAML as `app.reconciliation_interval`, but `TRADING_SYSTEM_RECONCILIATION_INTERVAL` remains the runtime env override for the live loop

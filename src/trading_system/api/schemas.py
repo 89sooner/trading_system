@@ -106,6 +106,8 @@ class LivePreflightResponseDTO(BaseModel):
     ready: bool = True
     reasons: list[str] = Field(default_factory=list)
     quote_summary: dict[str, str] | None = None
+    quote_summaries: list[dict[str, str]] | None = None
+    symbol_count: int = 1
     paper_result: BacktestResultDTO | None = None
 
 

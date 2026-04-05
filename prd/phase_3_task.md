@@ -1,5 +1,12 @@
 # Phase 3 Task Breakdown
 
+## Status Note (2026-03-31)
+
+- 이 문서는 Phase 3 시점의 계획/추적 기록이며, 이후 `phase_3_5`, `phase_4`, `phase_5` 문서가 일부 범위를 대체하거나 재정의했다.
+- 아래 unchecked 항목은 모두 현재 활성 backlog를 의미하지 않는다.
+- 특히 frontend/dashboard 관련 항목과 single-symbol 제약 관련 항목은 이후 phase 문서에서 superseded 또는 re-scoped 되었다.
+- 현재 follow-up 추적은 `prd/phase_6_prd.md`를 우선 기준으로 삼는다.
+
 ## Epic A - Runtime State And Dashboard
 - [x] Define an authoritative runtime state/control object shared by the live loop and API layer
 - [x] Refactor live startup so the dashboard reads real loop state, heartbeat, and uptime from that authority

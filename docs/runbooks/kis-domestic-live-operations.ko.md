@@ -79,6 +79,6 @@ uv run -m trading_system.app.main --mode live --provider kis --broker kis --symb
 
 ## 알려진 제약사항
 
-1. `/api/v1/live/preflight`는 다중 심볼 제공 시 첫 번째 심볼만 처리
-2. KIS 미체결 주문 감지는 `hldg_qty != ord_psbl_qty` 휴리스틱 사용
-3. 대사 간격은 환경변수로 설정 가능하나 YAML 설정은 미지원
+1. `/api/v1/live/preflight`는 이제 다중 심볼을 지원하며, 하위 호환용 `quote_summary`와 심볼별 세부 상태용 `quote_summaries`/`symbol_count`를 함께 반환한다
+2. KIS 미체결 주문 감지는 현재 브로커 잔고 스냅샷의 `ord_psbl_qty` 신호에 의존하며, held symbol에 이 값이 없으면 미체결 없음으로 가정하지 않고 fail-closed로 대사를 건너뛴다
+3. 대사 간격은 YAML의 `app.reconciliation_interval`로도 선언할 수 있지만, 라이브 루프 런타임에서는 `TRADING_SYSTEM_RECONCILIATION_INTERVAL` 환경변수가 여전히 우선 override 역할을 한다

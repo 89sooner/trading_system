@@ -74,7 +74,7 @@
 - 브로커 잔고 스냅샷 기반 reconciliation helper
 
 현재 한계:
-- durable order lifecycle store가 없고, 현재 KIS adapter는 거래소 잔고 대사를 위한 계좌 스냅샷을 아직 제공하지 않습니다.
+- durable order lifecycle store가 없고, KIS reconciliation은 아직 전용 unresolved-order API가 아니라 잔고 스냅샷의 pending-order 신호에 의존합니다.
 
 ### Portfolio
 
@@ -120,14 +120,14 @@
 - 대시보드 제어는 공식적으로 `pause`, `resume`, `reset`을 지원합니다.
 
 현재 한계:
-- `/api/v1/live/preflight`는 런타임 루프와 백테스트 엔진이 다중 심볼을 처리할 수 있음에도 요청당 정확히 1개 심볼만 허용합니다.
+- `/api/v1/live/preflight`는 이제 다중 심볼을 허용하지만, 기존 소비자는 여전히 단일 `quote_summary` 필드만 가정할 수 있어 `quote_summaries`/`symbol_count`로의 전환이 필요할 수 있습니다.
 
 ## 설정과 예시
 
 현재 설정은 두 레이어로 나뉩니다.
 
-- `config.settings.load_settings`는 환경, 심볼, execution broker, risk, backtest 필드, API CORS 설정에 대한 기본 YAML 스키마를 검증합니다.
-- `app.settings.AppSettings`와 API request DTO는 `live_execution`, 전략 설정, `portfolio_risk` 같은 런타임 전용 필드를 검증합니다.
+- `config.settings.load_settings`는 환경, 심볼, execution broker, risk, 선택적 `portfolio_risk`, backtest 필드, API CORS 설정에 대한 기본 YAML 스키마를 검증합니다.
+- `app.settings.AppSettings`와 API request DTO는 `live_execution`, 전략 설정 같은 런타임 전용 필드를 검증하며, `portfolio_risk` 의미는 typed YAML loader와 공유합니다.
 
 예시와 운영자 아티팩트:
 
@@ -137,7 +137,7 @@
 
 참고:
 
-- `configs/base.yaml`의 주석 처리된 `portfolio_risk` 블록은 참고 예시일 뿐이며, `config.settings.load_settings`는 현재 이를 파싱하지 않습니다.
+- `configs/base.yaml`과 `examples/sample_live_kis.yaml`은 이제 `portfolio_risk`와 `app.reconciliation_interval`에 대한 활성 typed 예시를 포함합니다.
 - 전략 프로필과 패턴 세트 저장은 데이터베이스가 아니라 파일 기반입니다.
 
 ## 테스트 커버리지 스냅샷
@@ -153,13 +153,13 @@
 
 1. **Durable run storage**: 백테스트 실행 결과와 메타데이터를 위한 영속 저장소와 비동기 job 모델이 필요합니다.
 2. **Frontend live orchestration**: live loop 프로세스를 시작, 연결, 관리하는 1급 UI 흐름이 아직 없습니다.
-3. **Config parity**: `portfolio_risk`, 전략 선택 같은 런타임 필드가 typed YAML loader에 아직 완전히 반영되지 않았습니다.
-4. **Exchange snapshot integration**: 일반 reconciliation 경로는 존재하지만, KIS account-balance snapshot 지원은 아직 없습니다.
+3. **Config parity**: 전략 선택과 일부 런타임 전용 필드는 아직 typed YAML loader에 완전히 반영되지 않았습니다.
+4. **Exchange snapshot integration**: 일반 reconciliation 경로와 KIS balance snapshot은 연결되었지만, pending-order authority는 아직 전용 unresolved-order API가 아니라 잔고 스냅샷 신호에 의존합니다.
 5. **Operational hardening**: 더 강한 auth, alerting, audit export, deployment guidance가 아직 완전 관리형 트레이딩 플랫폼 수준은 아닙니다.
 
 ## 권장 다음 백로그
 
 1. 영속 백테스트 실행 저장소와 비동기 실행 모델을 추가합니다.
-2. 특히 KIS를 포함한 브로커 연동에서 reconciliation용 계좌 스냅샷을 노출합니다.
-3. `portfolio_risk`와 전략 런타임 설정을 YAML의 1급 필드로 만들지, API/runtime 전용으로 유지할지 결정합니다.
+2. 특히 KIS를 포함한 브로커 연동에서 reconciliation용 unresolved/open-order source를 더 강하게 만듭니다.
+3. 추가 전략 런타임 설정을 YAML의 1급 필드로 만들지, API/runtime 전용으로 유지할지 결정합니다.
 4. API 서버, live loop, dashboard를 함께 시작하는 배포/운영 문서를 추가합니다.

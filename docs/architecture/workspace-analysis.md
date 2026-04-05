@@ -74,7 +74,7 @@ Execution now has explicit, reusable boundaries:
 - reconciliation helper for broker balance snapshots
 
 Current limitation:
-- There is no durable order lifecycle store, and the current KIS adapter does not yet expose account balance snapshots for exchange-level reconciliation.
+- There is no durable order lifecycle store, and KIS reconciliation still depends on balance-snapshot pending-order signals rather than a dedicated unresolved-order API.
 
 ### Portfolio
 
@@ -120,14 +120,14 @@ The operator-facing application surface now exists in addition to the CLI.
 - Dashboard control officially supports `pause`, `resume`, and `reset`
 
 Current limitation:
-- `/api/v1/live/preflight` still enforces exactly one symbol per request even though the runtime loop and backtest engine can process multiple symbols.
+- `/api/v1/live/preflight` now accepts multiple symbols, but legacy consumers may still assume a single `quote_summary` field instead of `quote_summaries`/`symbol_count`.
 
 ## Configuration and examples
 
 Configuration is currently split between two layers:
 
-- `config.settings.load_settings` validates the baseline YAML schema used for environment, symbols, execution broker, risk, backtest fields, and API CORS settings
-- `app.settings.AppSettings` and API request DTOs validate runtime-only fields such as `live_execution`, strategy configuration, and `portfolio_risk`
+- `config.settings.load_settings` validates the baseline YAML schema used for environment, symbols, execution broker, risk, optional `portfolio_risk`, backtest fields, and API CORS settings
+- `app.settings.AppSettings` and API request DTOs validate runtime-only fields such as `live_execution` and strategy configuration, while sharing `portfolio_risk` semantics with the typed YAML loader
 
 Examples and operator artifacts include:
 
@@ -137,7 +137,7 @@ Examples and operator artifacts include:
 
 Notes:
 
-- The commented `portfolio_risk` block in `configs/base.yaml` is a reference example only; `config.settings.load_settings` does not currently parse it.
+- `configs/base.yaml` and `examples/sample_live_kis.yaml` now contain active typed examples for `portfolio_risk` and `app.reconciliation_interval`.
 - Strategy/profile and pattern-set storage is file backed, not database backed.
 
 ## Test coverage snapshot
@@ -153,13 +153,13 @@ This gives a strong regression baseline for deterministic replay, runtime valida
 
 1. **Durable run storage**: backtest results and run metadata need persistent storage and, ideally, asynchronous job handling.
 2. **Frontend live orchestration**: there is no first-class UI flow to start, attach, and manage the live loop process lifecycle.
-3. **Config parity**: runtime fields such as `portfolio_risk` and strategy selection are not yet fully represented in the typed YAML loader.
-4. **Exchange snapshot integration**: generic reconciliation exists, but KIS account-balance snapshot support is still missing.
+3. **Config parity**: strategy selection and some runtime-only fields are still not fully represented in the typed YAML loader.
+4. **Exchange snapshot integration**: generic reconciliation exists and KIS balance snapshots are wired, but pending-order authority still depends on balance-snapshot signals rather than a dedicated unresolved-order API.
 5. **Operational hardening**: richer auth, alerting, audit export, and deployment guidance are still lighter than a fully managed trading platform would require.
 
 ## Recommended next backlog
 
 1. Add a persistent backtest run repository and asynchronous run execution model.
-2. Extend broker integrations, especially KIS, to expose account balance snapshots for reconciliation.
-3. Decide whether `portfolio_risk` and strategy runtime settings should become first-class YAML fields or remain API/runtime-only inputs.
+2. Improve broker integrations, especially KIS, to expose a stronger unresolved/open-order source for reconciliation.
+3. Decide whether additional strategy runtime settings should become first-class YAML fields or remain API/runtime-only inputs.
 4. Add deployment/operator documentation for starting the API server, live loop, and dashboard together.

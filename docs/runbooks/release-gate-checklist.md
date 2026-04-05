@@ -15,7 +15,7 @@ The KIS live-order path exists, but it is explicitly gated behind `TRADING_SYSTE
 ## Gate 2: Config and secret baseline
 
 - [ ] `configs/base.yaml` matches the current `config.settings.load_settings()` schema
-- [ ] If `portfolio_risk` is used, the injection path is documented through API payloads or app runtime settings (`configs/base.yaml` comments are reference-only today)
+- [ ] If `portfolio_risk` is used, the injection path is documented through API payloads, app runtime settings, or typed YAML config (`configs/base.yaml`, `examples/sample_live_kis.yaml`)
 - [ ] Production environment injection for `TRADING_SYSTEM_API_KEY` or KIS credentials is confirmed
 - [ ] No secrets are exposed in code, logs, or tickets
 
@@ -25,7 +25,7 @@ The KIS live-order path exists, but it is explicitly gated behind `TRADING_SYSTE
 - [ ] `TRADING_SYSTEM_API_KEY=dummy-key uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode live --symbols BTCUSDT --live-execution paper` succeeds
 - [ ] If transitioning to KIS live orders, preflight succeeds with `--provider kis --broker kis`
 - [ ] Invalid configuration inputs return clear user-facing errors
-- [ ] Operators understand both the multi-symbol capabilities of the backtest/live loop and the single-symbol restriction of `/api/v1/live/preflight`
+- [ ] Operators understand the multi-symbol capabilities of the backtest/live loop and the backward-compatible `/api/v1/live/preflight` response shape (`quote_summary` vs `quote_summaries`/`symbol_count`)
 - [ ] If the dashboard will be used, deployment is ready to start the API server with an attached live loop
 
 ## Gate 4: Incident drill baseline
@@ -44,4 +44,4 @@ The KIS live-order path exists, but it is explicitly gated behind `TRADING_SYSTE
 ## Notes
 
 - Even though the KIS live-order path exists, do not enable `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true` until all gates are complete.
-- Generic reconciliation only works when the broker exposes account balance snapshots. The current KIS adapter does not expose account balance snapshots.
+- Generic reconciliation only works when the broker exposes account balance snapshots. The current KIS adapter does expose balance snapshots, and reconciliation will skip fail-closed if the pending-order signal is incomplete.
