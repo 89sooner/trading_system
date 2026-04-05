@@ -38,7 +38,7 @@ This repository is a Python trading-system workspace.
 
 ## Skills in this repo
 
-Use repository skills from `.codex/skills/` or `.opencode/skills/` when the task matches their purpose.
+Use repository skills from the local runtime skill directories such as `.claude/skills/`, `.codex/skills/`, `.gemini/skills/`, and `.opencode/skills/` when those directories are present and the task matches their purpose.
 
 - `feature-planner`: turn a request into a concrete implementation plan.
 - `python-implementer`: implement or refactor Python code safely.
@@ -47,3 +47,33 @@ Use repository skills from `.codex/skills/` or `.opencode/skills/` when the task
 - `verify-loop-inspector`: verify implementation against approved plan, validation evidence, and repository policy, then decide pass/fix/re-plan with next-loop handoff.
 - `build-mode-executor`: implement approved plans with strict scope control, run validation in build/lint/test/smoke priority, and report exact implementation evidence.
 - `plan-mode-orchestrator`: structure requests into implementation-ready plans with explicit scope, risks, assumptions, and build handoff.
+- `frontend-product-designer`: design and implement production-grade React/Next.js frontends with stronger structure, accessibility, responsive behavior, and verification loops.
+- `phase-planner`: create a new phase PRD, implementation plan, and task tracking document set under `prd/`.
+- `claude-code-session-handoff`: preserve context across long Claude Code sessions by creating a concrete handoff and resume path.
+
+## CLI and repository efficiency defaults
+
+- Prefer `rg` (ripgrep) over `grep` for text search.
+- Prefer `fd` over `find` for simple file discovery when available.
+- Prefer `jq` for JSON inspection instead of dumping raw JSON with `cat`.
+- Prefer `git grep` when searching only tracked files.
+- Prefer targeted reads such as `sed`, `head`, and `tail` over full-file `cat`.
+- Before using legacy commands such as `grep` or `find`, first check whether `rg`, `fd`, and `jq` are available and use them by default.
+- Always minimize command output size to improve speed and reduce token usage.
+- Read narrowly first, then expand only if needed.
+
+## Required tool bootstrap
+
+If the following tools are missing, install them before doing broad repository analysis:
+
+- `rg` / `ripgrep`
+- `fd` or `fdfind`
+- `jq`
+
+Tool availability checks:
+
+```bash
+command -v rg
+command -v fd || command -v fdfind
+command -v jq
+```
