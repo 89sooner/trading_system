@@ -1,0 +1,3 @@
+interface:
+  display_name: "Claude Code Session Handoff"
+  short_description: "Preserve context, write HANDOFF.md, and resume Claude Code work cleanly"
