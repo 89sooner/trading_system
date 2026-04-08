@@ -22,6 +22,23 @@ const schema = z.object({
   tradeQuantity: z.string().optional(),
   labelMap: z.string().optional(),
   thresholds: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.tradeQuantity) {
+    const n = Number(data.tradeQuantity)
+    if (!Number.isFinite(n)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Must be a valid number',
+        path: ['tradeQuantity'],
+      })
+    } else if (n <= 0) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Must be positive',
+        path: ['tradeQuantity'],
+      })
+    }
+  }
 })
 
 type FormValues = z.infer<typeof schema>
@@ -58,7 +75,11 @@ export function StrategyForm() {
           pattern_set_id: values.patternSetId,
           label_to_side: parseMap(values.labelMap ?? ''),
           trade_quantity: values.tradeQuantity ? Number(values.tradeQuantity) : null,
-          threshold_overrides: parseMap(values.thresholds ?? '', (v) => Number(v)),
+          threshold_overrides: parseMap(values.thresholds ?? '', (v) => {
+            const n = Number(v)
+            if (!Number.isFinite(n)) throw new Error(`Invalid threshold value: "${v}"`)
+            return n
+          }),
         },
       })
       setServerMessage({ text: `Saved: ${created.strategy_id}`, isError: false })
@@ -112,6 +133,7 @@ export function StrategyForm() {
       <div className="space-y-1">
         <Label htmlFor="tradeQuantity">Trade Quantity</Label>
         <Input id="tradeQuantity" type="number" step="any" placeholder="0.1" {...register('tradeQuantity')} />
+        {errors.tradeQuantity && <p className="text-xs text-danger">{errors.tradeQuantity.message}</p>}
       </div>
 
       <div className="space-y-1">

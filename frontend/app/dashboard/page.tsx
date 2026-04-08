@@ -8,9 +8,10 @@ import { PositionsPanel } from '@/components/dashboard/PositionsPanel'
 import { EventTimeline } from '@/components/dashboard/EventTimeline'
 import { StatusIndicator } from '@/components/domain/StatusIndicator'
 import { ChartContainer } from '@/components/domain/ChartContainer'
+import { EquityChart } from '@/components/dashboard/EquityChart'
 
 export default function DashboardPage() {
-  const { statusQuery, positionsQuery, eventsQuery, isLive } = useDashboardPolling()
+  const { statusQuery, positionsQuery, eventsQuery, isLive, equitySeries } = useDashboardPolling()
 
   const loading = statusQuery.isLoading || positionsQuery.isLoading
 
@@ -41,8 +42,8 @@ export default function DashboardPage() {
         <PositionsPanel data={positionsQuery.data} loading={positionsQuery.isLoading} />
         <div className="space-y-2">
           <h2 className="text-sm font-medium">Equity Curve</h2>
-          <ChartContainer loading={loading} empty={true} emptyMessage="Chart available when positions are active.">
-            {null}
+          <ChartContainer loading={loading} empty={equitySeries.length === 0} emptyMessage="Chart available when positions are active.">
+            <EquityChart data={equitySeries} />
           </ChartContainer>
         </div>
       </div>

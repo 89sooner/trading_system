@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
+import { useForm, Controller } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -14,12 +17,25 @@ import { listStrategyProfiles } from '@/lib/api/strategies'
 import { useRunsStore } from '@/store/runsStore'
 import { userMessageForError } from '@/lib/api/client'
 
+const positiveNumber = z.number().finite().positive()
+
+const schema = z.object({
+  symbol: z.string().min(1, 'Required'),
+  strategyProfileId: z.string().optional(),
+  maxPosition: positiveNumber,
+  maxNotional: positiveNumber,
+  maxOrderSize: positiveNumber,
+  startingCash: positiveNumber,
+  feeBps: z.number().finite().nonnegative(),
+  tradeQuantity: positiveNumber,
+})
+
+type FormValues = z.infer<typeof schema>
+
 export default function CreateRunPage() {
   const router = useRouter()
   const { saveRun } = useRunsStore()
-  const [strategyProfileId, setStrategyProfileId] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [isPending, setIsPending] = useState(false)
+  const [serverError, setServerError] = useState<string | null>(null)
 
   const { data: strategies } = useQuery({
     queryKey: ['strategies'],
@@ -27,29 +43,45 @@ export default function CreateRunPage() {
     staleTime: 30_000,
   })
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const fd = new FormData(e.currentTarget)
-    setError(null)
-    setIsPending(true)
+  const {
+    register,
+    handleSubmit,
+    control,
+    formState: { errors, isSubmitting },
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      symbol: '',
+      strategyProfileId: '',
+      maxPosition: 1.0,
+      maxNotional: 100000,
+      maxOrderSize: 0.25,
+      startingCash: 100000,
+      feeBps: 5,
+      tradeQuantity: 0.1,
+    },
+  })
+
+  async function onSubmit(values: FormValues) {
+    setServerError(null)
     try {
-      const symbol = String(fd.get('symbol')).trim().toUpperCase()
+      const symbol = values.symbol.trim().toUpperCase()
       const result = await createBacktestRun({
         mode: 'backtest',
         symbols: [symbol],
         risk: {
-          max_position: Number(fd.get('maxPosition')),
-          max_notional: Number(fd.get('maxNotional')),
-          max_order_size: Number(fd.get('maxOrderSize')),
+          max_position: values.maxPosition,
+          max_notional: values.maxNotional,
+          max_order_size: values.maxOrderSize,
         },
         backtest: {
-          starting_cash: Number(fd.get('startingCash')),
-          fee_bps: Number(fd.get('feeBps')),
-          trade_quantity: Number(fd.get('tradeQuantity')),
+          starting_cash: values.startingCash,
+          fee_bps: values.feeBps,
+          trade_quantity: values.tradeQuantity,
         },
         strategy: {
           type: 'pattern_signal',
-          profile_id: strategyProfileId || null,
+          profile_id: values.strategyProfileId || null,
         },
       })
 
@@ -57,15 +89,13 @@ export default function CreateRunPage() {
         runId: result.run_id,
         status: result.status,
         symbol,
-        strategyProfile: strategyProfileId || null,
+        strategyProfile: values.strategyProfileId || null,
         createdAt: new Date().toISOString(),
       })
 
       router.push(`/runs/${result.run_id}`)
     } catch (err) {
-      setError(userMessageForError(err))
-    } finally {
-      setIsPending(false)
+      setServerError(userMessageForError(err))
     }
   }
 
@@ -79,54 +109,67 @@ export default function CreateRunPage() {
       <Card>
         <CardHeader><CardTitle>Run Configuration</CardTitle></CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label htmlFor="symbol">Symbol</Label>
-              <Input id="symbol" name="symbol" required placeholder="BTCUSDT" />
+              <Input id="symbol" placeholder="BTCUSDT" {...register('symbol')} />
+              {errors.symbol && <p className="text-xs text-danger">{errors.symbol.message}</p>}
             </div>
             <div className="space-y-1">
               <Label>Strategy Profile</Label>
-              <Select value={strategyProfileId} onValueChange={(v) => setStrategyProfileId(v ?? '')}>
-                <SelectTrigger><SelectValue placeholder="Select strategy" /></SelectTrigger>
-                <SelectContent>
-                  {(strategies ?? []).map((s) => (
-                    <SelectItem key={s.strategy_id} value={s.strategy_id}>
-                      {s.name} ({s.strategy_id})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Controller
+                control={control}
+                name="strategyProfileId"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={(v) => field.onChange(v ?? '')}>
+                    <SelectTrigger><SelectValue placeholder="Select strategy" /></SelectTrigger>
+                    <SelectContent>
+                      {(strategies ?? []).map((s) => (
+                        <SelectItem key={s.strategy_id} value={s.strategy_id}>
+                          {s.name} ({s.strategy_id})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </div>
             <div className="space-y-1">
               <Label htmlFor="maxPosition">Max Position</Label>
-              <Input id="maxPosition" name="maxPosition" type="number" step="any" defaultValue="1.0" />
+              <Input id="maxPosition" type="number" step="any" {...register('maxPosition', { valueAsNumber: true })} />
+              {errors.maxPosition && <p className="text-xs text-danger">{errors.maxPosition.message}</p>}
             </div>
             <div className="space-y-1">
               <Label htmlFor="maxNotional">Max Notional</Label>
-              <Input id="maxNotional" name="maxNotional" type="number" defaultValue="100000" />
+              <Input id="maxNotional" type="number" {...register('maxNotional', { valueAsNumber: true })} />
+              {errors.maxNotional && <p className="text-xs text-danger">{errors.maxNotional.message}</p>}
             </div>
             <div className="space-y-1">
               <Label htmlFor="maxOrderSize">Max Order Size</Label>
-              <Input id="maxOrderSize" name="maxOrderSize" type="number" step="any" defaultValue="0.25" />
+              <Input id="maxOrderSize" type="number" step="any" {...register('maxOrderSize', { valueAsNumber: true })} />
+              {errors.maxOrderSize && <p className="text-xs text-danger">{errors.maxOrderSize.message}</p>}
             </div>
             <div className="space-y-1">
               <Label htmlFor="startingCash">Starting Cash</Label>
-              <Input id="startingCash" name="startingCash" type="number" defaultValue="100000" />
+              <Input id="startingCash" type="number" {...register('startingCash', { valueAsNumber: true })} />
+              {errors.startingCash && <p className="text-xs text-danger">{errors.startingCash.message}</p>}
             </div>
             <div className="space-y-1">
               <Label htmlFor="tradeQuantity">Trade Quantity</Label>
-              <Input id="tradeQuantity" name="tradeQuantity" type="number" step="any" defaultValue="0.1" />
+              <Input id="tradeQuantity" type="number" step="any" {...register('tradeQuantity', { valueAsNumber: true })} />
+              {errors.tradeQuantity && <p className="text-xs text-danger">{errors.tradeQuantity.message}</p>}
             </div>
             <div className="space-y-1">
               <Label htmlFor="feeBps">Fee (bps)</Label>
-              <Input id="feeBps" name="feeBps" type="number" defaultValue="5" />
+              <Input id="feeBps" type="number" {...register('feeBps', { valueAsNumber: true })} />
+              {errors.feeBps && <p className="text-xs text-danger">{errors.feeBps.message}</p>}
             </div>
             <div className="col-span-full">
-              <Button type="submit" disabled={isPending}>
-                {isPending ? 'Running...' : 'Start Backtest'}
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Running...' : 'Start Backtest'}
               </Button>
             </div>
-            {error && <p className="col-span-full text-xs text-danger">{error}</p>}
+            {serverError && <p className="col-span-full text-xs text-danger">{serverError}</p>}
           </form>
         </CardContent>
       </Card>
