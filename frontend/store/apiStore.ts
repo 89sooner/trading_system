@@ -41,7 +41,7 @@ export const useApiStore = create<ApiStore>()(
     }),
     {
       name: STORAGE_KEY,
-      partialize: (state) => ({ baseUrl: state.baseUrl }),
+      partialize: (state) => ({ baseUrl: state.baseUrl, apiKey: state.apiKey }),
     },
   ),
 );
