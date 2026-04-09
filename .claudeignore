@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+build/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments & package cache
+.venv/
+.venv.broken-*/
+.uv-cache/
+
+# Environment & secrets
+.env
+data/api_keys.json
+data/portfolio/book.json
+
+# Frontend build artifacts & deps
+frontend/node_modules/
+frontend/.next/
+frontend/test-results/
+frontend/.uv-cache/
+
+# Lock files (large, not useful for context)
+uv.lock
+frontend/package-lock.json
+
+# Git
+.git/
+frontend/.git/
+
+# OMC state & sessions
+.omc/
+
+# Other AI tool configs (skills are duplicated across tools)
+.codex/
+.gemini/
+.opencode/
+
+# OS
+.DS_Store
+Thumbs.db
