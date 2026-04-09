@@ -11,19 +11,6 @@ function normalizeBaseUrl(url: string): string {
   return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
 }
 
-function getInitialBaseUrl(): string {
-  if (typeof window === "undefined") return DEFAULT_BASE_URL;
-  const current = localStorage.getItem(STORAGE_KEY);
-  if (current) return normalizeBaseUrl(current);
-  const legacy = localStorage.getItem(LEGACY_KEY);
-  if (legacy) {
-    const migrated = normalizeBaseUrl(legacy);
-    localStorage.setItem(STORAGE_KEY, migrated);
-    return migrated;
-  }
-  return DEFAULT_BASE_URL;
-}
-
 interface ApiStore {
   baseUrl: string;
   apiKey: string;
@@ -34,14 +21,29 @@ interface ApiStore {
 export const useApiStore = create<ApiStore>()(
   persist(
     (set) => ({
-      baseUrl: getInitialBaseUrl(),
+      baseUrl: DEFAULT_BASE_URL,
       apiKey: "",
       setBaseUrl: (url) => set({ baseUrl: normalizeBaseUrl(url) }),
       setApiKey: (key) => set({ apiKey: key }),
     }),
     {
       name: STORAGE_KEY,
-      partialize: (state) => ({ baseUrl: state.baseUrl, apiKey: state.apiKey }),
+      partialize: (state) => ({ baseUrl: state.baseUrl }),
+      migrate: (persisted) => {
+        // Migrate from legacy 'apiBaseUrl' plain-string key if present
+        if (typeof window !== "undefined") {
+          const legacy = localStorage.getItem(LEGACY_KEY);
+          if (legacy) {
+            localStorage.removeItem(LEGACY_KEY);
+            const state = persisted as { baseUrl?: string } | null;
+            if (!state?.baseUrl) {
+              return { baseUrl: normalizeBaseUrl(legacy) };
+            }
+          }
+        }
+        return persisted as { baseUrl: string };
+      },
+      version: 1,
     },
   ),
 );
