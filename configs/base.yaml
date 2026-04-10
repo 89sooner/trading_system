@@ -33,3 +33,21 @@ portfolio_risk:
 api:
   cors_allow_origins:
     - "*"
+
+# ---------------------------------------------------------------------------
+# Phase 8 — Webhook 알림 채널 설정 (env-var 전용, 이 파일에서 파싱하지 않음)
+# ---------------------------------------------------------------------------
+# 아래 환경 변수를 설정하면 trading-system이 주요 이벤트를 외부 URL로 POST합니다.
+#
+# TRADING_SYSTEM_WEBHOOK_URL=https://hooks.example.com/trading
+#   웹훅 수신 URL. 미설정 시 웹훅 비활성화(기존 동작 유지).
+#
+# TRADING_SYSTEM_WEBHOOK_EVENTS=order.filled,risk.rejected,pattern.alert,system.error,portfolio.reconciliation.position_adjusted
+#   전송할 이벤트 목록(쉼표 구분). 기본값은 위에 나열된 5개.
+#
+# TRADING_SYSTEM_WEBHOOK_TIMEOUT=5
+#   HTTP POST 타임아웃(초). 기본값 5.
+#
+# SSE 스트리밍 엔드포인트: GET /api/v1/dashboard/stream?api_key=<KEY>
+# 런 영속화 디렉토리:      TRADING_SYSTEM_RUNS_DIR=data/runs  (기본값)
+# Equity 시계열 API:       GET /api/v1/dashboard/equity?limit=300

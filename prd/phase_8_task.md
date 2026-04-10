@@ -300,25 +300,73 @@ Exit criteria:
 ## Execution Log
 
 ### Date
-- (구현 시작 시 기입)
+- 2026-04-10
 
 ### Owner
-- (구현 주체)
+- Claude (Sonnet 4.6)
 
 ### Slice completed
-- (완료된 slice/step 기록)
+- Phase 8-0: 의존성 추가 (sse-starlette>=1.6)
+- Phase 8-1: FileBacktestRunRepository 구현 + Protocol 확장 + InMemory 업데이트
+- Phase 8-2: 런 목록 API (GET /api/v1/backtests) + FileRepository 교체
+- Phase 8-3: StructuredLogger subscriber 메커니즘 + EquityWriter + equity API
+- Phase 8-4: SSE /stream 엔드포인트 (연결 제한, query param 인증, heartbeat)
+- Phase 8-5: WebhookNotifier + build_services() 통합
+- 단위 테스트 전체 (test_file_repository, test_equity_timeseries, test_core_ops subscriber, test_sse_stream, test_webhook_notifier)
+- conftest.py 환경변수 격리 수정 (TRADING_SYSTEM_ALLOWED_API_KEYS 누출 방지)
 
 ### Scope implemented
-- (구현된 범위 요약)
+- `FileBacktestRunRepository`: save/get/list/delete/clear/rebuild_index, atomic temp→replace write, _index.json cache
+- `BacktestRunRepository` Protocol: list(), delete() 추가; InMemoryBacktestRunRepository 동일 구현
+- `GET /api/v1/backtests`: page/page_size/status/mode 파라미터 지원
+- `StructuredLogger`: subscribe/unsubscribe/subscriber 예외 격리
+- `EquityWriter`: JSONL append-only, read_recent(limit)
+- `LiveTradingLoop`: equity_writer 필드, _check_heartbeat equity 기록, sse.status/sse.equity/sse.position 발행
+- `GET /api/v1/dashboard/equity`: limit 파라미터, EquityTimeseriesDTO 반환
+- `GET /api/v1/dashboard/stream`: SSE EventSourceResponse, 최대 10연결, query param api_key 인증, 15초 heartbeat
+- `WebhookNotifier`: 이벤트 필터, httpx 비동기 전송, 1회 재시도, daemon thread fire-and-forget
+- `build_webhook_notifier()`: TRADING_SYSTEM_WEBHOOK_URL/EVENTS/TIMEOUT env-var 기반
+- `AppServices.webhook_notifier`: build_services()에서 생성/logger 구독
 
 ### Files changed
-- (변경된 파일 목록)
+**신규:**
+- `src/trading_system/backtest/file_repository.py`
+- `src/trading_system/app/equity_writer.py`
+- `src/trading_system/notifications/__init__.py`
+- `src/trading_system/notifications/webhook.py`
+- `tests/unit/test_file_repository.py`
+- `tests/unit/test_equity_timeseries.py`
+- `tests/unit/test_webhook_notifier.py`
+- `tests/unit/test_sse_stream.py`
+
+**수정:**
+- `pyproject.toml` — sse-starlette 의존성
+- `src/trading_system/backtest/repository.py` — Protocol list/delete 추가, InMemory 업데이트
+- `src/trading_system/api/schemas.py` — BacktestRunListItemDTO, BacktestRunListResponseDTO, EquityPointTimeseriesDTO, EquityTimeseriesDTO
+- `src/trading_system/api/routes/backtest.py` — FileRepository 교체, GET /backtests 엔드포인트
+- `src/trading_system/api/routes/dashboard.py` — GET /equity, GET /stream 엔드포인트
+- `src/trading_system/core/ops.py` — StructuredLogger subscriber 메커니즘
+- `src/trading_system/app/loop.py` — equity_writer 필드, SSE 이벤트 발행
+- `src/trading_system/app/services.py` — WebhookNotifier 통합
+- `tests/conftest.py` — TRADING_SYSTEM_ALLOWED_API_KEYS 환경변수 격리
+- `tests/unit/test_core_ops.py` — subscriber 테스트 추가
 
 ### Commands run
-- (실행한 검증 명령어와 결과)
+- `pip install -e ".[dev]"` → OK
+- `python -c "import sse_starlette; ..."` → OK
+- `pytest tests/unit/test_file_repository.py tests/unit/test_equity_timeseries.py tests/unit/test_core_ops.py tests/unit/test_webhook_notifier.py tests/unit/test_sse_stream.py -q` → 36 passed
+- `pytest --tb=short -q` → **214 passed**
+- `ruff check src/trading_system/backtest/file_repository.py ... (Phase 8 파일)` → 0 errors
 
 ### Validation results
-- (검증 결과 요약)
+- 전체 pytest: **221 passed** (Phase 8-0~8 완료 후)
+- Phase 8 신규 단위 테스트: 36개 + persistence integration 5개
+- ruff check (Phase 8 파일): 0 errors
+- tsc --noEmit: PASS
+- npm run lint: PASS
+- npm run build: PASS
 
 ### Risks / follow-up
-- (잔여 리스크 및 후속 작업)
+- SSE stream 단위 테스트는 실제 스트리밍 검증 제외 (auth/limit만) — e2e에서 검증 가능
+- equity JSONL 장기 파일 크기 증가: Phase 9에서 compaction 검토
+- Webhook bounded queue worker는 현재 process exit 시 drain을 수동 `shutdown()` 호출로만 지원. AppServices lifecycle에 통합 여지 있음

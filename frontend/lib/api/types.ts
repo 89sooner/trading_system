@@ -119,6 +119,37 @@ export interface BacktestRunStatusDTO {
   error?: string | null
 }
 
+// Backtest run list (Phase 8)
+export interface BacktestRunListItem {
+  run_id: string
+  status: string
+  started_at: string
+  finished_at: string
+  input_symbols: string[]
+  mode: string
+}
+
+export interface BacktestRunListResponse {
+  runs: BacktestRunListItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
+// Equity timeseries (Phase 8)
+export interface EquityTimeseriesPoint {
+  timestamp: string
+  equity: string
+  cash: string
+  positions_value: string
+}
+
+export interface EquityTimeseriesResponse {
+  session_id: string
+  points: EquityTimeseriesPoint[]
+  total: number
+}
+
 // Analytics
 export interface TradeStats {
   trade_count: number

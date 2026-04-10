@@ -46,6 +46,44 @@ def test_structured_logger_emits_json_with_correlation_id(caplog) -> None:
     assert body["event"] == "order.created"
 
 
+def test_subscriber_receives_emitted_event() -> None:
+    logger = StructuredLogger("trading_system.tests.sub", log_format=StructuredLogFormat.JSON)
+    received = []
+    logger.subscribe(received.append)
+
+    logger.emit("test.event", logging.INFO, {"key": "value"})
+
+    assert len(received) == 1
+    assert received[0].event == "test.event"
+
+
+def test_unsubscribe_stops_delivery() -> None:
+    logger = StructuredLogger("trading_system.tests.unsub", log_format=StructuredLogFormat.JSON)
+    received = []
+    callback = received.append  # store reference for identity comparison
+    logger.subscribe(callback)
+    logger.unsubscribe(callback)
+
+    logger.emit("test.event", logging.INFO, {})
+
+    assert len(received) == 0
+
+
+def test_subscriber_exception_does_not_affect_others() -> None:
+    logger = StructuredLogger("trading_system.tests.exc", log_format=StructuredLogFormat.JSON)
+    received = []
+
+    def bad_subscriber(record):
+        raise RuntimeError("boom")
+
+    logger.subscribe(bad_subscriber)
+    logger.subscribe(received.append)
+
+    logger.emit("test.event", logging.INFO, {})
+
+    assert len(received) == 1
+
+
 def test_execute_with_resilience_opens_circuit_breaker_after_failures() -> None:
     state = CircuitBreakerState()
     retry = RetryPolicy(max_attempts=1, backoff_seconds=0)

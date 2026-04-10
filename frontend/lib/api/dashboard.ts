@@ -1,5 +1,12 @@
 import { requestJson } from './client'
-import type { DashboardStatus, PositionsResponse, EventFeed, ControlResponse } from './types'
+import { useApiStore } from '@/store/apiStore'
+import type {
+  DashboardStatus,
+  PositionsResponse,
+  EventFeed,
+  ControlResponse,
+  EquityTimeseriesResponse,
+} from './types'
 
 export const getDashboardStatus = () => requestJson<DashboardStatus>('/dashboard/status')
 export const getDashboardPositions = () => requestJson<PositionsResponse>('/dashboard/positions')
@@ -9,3 +16,14 @@ export const postDashboardControl = (action: 'pause' | 'resume' | 'reset') =>
     method: 'POST',
     body: JSON.stringify({ action }),
   })
+
+export const getDashboardEquity = (limit = 300) =>
+  requestJson<EquityTimeseriesResponse>(`/dashboard/equity?limit=${limit}`)
+
+/** Build the SSE stream URL including the optional api_key query param. */
+export function getDashboardStreamUrl(): string {
+  const { baseUrl, apiKey } = useApiStore.getState()
+  const url = `${baseUrl}/dashboard/stream`
+  if (apiKey) return `${url}?api_key=${encodeURIComponent(apiKey)}`
+  return url
+}
