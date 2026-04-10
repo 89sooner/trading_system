@@ -1,6 +1,6 @@
 'use client'
 
-import { useDashboardPolling } from '@/hooks/useDashboardPolling'
+import { useDashboardStream } from '@/hooks/useDashboardStream'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { ControlButtons } from '@/components/dashboard/ControlButtons'
 import { DashboardMetrics } from '@/components/dashboard/DashboardMetrics'
@@ -11,7 +11,7 @@ import { ChartContainer } from '@/components/domain/ChartContainer'
 import { EquityChart } from '@/components/dashboard/EquityChart'
 
 export default function DashboardPage() {
-  const { statusQuery, positionsQuery, eventsQuery, isLive, equitySeries } = useDashboardPolling()
+  const { statusQuery, positionsQuery, eventsQuery, isLive, equitySeries, sseConnected } = useDashboardStream()
 
   const loading = statusQuery.isLoading || positionsQuery.isLoading
 
@@ -24,7 +24,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-3">
             <StatusIndicator
               variant={isLive ? 'online' : statusQuery.data ? 'warning' : 'offline'}
-              label={isLive ? 'Connected' : 'Disconnected'}
+              label={sseConnected ? 'Connected (SSE)' : isLive ? 'Connected' : 'Disconnected'}
             />
             <ControlButtons />
           </div>

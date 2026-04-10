@@ -30,6 +30,7 @@ from trading_system.execution.broker import (
 )
 from trading_system.execution.kis_adapter import KisBrokerAdapter
 from trading_system.integrations.kis import KisApiClient, is_krx_market_open
+from trading_system.notifications.webhook import WebhookNotifier, build_webhook_notifier
 from trading_system.patterns.repository import PatternSetRepository
 from trading_system.portfolio.book import PortfolioBook
 from trading_system.portfolio.repository import (
@@ -70,6 +71,7 @@ class AppServices:
     portfolio_repository: PortfolioRepository | None = None
     strategies: dict[str, Strategy] | None = None
     portfolio_risk: PortfolioRiskLimits | None = None
+    webhook_notifier: WebhookNotifier | None = None
 
     def run(self) -> BacktestResult:
         if self.mode != AppMode.BACKTEST:
@@ -179,6 +181,10 @@ def build_services(settings: AppSettings) -> AppServices:
     )
     primary_strategy = strategies[settings.symbols[0]]
 
+    webhook_notifier = build_webhook_notifier()
+    if webhook_notifier is not None:
+        logger.subscribe(webhook_notifier.as_subscriber())
+
     return AppServices(
         mode=settings.mode,
         provider=settings.provider,
@@ -201,6 +207,7 @@ def build_services(settings: AppSettings) -> AppServices:
         logger=logger,
         live_preflight_check=_build_live_preflight(settings, kis_client=kis_client),
         portfolio_repository=(portfolio_repository if settings.mode == AppMode.LIVE else None),
+        webhook_notifier=webhook_notifier,
     )
 
 

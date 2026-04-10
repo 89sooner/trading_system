@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from trading_system.app.equity_writer import EquityWriter
 from trading_system.app.state import AppRunnerState, LiveRuntimeState
 from trading_system.core.compat import UTC
 from trading_system.execution.reconciliation import reconcile
@@ -35,9 +36,11 @@ class LiveTradingLoop:
     reconciliation_interval: int = field(
         default_factory=lambda: _resolve_env_int("TRADING_SYSTEM_RECONCILIATION_INTERVAL", 300)
     )
+    equity_writer: EquityWriter | None = field(default=None)
     runtime: LiveRuntimeState = field(default_factory=LiveRuntimeState, init=False)
     _last_processed_timestamps: dict[str, datetime] = field(default_factory=dict, init=False)
     _last_reconciliation: datetime | None = field(default=None, init=False)
+    _last_position_snapshot: dict[str, str] = field(default_factory=dict, init=False)
 
     @property
     def state(self) -> AppRunnerState:
@@ -46,6 +49,14 @@ class LiveTradingLoop:
     @state.setter
     def state(self, value: AppRunnerState) -> None:
         self.runtime.state = value
+        try:
+            self.services.logger.emit(
+                "sse.status",
+                severity=20,
+                payload={"state": value.value},
+            )
+        except Exception:
+            pass
 
     @property
     def _last_heartbeat(self) -> datetime | None:
@@ -126,11 +137,33 @@ class LiveTradingLoop:
             or (now - self._last_heartbeat).total_seconds() >= self.heartbeat_interval
         ):
             self.services.logger.emit(
-                "system.heartbeat", 
-                severity=20, 
-                payload={"state": self.state.value}
+                "system.heartbeat",
+                severity=20,
+                payload={"state": self.state.value},
             )
             self._last_heartbeat = now
+            # Record equity snapshot
+            marks = self.runtime.last_marks
+            equity = self.services.portfolio.total_equity(marks)
+            cash = self.services.portfolio.cash
+            positions_value = equity - cash
+            if self.equity_writer is not None:
+                self.equity_writer.append(
+                    timestamp=now.isoformat(),
+                    equity=str(equity),
+                    cash=str(cash),
+                    positions_value=str(positions_value),
+                )
+            self.services.logger.emit(
+                "sse.equity",
+                severity=20,
+                payload={
+                    "timestamp": now.isoformat(),
+                    "equity": str(equity),
+                    "cash": str(cash),
+                    "positions_value": str(positions_value),
+                },
+            )
 
     def _run_tick(self, context: TradingContext) -> None:
         processed_any = False
@@ -153,6 +186,19 @@ class LiveTradingLoop:
 
         if processed_any and self.services.portfolio_repository is not None:
             self.services.portfolio_repository.save(self.services.portfolio)
+
+        # Emit SSE position event if positions changed
+        current_snapshot = {
+            symbol: str(qty)
+            for symbol, qty in self.services.portfolio.positions.items()
+        }
+        if current_snapshot != self._last_position_snapshot:
+            self._last_position_snapshot = current_snapshot
+            self.services.logger.emit(
+                "sse.position",
+                severity=20,
+                payload={"positions": current_snapshot},
+            )
 
     def _maybe_reconcile(self) -> None:
         now = datetime.now(UTC)

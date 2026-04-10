@@ -12,6 +12,7 @@ dependencies = [
   "fastapi>=0.116",
   "PyYAML>=6.0",
   "python-dotenv>=1.0",
+  "sse-starlette>=1.6",
   "uvicorn>=0.34",
 ]
 

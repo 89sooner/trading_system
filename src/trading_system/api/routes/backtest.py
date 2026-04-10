@@ -1,5 +1,7 @@
+import os
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, status
@@ -8,6 +10,8 @@ from trading_system.api.errors import RequestValidationError
 from trading_system.api.schemas import (
     BacktestResultDTO,
     BacktestRunAcceptedDTO,
+    BacktestRunListItemDTO,
+    BacktestRunListResponseDTO,
     BacktestRunRequestDTO,
     BacktestRunStatusDTO,
     LivePreflightRequestDTO,
@@ -27,13 +31,15 @@ from trading_system.app.settings import (
 from trading_system.backtest.dto import BacktestResultDTO as SerializedBacktestResultDTO
 from trading_system.backtest.dto import BacktestRunDTO
 from trading_system.backtest.engine import BacktestResult
-from trading_system.backtest.repository import InMemoryBacktestRunRepository
+from trading_system.backtest.file_repository import FileBacktestRunRepository
 from trading_system.core.compat import UTC
 from trading_system.strategy.base import SignalSide
 
 router = APIRouter(prefix="/api/v1", tags=["runtime"])
 
-_RUN_REPOSITORY = InMemoryBacktestRunRepository()
+_RUN_REPOSITORY = FileBacktestRunRepository(
+    Path(os.getenv("TRADING_SYSTEM_RUNS_DIR", "data/runs"))
+)
 _MAX_FEE_BPS = Decimal("1000")
 
 
@@ -169,6 +175,29 @@ def _to_api_result_dto(result: SerializedBacktestResultDTO) -> BacktestResultDTO
             {"event": event.event, "payload": event.payload} for event in result.risk_rejections
         ],
     )
+
+
+@router.get("/backtests", response_model=BacktestRunListResponseDTO)
+def list_backtest_runs(
+    page: int = 1,
+    page_size: int = 20,
+    status: str | None = None,
+    mode: str | None = None,
+) -> BacktestRunListResponseDTO:
+    page_size = max(1, min(page_size, 100))
+    runs, total = _RUN_REPOSITORY.list(page=page, page_size=page_size, status=status, mode=mode)
+    items = [
+        BacktestRunListItemDTO(
+            run_id=r.run_id,
+            status=r.status,
+            started_at=r.started_at,
+            finished_at=r.finished_at,
+            input_symbols=r.input_symbols,
+            mode=r.mode,
+        )
+        for r in runs
+    ]
+    return BacktestRunListResponseDTO(runs=items, total=total, page=page, page_size=page_size)
 
 
 @router.post(

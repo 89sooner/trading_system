@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 
 from trading_system.api.schemas import (
     ControlActionDTO,
     ControlResponseDTO,
     DashboardStatusDTO,
+    EquityPointTimeseriesDTO,
+    EquityTimeseriesDTO,
     EventFeedDTO,
     EventRecordDTO,
     PositionDTO,
@@ -23,6 +28,9 @@ from trading_system.integrations.kis import is_krx_market_open
 
 if TYPE_CHECKING:
     from trading_system.app.loop import LiveTradingLoop
+
+_MAX_SSE_CONNECTIONS = 10
+_active_sse_connections = 0
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
 
@@ -159,3 +167,90 @@ async def control_loop(body: ControlActionDTO, loop: LoopDep) -> ControlResponse
                 payload={"action": "reset", "requested_by": "api"},
             )
     return ControlResponseDTO(status="ok", state=loop.state.value)
+
+
+@router.get("/equity", response_model=EquityTimeseriesDTO)
+async def get_equity(loop: LoopDep, limit: int = 300) -> EquityTimeseriesDTO:
+    """Return server-side equity timeseries from JSONL file."""
+    limit = max(1, min(limit, 1000))
+    equity_writer = getattr(loop, "equity_writer", None)
+    if equity_writer is None:
+        return EquityTimeseriesDTO(session_id="", points=[], total=0)
+    points_data = equity_writer.read_recent(limit)
+    points = [
+        EquityPointTimeseriesDTO(
+            timestamp=p["timestamp"],
+            equity=p["equity"],
+            cash=p["cash"],
+            positions_value=p["positions_value"],
+        )
+        for p in points_data
+    ]
+    return EquityTimeseriesDTO(
+        session_id=equity_writer.session_id,
+        points=points,
+        total=len(points),
+    )
+
+
+@router.get("/stream")
+async def stream_events(request: Request):
+    """SSE endpoint — real-time event stream for the dashboard.
+
+    Authentication is handled by the security middleware, which accepts the
+    ``api_key`` query parameter for this path so that browser EventSource
+    clients (which cannot set custom headers) can connect.
+    """
+    global _active_sse_connections  # noqa: PLW0603
+
+    # Connection limit
+    if _active_sse_connections >= _MAX_SSE_CONNECTIONS:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Too many SSE connections."},
+        )
+
+    from sse_starlette.sse import EventSourceResponse
+
+    live_loop = _get_loop(request)
+    queue: asyncio.Queue = asyncio.Queue(maxsize=200)
+
+    def on_event(record) -> None:
+        try:
+            queue.put_nowait(record)
+        except asyncio.QueueFull:
+            pass
+
+    if live_loop is not None:
+        live_loop.services.logger.subscribe(on_event)
+
+    _active_sse_connections += 1
+
+    async def generator():
+        global _active_sse_connections  # noqa: PLW0603
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    record = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    event_name = record.event
+                    if event_name.startswith("sse."):
+                        sse_type = event_name[4:]
+                    else:
+                        sse_type = "event"
+                    yield {
+                        "event": sse_type,
+                        "data": json.dumps(
+                            {"event": record.event, "payload": record.payload},
+                            default=str,
+                        ),
+                    }
+                except asyncio.TimeoutError:
+                    yield {"event": "heartbeat", "data": "{}"}
+        finally:
+            if live_loop is not None:
+                live_loop.services.logger.unsubscribe(on_event)
+            _active_sse_connections -= 1
+
+    return EventSourceResponse(generator())

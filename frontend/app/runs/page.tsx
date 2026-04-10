@@ -1,15 +1,26 @@
 'use client'
 
-import { useQueries } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { DataTable, type Column } from '@/components/domain/DataTable'
 import { StatusBadge } from '@/components/domain/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { useRunsStore, type RunRecord } from '@/store/runsStore'
-import { getBacktestRun } from '@/lib/api/backtests'
+import { listBacktestRuns } from '@/lib/api/backtests'
 import { formatUtcTimestamp } from '@/lib/formatters'
 import { RefreshCw } from 'lucide-react'
+import type { BacktestRunListItem } from '@/lib/api/types'
+
+function serverItemToRunRecord(item: BacktestRunListItem): RunRecord {
+  return {
+    runId: item.run_id,
+    symbol: item.input_symbols[0] ?? '—',
+    status: item.status as RunRecord['status'],
+    createdAt: item.started_at,
+    strategyProfile: null,
+  }
+}
 
 const columns: Column<RunRecord>[] = [
   {
@@ -44,24 +55,19 @@ const columns: Column<RunRecord>[] = [
 ]
 
 export default function RunsPage() {
-  const { runs, updateRunStatus } = useRunsStore()
+  const { runs: localRuns } = useRunsStore()
 
-  const queries = useQueries({
-    queries: runs.map((run) => ({
-      queryKey: ['run', run.runId],
-      queryFn: () => getBacktestRun(run.runId),
-      staleTime: run.status === 'succeeded' || run.status === 'failed' ? Infinity : 0,
-      enabled: run.status !== 'succeeded' && run.status !== 'failed',
-    })),
+  const serverQuery = useQuery({
+    queryKey: ['backtests', 'list'],
+    queryFn: () => listBacktestRuns({ page_size: 100 }),
+    staleTime: 30_000,
+    retry: 1,
   })
 
-  function handleRefresh() {
-    queries.forEach((q, i) => {
-      q.refetch().then((res) => {
-        if (res.data) updateRunStatus(runs[i].runId, res.data.status)
-      })
-    })
-  }
+  // Server API is the primary source; fall back to localStorage on error.
+  const rows: RunRecord[] = serverQuery.isError
+    ? localRuns
+    : (serverQuery.data?.runs.map(serverItemToRunRecord) ?? localRuns)
 
   return (
     <div className="space-y-6">
@@ -69,14 +75,14 @@ export default function RunsPage() {
         title="Backtest Runs"
         description="View and manage backtest execution history"
         actions={
-          <Button variant="outline" size="sm" onClick={handleRefresh}>
+          <Button variant="outline" size="sm" onClick={() => serverQuery.refetch()}>
             <RefreshCw className="mr-1 h-3 w-3" /> Refresh
           </Button>
         }
       />
       <DataTable
         columns={columns}
-        data={runs}
+        data={rows}
         keyExtractor={(row) => row.runId}
         emptyMessage="No runs yet."
       />

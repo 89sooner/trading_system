@@ -249,3 +249,42 @@ class TradeStatsDTO(BaseModel):
 class TradeAnalyticsResponseDTO(BaseModel):
     stats: TradeStatsDTO
     trades: list[TradeDTO]
+
+
+# ---------------------------------------------------------------------------
+# Backtest run list DTOs (Phase 8)
+# ---------------------------------------------------------------------------
+
+
+class BacktestRunListItemDTO(BaseModel):
+    run_id: str
+    status: str
+    started_at: str
+    finished_at: str
+    input_symbols: list[str]
+    mode: str
+
+
+class BacktestRunListResponseDTO(BaseModel):
+    runs: list[BacktestRunListItemDTO]
+    total: int
+    page: int
+    page_size: int
+
+
+# ---------------------------------------------------------------------------
+# Equity timeseries DTOs (Phase 8)
+# ---------------------------------------------------------------------------
+
+
+class EquityPointTimeseriesDTO(BaseModel):
+    timestamp: str
+    equity: str
+    cash: str
+    positions_value: str
+
+
+class EquityTimeseriesDTO(BaseModel):
+    session_id: str
+    points: list[EquityPointTimeseriesDTO]
+    total: int

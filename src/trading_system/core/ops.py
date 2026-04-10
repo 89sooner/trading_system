@@ -6,6 +6,7 @@ import os
 import time
 import uuid
 from collections import deque
+from collections.abc import Callable
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass
@@ -118,6 +119,13 @@ class StructuredLogger:
         self._logger = logging.getLogger(name)
         self._format = log_format
         self._event_buffer: deque[EventRecord] = deque(maxlen=self._EVENT_BUFFER_MAX)
+        self._subscribers: list[Callable[[EventRecord], None]] = []
+
+    def subscribe(self, callback: Callable[[EventRecord], None]) -> None:
+        self._subscribers.append(callback)
+
+    def unsubscribe(self, callback: Callable[[EventRecord], None]) -> None:
+        self._subscribers = [s for s in self._subscribers if s is not callback]
 
     def emit(self, event: str, severity: int, payload: dict[str, Any]) -> None:
         correlation_id = get_or_create_correlation_id()
@@ -130,6 +138,11 @@ class StructuredLogger:
         )
         self._event_buffer.append(record)
         self._logger.log(severity, self._serialize(record))
+        for subscriber in list(self._subscribers):
+            try:
+                subscriber(record)
+            except Exception:
+                self._logger.warning("Subscriber callback error", exc_info=True)
 
     def recent_events(self, limit: int = 50) -> list[EventRecord]:
         """Return the most recent *limit* events from the ring buffer."""
