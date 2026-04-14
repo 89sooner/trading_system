@@ -32,14 +32,24 @@ from trading_system.backtest.dto import BacktestResultDTO as SerializedBacktestR
 from trading_system.backtest.dto import BacktestRunDTO
 from trading_system.backtest.engine import BacktestResult
 from trading_system.backtest.file_repository import FileBacktestRunRepository
+from trading_system.backtest.repository import BacktestRunRepository
 from trading_system.core.compat import UTC
 from trading_system.strategy.base import SignalSide
 
 router = APIRouter(prefix="/api/v1", tags=["runtime"])
 
-_RUN_REPOSITORY = FileBacktestRunRepository(
-    Path(os.getenv("TRADING_SYSTEM_RUNS_DIR", "data/runs"))
-)
+
+def _create_run_repository() -> BacktestRunRepository:
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        from trading_system.backtest.supabase_repository import SupabaseBacktestRunRepository
+        return SupabaseBacktestRunRepository(database_url)
+    return FileBacktestRunRepository(
+        Path(os.getenv("TRADING_SYSTEM_RUNS_DIR", "data/runs"))
+    )
+
+
+_RUN_REPOSITORY = _create_run_repository()
 _MAX_FEE_BPS = Decimal("1000")
 
 
