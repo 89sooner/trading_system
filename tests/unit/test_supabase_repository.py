@@ -173,8 +173,8 @@ class TestBacktestRouteRepositorySelection:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.skipif(
-    not os.environ.get("DATABASE_URL"),
-    reason="Supabase DATABASE_URL not configured",
+    not os.environ.get("DATABASE_URL") or os.environ.get("RUN_SUPABASE_INTEGRATION_TESTS") != "1",
+    reason="Supabase integration test requires DATABASE_URL and RUN_SUPABASE_INTEGRATION_TESTS=1",
 )
 class TestIntegration:
     def test_save_and_get_roundtrip(self):

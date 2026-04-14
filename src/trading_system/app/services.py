@@ -1,13 +1,16 @@
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
+from trading_system.app.equity_writer import EquityWriterProtocol, FileEquityWriter
 from trading_system.app.loop import LiveTradingLoop
 from trading_system.app.sample_data import build_sample_bars
 from trading_system.app.settings import AppMode, AppSettings, LiveExecutionMode
 from trading_system.app.state import AppRunnerState, LiveRuntimeState
 from trading_system.backtest.engine import BacktestContext, BacktestResult, run_backtest
+from trading_system.core.compat import UTC
 from trading_system.core.ops import (
     EnvSecretProvider,
     StructuredLogFormat,
@@ -114,7 +117,9 @@ class AppServices:
         if self.mode != AppMode.LIVE:
             raise RuntimeError(f"Unsupported mode '{self.mode}'.")
 
-        loop = LiveTradingLoop(services=self)
+        session_id = datetime.now(UTC).strftime("live_%Y%m%d_%H%M%S")
+        equity_writer = _create_equity_writer(session_id)
+        loop = LiveTradingLoop(services=self, equity_writer=equity_writer)
         loop.run()
 
     def run_live_execution(self) -> None:
@@ -330,11 +335,13 @@ def _build_live_preflight(
                 ready = False
 
         if ready and not reasons:
+            sym = symbols[0] if symbols else "N/A"
+            price = primary_quote_summary["price"] if primary_quote_summary else "N/A"
+            volume = primary_quote_summary["volume"] if primary_quote_summary else "N/A"
             message = (
                 f"KIS live preflight passed "
-                f"(symbols={len(symbols)}, primary_symbol={symbols[0] if symbols else 'N/A'}, "
-                f"primary_price={primary_quote_summary['price'] if primary_quote_summary else 'N/A'}, "
-                f"primary_volume={primary_quote_summary['volume'] if primary_quote_summary else 'N/A'}). "
+                f"(symbols={len(symbols)}, primary_symbol={sym}, "
+                f"primary_price={price}, primary_volume={volume}). "
                 f"No orders were submitted."
             )
         else:
@@ -379,3 +386,12 @@ def _resolve_strategy_dir() -> Path:
 
 def _resolve_portfolio_path() -> Path:
     return Path(os.getenv("TRADING_SYSTEM_PORTFOLIO_DIR", "data/portfolio")) / "book.json"
+
+
+def _create_equity_writer(session_id: str) -> EquityWriterProtocol | None:
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        from trading_system.app.supabase_equity_writer import SupabaseEquityWriter
+        return SupabaseEquityWriter(database_url, session_id)
+    equity_dir = Path(os.getenv("TRADING_SYSTEM_EQUITY_DIR", "data/equity"))
+    return FileEquityWriter(equity_dir, session_id)

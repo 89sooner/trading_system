@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from trading_system.app.equity_writer import EquityWriter
+from trading_system.app.equity_writer import EquityWriterProtocol
 from trading_system.app.state import AppRunnerState, LiveRuntimeState
 from trading_system.core.compat import UTC
 from trading_system.execution.reconciliation import reconcile
@@ -36,7 +36,7 @@ class LiveTradingLoop:
     reconciliation_interval: int = field(
         default_factory=lambda: _resolve_env_int("TRADING_SYSTEM_RECONCILIATION_INTERVAL", 300)
     )
-    equity_writer: EquityWriter | None = field(default=None)
+    equity_writer: EquityWriterProtocol | None = field(default=None)
     runtime: LiveRuntimeState = field(default_factory=LiveRuntimeState, init=False)
     _last_processed_timestamps: dict[str, datetime] = field(default_factory=dict, init=False)
     _last_reconciliation: datetime | None = field(default=None, init=False)

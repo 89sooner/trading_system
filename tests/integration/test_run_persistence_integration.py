@@ -14,8 +14,8 @@ from fastapi.testclient import TestClient
 
 from trading_system.api.routes import backtest as backtest_routes
 from trading_system.api.server import create_app
-from trading_system.backtest.file_repository import FileBacktestRunRepository
 from trading_system.backtest.dto import BacktestRunDTO
+from trading_system.backtest.file_repository import FileBacktestRunRepository
 
 
 @pytest.fixture(autouse=True)

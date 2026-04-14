@@ -10,6 +10,11 @@ from trading_system.execution.orders import OrderSide
 from trading_system.integrations.kis import KisOrderResult
 
 
+@pytest.fixture(autouse=True)
+def _disable_database_url(monkeypatch) -> None:
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+
 def test_build_services_uses_csv_provider_for_domestic_symbol(tmp_path, monkeypatch) -> None:
     csv_path = tmp_path / "005930.csv"
     csv_path.write_text(

@@ -79,4 +79,13 @@ def create_app(live_loop=None) -> FastAPI:
             content=body.model_dump(),
         )
 
+    @app.get("/health", include_in_schema=False)
+    def health() -> dict:
+        return {"status": "ok"}
+
     return app
+
+
+# Module-level instance for uvicorn's "module:app" invocation style,
+# e.g. `uvicorn trading_system.api.server:app`.
+app = create_app()

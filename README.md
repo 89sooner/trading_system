@@ -249,6 +249,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
 
 Validation failures are returned as 4xx (`settings_validation_error` or `invalid_*`), and runtime failures are returned as a structured 5xx body (`runtime_error` or `internal_server_error`). Authentication failures return `auth_invalid_api_key`, and excessive traffic returns `rate_limit_exceeded`.
 The same endpoint accepts `live_execution=live` when KIS runtime guards are satisfied.
+`GET /health` is intentionally unauthenticated so load balancers and Railway-style health checks can probe the service without an API key.
 
 Visualization response example (fixed schema):
 
@@ -323,6 +324,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
 
 입력 검증 실패는 4xx(`settings_validation_error` 또는 `invalid_*`)로, 실행 중 오류는 구조화된 5xx(`runtime_error` 또는 `internal_server_error`)로 반환합니다. 인증 실패는 `auth_invalid_api_key`, 과도한 요청은 `rate_limit_exceeded`로 반환됩니다.
 동일 엔드포인트에서 KIS 가드 조건을 만족하면 `live_execution=live`도 허용됩니다.
+`GET /health`는 로드밸런서와 Railway 같은 헬스체크가 API 키 없이 호출할 수 있도록 인증 예외 경로로 유지됩니다.
 
 시각화 응답 예시(고정 스키마):
 
@@ -695,6 +697,8 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS` / `TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS` (optional): simple per-path rate limit
 - `TRADING_SYSTEM_CSV_DIR` (optional): CSV directory for `--provider csv` (default: `data/market`)
 - `TRADING_SYSTEM_PORTFOLIO_DIR` (optional): Directory where the portfolio book JSON is persisted (default: `data/portfolio`)
+- `TRADING_SYSTEM_EQUITY_DIR` (optional): Directory for file-based live equity snapshots when `DATABASE_URL` is unset (default: `data/equity`)
+- `DATABASE_URL` (optional): PostgreSQL connection string for Supabase-backed run/equity persistence. When set, apply `scripts/migrations/001_create_backtest_runs.sql` and `scripts/migrations/002_create_equity_snapshots.sql` before starting the API or live paper mode.
 - `TRADING_SYSTEM_LIVE_POLL_INTERVAL` (optional): Seconds to wait between live ticks (default: `10`)
 - `TRADING_SYSTEM_HEARTBEAT_INTERVAL` (optional): Seconds between heartbeat logs (default: `60`)
 - `TRADING_SYSTEM_RECONCILIATION_INTERVAL` (optional): Seconds between broker balance reconciliation attempts in the live loop (default: `300`)
@@ -717,6 +721,8 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS` / `TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS` (선택): 경로 단위 단순 요청 제한
 - `TRADING_SYSTEM_CSV_DIR` (선택): `--provider csv`용 CSV 디렉터리 (기본값: `data/market`)
 - `TRADING_SYSTEM_PORTFOLIO_DIR` (선택): 포트폴리오 상태(JSON)가 영속화되는 디렉터리 (기본값: `data/portfolio`)
+- `TRADING_SYSTEM_EQUITY_DIR` (선택): `DATABASE_URL`이 없을 때 라이브 equity 스냅샷(JSONL)을 저장하는 디렉터리 (기본값: `data/equity`)
+- `DATABASE_URL` (선택): Supabase 기반 run/equity 영속화용 PostgreSQL 연결 문자열. 값을 설정했다면 API 또는 라이브 페이퍼 모드 시작 전에 `scripts/migrations/001_create_backtest_runs.sql`, `scripts/migrations/002_create_equity_snapshots.sql`를 먼저 적용해야 합니다.
 - `TRADING_SYSTEM_LIVE_POLL_INTERVAL` (선택): 라이브 루프에서 시세를 받아오는 간격 초 단위 (기본값: `10`)
 - `TRADING_SYSTEM_HEARTBEAT_INTERVAL` (선택): 하트비트 로그 기록 간격 (기본값: `60`)
 - `TRADING_SYSTEM_RECONCILIATION_INTERVAL` (선택): 라이브 루프의 브로커 잔고 대사 시도 간격 초 단위 (기본값: `300`)

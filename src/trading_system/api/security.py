@@ -93,6 +93,10 @@ def _extract_api_key(request: Request) -> str | None:
     return request.headers.get("x-api-key") or request.headers.get("authorization")
 
 
+def _is_auth_exempt_path(path: str) -> bool:
+    return path == "/health" or path.startswith("/api/v1/admin/")
+
+
 def build_security_middleware(settings: SecuritySettings, key_repository=None):
     limiter = SimpleRateLimiter(
         max_requests=settings.rate_limit_max_requests,
@@ -115,11 +119,11 @@ def build_security_middleware(settings: SecuritySettings, key_repository=None):
                 correlation_id = get_or_create_correlation_id()
                 request.state.correlation_id = correlation_id
 
-            is_admin_path = request.url.path.startswith("/api/v1/admin/")
+            is_auth_exempt = _is_auth_exempt_path(request.url.path)
             has_env_keys = bool(settings.allowed_api_keys)
             has_repo_keys = key_repository is not None and key_repository.has_any_keys()
 
-            if not is_admin_path and (has_env_keys or has_repo_keys):
+            if not is_auth_exempt and (has_env_keys or has_repo_keys):
                 is_sse_path = request.url.path == "/api/v1/dashboard/stream"
                 if is_sse_path:
                     supplied_key = request.query_params.get("api_key")

@@ -3,9 +3,19 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import Protocol
 
 
-class EquityWriter:
+class EquityWriterProtocol(Protocol):
+    @property
+    def session_id(self) -> str: ...
+
+    def append(self, timestamp: str, equity: str, cash: str, positions_value: str) -> None: ...
+
+    def read_recent(self, limit: int = 300) -> list[dict]: ...
+
+
+class FileEquityWriter:
     def __init__(self, base_dir: Path | str, session_id: str) -> None:
         self._path = Path(base_dir) / f"{session_id}.jsonl"
         os.makedirs(Path(base_dir), exist_ok=True)
@@ -39,3 +49,7 @@ class EquityWriter:
                 except json.JSONDecodeError:
                     continue
         return result
+
+
+# Backwards-compatible alias — existing imports of EquityWriter keep working.
+EquityWriter = FileEquityWriter
