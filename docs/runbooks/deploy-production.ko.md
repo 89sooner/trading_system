@@ -246,11 +246,11 @@ Railway 대시보드 → 서비스 → **Variables** 탭:
 ### 4-2. SSE 스트리밍 연결
 
 ```bash
-API_KEY="your-secret-api-key"
-RAILWAY_URL="https://your-service.railway.app"
+RAILWAY_URL="https://tradingsystem-production-816d.up.railway.app"
+API_KEY="${API_KEY:?set your production API key locally before running this command}"
 
 # SSE 연결 확인 (15초 이내 heartbeat 수신)
-curl -N -H "Accept: text/event-stream" \
+curl -N --max-time 20 -H "Accept: text/event-stream" \
   "$RAILWAY_URL/api/v1/dashboard/stream?api_key=$API_KEY"
 
 # 기대 출력 (15초 간격):
@@ -260,6 +260,11 @@ curl -N -H "Accept: text/event-stream" \
 # ^C 로 종료
 ```
 
+> 보안 주의: 운영 API 키는 저장소 문서에 평문으로 기록하지 않는다.
+> 위 명령 실행 전에 현재 셸에서만 `export API_KEY='...'` 로 설정해서 사용한다.
+> `--max-time 20`을 사용한 경우 마지막의 `curl: (28) Operation timed out ...` 는
+> 테스트 제한시간 도달로 인한 정상 종료로 간주한다.
+
 ### 4-3. 백테스트 런 영속화 확인
 
 1. 프론트엔드에서 백테스트를 한 번 실행한다.
@@ -268,6 +273,8 @@ curl -N -H "Accept: text/event-stream" \
 4. 재시작 후 `/runs` 페이지를 새로고침하여 런이 여전히 남아있는지 확인한다.
    - 남아있으면 Supabase DB 영속화 성공.
    - 사라지면 `DATABASE_URL` 연결 오류이므로 Railway 로그 확인.
+5. 가능하면 Supabase SQL Editor 또는 `psql`로 `backtest_runs` 테이블에 방금 실행한
+   `run_id`가 남아있는지 직접 확인한다. UI 확인만으로 끝내지 않는 편이 안전하다.
 
 ### 4-4. Supabase 데이터 직접 확인
 
@@ -462,19 +469,20 @@ DROP TABLE IF EXISTS backtest_runs;
 ## 배포 완료 체크리스트
 
 ```
-[ ] 1단계: Supabase 프로젝트 생성 완료
-[ ] 1단계: SQL 마이그레이션 2개 실행 완료 (001, 002)
-[ ] 1단계: backtest_runs, equity_snapshots 테이블 생성 확인
-[ ] 2단계: Railway 리포지토리 연결 및 빌드 성공
-[ ] 2단계: DATABASE_URL, TRADING_SYSTEM_ALLOWED_API_KEYS 환경변수 설정
-[ ] 2단계: GET /health 200 응답 확인
-[ ] 2단계: GET /api/v1/backtests 200 응답 확인 (DB 연결 확인)
-[ ] 3단계: Vercel 프로젝트 생성, Root Directory = frontend 설정
-[ ] 3단계: NEXT_PUBLIC_API_BASE_URL 환경변수 설정
-[ ] 3단계: Vercel 배포 성공 및 URL 확인
-[ ] 3단계: Railway TRADING_SYSTEM_CORS_ALLOW_ORIGINS에 Vercel URL 추가
-[ ] 4단계: 프론트엔드에서 API key 입력 후 대시보드 로드 확인
-[ ] 4단계: CORS 오류 없음 확인 (브라우저 개발자 도구)
-[ ] 4단계: SSE heartbeat 수신 확인
-[ ] 4단계: 백테스트 실행 → 재배포 후 런 목록 보존 확인
+[x] 1단계: Supabase 프로젝트 생성 완료
+[x] 1단계: SQL 마이그레이션 2개 실행 완료 (001, 002)
+[x] 1단계: backtest_runs, equity_snapshots 테이블 생성 확인
+[x] 2단계: Railway 리포지토리 연결 및 빌드 성공
+[x] 2단계: DATABASE_URL, TRADING_SYSTEM_ALLOWED_API_KEYS 환경변수 설정
+[x] 2단계: GET /health 200 응답 확인
+[x] 2단계: GET /api/v1/backtests 200 응답 확인 (DB 연결 확인)
+[x] 3단계: Vercel 프로젝트 생성, Root Directory = frontend 설정
+[x] 3단계: NEXT_PUBLIC_API_BASE_URL 환경변수 설정
+[x] 3단계: Vercel 배포 성공 및 URL 확인
+[x] 3단계: Railway TRADING_SYSTEM_CORS_ALLOW_ORIGINS에 Vercel URL 추가
+[x] 4단계: 프론트엔드에서 API key 입력 후 대시보드 로드 확인
+[x] 4단계: CORS 오류 없음 확인 (브라우저 개발자 도구)
+[x] 4단계: SSE heartbeat 수신 확인 (`curl --max-time 20` 종료는 정상)
+[x] 4단계: 백테스트 실행 → 재배포 후 런 목록 보존 확인
+[x] 4단계: Supabase `backtest_runs` 테이블에서 run_id 직접 확인
 ```

@@ -244,11 +244,11 @@ Railway auto-redeploys after the variable is saved. Wait for redeployment to com
 ### 4-2. SSE streaming
 
 ```bash
-API_KEY="your-secret-api-key"
-RAILWAY_URL="https://your-service.railway.app"
+RAILWAY_URL="https://tradingsystem-production-816d.up.railway.app"
+API_KEY="${API_KEY:?set your production API key locally before running this command}"
 
 # Connect to the SSE stream (expect a heartbeat within 15 seconds)
-curl -N -H "Accept: text/event-stream" \
+curl -N --max-time 20 -H "Accept: text/event-stream" \
   "$RAILWAY_URL/api/v1/dashboard/stream?api_key=$API_KEY"
 
 # Expected output (every 15 seconds):
@@ -258,6 +258,11 @@ curl -N -H "Accept: text/event-stream" \
 # Press ^C to stop
 ```
 
+> Security note: do not commit the production API key into tracked docs.
+> Set it only in your current shell session, for example with `export API_KEY='...'`.
+> If you use `--max-time 20`, the final `curl: (28) Operation timed out ...` message is
+> considered a normal test stop, not an SSE failure.
+
 ### 4-3. Run persistence after redeployment
 
 1. Run a backtest from the frontend.
@@ -266,6 +271,8 @@ curl -N -H "Accept: text/event-stream" \
 4. After redeployment completes, refresh `/runs`.
    - Run still listed → Supabase persistence is working.
    - Run missing → `DATABASE_URL` connection issue; check Railway logs.
+5. When possible, confirm the same `run_id` directly in Supabase via SQL Editor or `psql`.
+   Treat this as the stronger source of truth than the UI alone.
 
 ### 4-4. Verify data in Supabase
 
@@ -449,19 +456,20 @@ DROP TABLE IF EXISTS backtest_runs;
 ## Deployment Checklist
 
 ```
-[ ] Step 1: Supabase project created
-[ ] Step 1: Migrations 001 and 002 executed successfully
-[ ] Step 1: backtest_runs and equity_snapshots tables confirmed
-[ ] Step 2: Railway repository connected, build succeeded
-[ ] Step 2: DATABASE_URL and TRADING_SYSTEM_ALLOWED_API_KEYS set
-[ ] Step 2: GET /health returns 200
-[ ] Step 2: GET /api/v1/backtests returns 200 (DB connection confirmed)
-[ ] Step 3: Vercel project created, Root Directory set to "frontend"
-[ ] Step 3: NEXT_PUBLIC_API_BASE_URL set to Railway URL + /api/v1
-[ ] Step 3: Vercel deployment succeeded, URL recorded
-[ ] Step 3: TRADING_SYSTEM_CORS_ALLOW_ORIGINS set in Railway with Vercel URL
-[ ] Step 4: Frontend loads with API key entered, no errors
-[ ] Step 4: No CORS errors in browser DevTools
-[ ] Step 4: SSE heartbeat received via curl
-[ ] Step 4: Run list preserved after Railway redeploy
+[x] Step 1: Supabase project created
+[x] Step 1: Migrations 001 and 002 executed successfully
+[x] Step 1: backtest_runs and equity_snapshots tables confirmed
+[x] Step 2: Railway repository connected, build succeeded
+[x] Step 2: DATABASE_URL and TRADING_SYSTEM_ALLOWED_API_KEYS set
+[x] Step 2: GET /health returns 200
+[x] Step 2: GET /api/v1/backtests returns 200 (DB connection confirmed)
+[x] Step 3: Vercel project created, Root Directory set to "frontend"
+[x] Step 3: NEXT_PUBLIC_API_BASE_URL set to Railway URL + /api/v1
+[x] Step 3: Vercel deployment succeeded, URL recorded
+[x] Step 3: TRADING_SYSTEM_CORS_ALLOW_ORIGINS set in Railway with Vercel URL
+[x] Step 4: Frontend loads with API key entered, no errors
+[x] Step 4: No CORS errors in browser DevTools
+[x] Step 4: SSE heartbeat received via curl (`curl --max-time 20` timeout is expected)
+[x] Step 4: Run list preserved after Railway redeploy
+[x] Step 4: `run_id` confirmed directly in Supabase `backtest_runs`
 ```
