@@ -34,11 +34,10 @@ def test_structured_logger_emits_json_with_correlation_id(caplog) -> None:
 
     with correlation_scope("corr-123"):
         with caplog.at_level(logging.INFO):
-            logger.emit(
-                "order.created",
-                logging.INFO,
-                event_payload(OrderCreatedEvent("BTCUSDT", "buy", Decimal("1"), "2024-01-01T00:00:00Z")),
+            payload = event_payload(
+                OrderCreatedEvent("BTCUSDT", "buy", Decimal("1"), "2024-01-01T00:00:00Z")
             )
+            logger.emit("order.created", logging.INFO, payload)
 
     message = caplog.records[-1].message
     body = json.loads(message)

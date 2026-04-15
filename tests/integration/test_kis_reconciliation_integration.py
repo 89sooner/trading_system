@@ -1,7 +1,6 @@
 """Integration tests for KIS reconciliation flow."""
 
 from decimal import Decimal
-from datetime import datetime, timezone
 
 from trading_system.core.ops import StructuredLogFormat, StructuredLogger
 from trading_system.execution.broker import AccountBalanceSnapshot

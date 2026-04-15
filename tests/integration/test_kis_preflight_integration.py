@@ -1,11 +1,9 @@
 """Integration tests for KIS preflight readiness flow."""
 
-from decimal import Decimal
 from datetime import datetime, timezone
+from decimal import Decimal
 
-import pytest
-
-from trading_system.app.services import build_services, PreflightCheckResult
+from trading_system.app.services import PreflightCheckResult, build_services
 from trading_system.app.settings import AppSettings
 
 

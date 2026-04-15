@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 from urllib.parse import parse_qs, urlparse
 
@@ -8,11 +8,11 @@ from trading_system.core.types import MarketBar
 from trading_system.execution.kis_adapter import KisBrokerAdapter
 from trading_system.execution.orders import OrderRequest, OrderSide
 from trading_system.integrations.kis import (
+    KST,
     HttpResponse,
     KisApiClient,
     KisQuote,
     KisResponseError,
-    KST,
     _validate_quote,
     is_krx_market_open,
 )

@@ -82,7 +82,9 @@ def test_accepted_but_unfilled_order_does_not_change_portfolio() -> None:
         max_order_size=Decimal("5"),
     )
     logger = StructuredLogger("test.step.unfilled", log_format=StructuredLogFormat.JSON)
-    context = TradingContext(portfolio=portfolio, risk_limits=risk_limits, broker=broker, logger=logger)
+    context = TradingContext(
+        portfolio=portfolio, risk_limits=risk_limits, broker=broker, logger=logger
+    )
 
     class _BuyStrategy:
         name = "test_buy"

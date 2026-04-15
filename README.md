@@ -908,3 +908,111 @@ This repository is a reliable deterministic backtest-and-validation foundation, 
 ### KO
 
 이 저장소는 결정적 백테스트/검증 기반을 제공하며, uv 기반 Python 3.12 실행 환경과 이벤트 단위 관측성 강화를 통해 운영 전 단계 품질을 높인 상태입니다.
+
+---
+
+## 16) Deployment guide / 배포 가이드
+
+### EN
+
+This guide covers deploying the backend to Railway, the frontend to Vercel, and the database to Supabase.
+
+#### Step 1 — Supabase (PostgreSQL)
+
+1. Create a project at [supabase.com](https://supabase.com) and copy the **Connection String** (Session mode, port 5432).
+2. Apply the schema migrations:
+   ```bash
+   psql $DATABASE_URL -f scripts/migrations/001_create_backtest_runs.sql
+   psql $DATABASE_URL -f scripts/migrations/002_create_equity_snapshots.sql
+   ```
+3. Store the connection string as `DATABASE_URL` for the next step.
+
+#### Step 2 — Railway (FastAPI backend)
+
+1. Create a new Railway project and connect this GitHub repository.
+2. Railway auto-detects `railway.json` and builds with `Dockerfile`.
+3. Set the following environment variables in the Railway dashboard:
+
+   | Variable | Value |
+   |---|---|
+   | `DATABASE_URL` | Supabase connection string |
+   | `TRADING_SYSTEM_ALLOWED_API_KEYS` | Comma-separated API keys for `X-API-Key` header |
+   | `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` | Vercel deployment URL (e.g. `https://your-app.vercel.app`) |
+
+4. After deployment, confirm the health check: `GET https://your-backend.railway.app/health` → `{"status": "ok"}`.
+
+#### Step 3 — Vercel (Next.js frontend)
+
+1. Create a new Vercel project and connect this GitHub repository.
+2. Set **Root Directory** to `frontend`.
+3. Set the following environment variable in the Vercel dashboard:
+
+   | Variable | Value |
+   |---|---|
+   | `NEXT_PUBLIC_API_BASE_URL` | `https://your-backend.railway.app/api/v1` |
+
+4. Deploy and confirm the frontend loads and can reach the Railway backend.
+
+#### CORS note
+
+`TRADING_SYSTEM_CORS_ALLOW_ORIGINS` must contain the exact Vercel URL without a trailing slash (e.g. `https://your-app.vercel.app`). Multiple origins are comma-separated. The security middleware in `security.py` handles CORS; no additional `CORSMiddleware` is needed.
+
+#### GitHub Actions CI
+
+Push or open a PR to trigger `.github/workflows/ci.yml`. Two jobs run automatically:
+
+- `python-ci` — ruff lint + pytest
+- `frontend-ci` — TypeScript check + ESLint + Next.js build
+
+---
+
+### KO
+
+이 가이드는 백엔드를 Railway, 프론트엔드를 Vercel, 데이터베이스를 Supabase에 배포하는 방법을 설명합니다.
+
+#### 1단계 — Supabase (PostgreSQL)
+
+1. [supabase.com](https://supabase.com)에서 프로젝트를 생성하고 **Connection String** (Session mode, 포트 5432)을 복사합니다.
+2. 스키마 마이그레이션을 적용합니다:
+   ```bash
+   psql $DATABASE_URL -f scripts/migrations/001_create_backtest_runs.sql
+   psql $DATABASE_URL -f scripts/migrations/002_create_equity_snapshots.sql
+   ```
+3. 연결 문자열을 다음 단계를 위해 `DATABASE_URL`로 보관합니다.
+
+#### 2단계 — Railway (FastAPI 백엔드)
+
+1. Railway에서 새 프로젝트를 생성하고 이 GitHub 리포지토리를 연결합니다.
+2. Railway가 `railway.json`을 자동 감지하고 `Dockerfile`로 빌드합니다.
+3. Railway 대시보드에서 다음 환경변수를 설정합니다:
+
+   | 변수 | 값 |
+   |---|---|
+   | `DATABASE_URL` | Supabase 연결 문자열 |
+   | `TRADING_SYSTEM_ALLOWED_API_KEYS` | `X-API-Key` 헤더에 사용할 API 키 목록 (쉼표 구분) |
+   | `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` | Vercel 배포 URL (예: `https://your-app.vercel.app`) |
+
+4. 배포 후 헬스체크 확인: `GET https://your-backend.railway.app/health` → `{"status": "ok"}`.
+
+#### 3단계 — Vercel (Next.js 프론트엔드)
+
+1. Vercel에서 새 프로젝트를 생성하고 이 GitHub 리포지토리를 연결합니다.
+2. **Root Directory**를 `frontend`로 지정합니다.
+3. Vercel 대시보드에서 다음 환경변수를 설정합니다:
+
+   | 변수 | 값 |
+   |---|---|
+   | `NEXT_PUBLIC_API_BASE_URL` | `https://your-backend.railway.app/api/v1` |
+
+4. 배포 후 프론트엔드가 Railway 백엔드에 정상적으로 요청하는지 확인합니다.
+
+#### CORS 설정
+
+`TRADING_SYSTEM_CORS_ALLOW_ORIGINS`에는 트레일링 슬래시 없이 Vercel URL을 정확히 입력합니다 (예: `https://your-app.vercel.app`). 여러 오리진은 쉼표로 구분합니다. CORS는 `security.py`의 보안 미들웨어에서 처리하며, 별도 `CORSMiddleware` 추가는 필요하지 않습니다.
+
+#### GitHub Actions CI
+
+PR을 열거나 push하면 `.github/workflows/ci.yml`이 자동 실행됩니다. 두 job이 순서와 무관하게 병렬 실행됩니다:
+
+- `python-ci` — ruff 린트 + pytest
+- `frontend-ci` — TypeScript 검사 + ESLint + Next.js 빌드
