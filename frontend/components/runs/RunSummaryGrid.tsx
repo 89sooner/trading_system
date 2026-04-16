@@ -4,7 +4,15 @@ import { StatTile } from '@/components/domain/StatTile'
 import { formatPercentFromRatio, formatDecimal, formatUtcTimestamp } from '@/lib/formatters'
 import type { BacktestResult } from '@/lib/api/types'
 
-export function RunSummaryGrid({ result, startedAt, finishedAt }: { result: BacktestResult; startedAt: string; finishedAt: string }) {
+export function RunSummaryGrid({
+  result,
+  startedAt,
+  finishedAt,
+}: {
+  result: BacktestResult
+  startedAt: string
+  finishedAt: string | null
+}) {
   const returnVal = Number(result.summary.return)
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">

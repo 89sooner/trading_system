@@ -82,31 +82,88 @@ class BacktestRunDTO:
     run_id: str
     status: str
     started_at: str
-    finished_at: str
+    finished_at: str | None
     input_symbols: list[str]
     mode: str
     result: BacktestResultDTO | None = None
     error: str | None = None
 
     @classmethod
+    def queued(
+        cls,
+        *,
+        run_id: str,
+        started_at: datetime | str,
+        input_symbols: tuple[str, ...] | list[str],
+        mode: str,
+    ) -> "BacktestRunDTO":
+        return cls(
+            run_id=run_id,
+            status="queued",
+            started_at=_timestamp_to_json(started_at),
+            finished_at=None,
+            input_symbols=list(input_symbols),
+            mode=mode,
+        )
+
+    @classmethod
+    def running(
+        cls,
+        *,
+        run_id: str,
+        started_at: datetime | str,
+        input_symbols: tuple[str, ...] | list[str],
+        mode: str,
+    ) -> "BacktestRunDTO":
+        return cls(
+            run_id=run_id,
+            status="running",
+            started_at=_timestamp_to_json(started_at),
+            finished_at=None,
+            input_symbols=list(input_symbols),
+            mode=mode,
+        )
+
+    @classmethod
     def succeeded(
         cls,
         *,
         run_id: str,
-        started_at: datetime,
-        finished_at: datetime,
-        input_symbols: tuple[str, ...],
+        started_at: datetime | str,
+        finished_at: datetime | str,
+        input_symbols: tuple[str, ...] | list[str],
         mode: str,
         result: BacktestResult,
     ) -> "BacktestRunDTO":
         return cls(
             run_id=run_id,
             status="succeeded",
-            started_at=_datetime_to_json(started_at),
-            finished_at=_datetime_to_json(finished_at),
+            started_at=_timestamp_to_json(started_at),
+            finished_at=_timestamp_to_json(finished_at),
             input_symbols=list(input_symbols),
             mode=mode,
             result=BacktestResultDTO.from_result(result),
+        )
+
+    @classmethod
+    def failed(
+        cls,
+        *,
+        run_id: str,
+        started_at: datetime | str,
+        finished_at: datetime | str,
+        input_symbols: tuple[str, ...] | list[str],
+        mode: str,
+        error: str,
+    ) -> "BacktestRunDTO":
+        return cls(
+            run_id=run_id,
+            status="failed",
+            started_at=_timestamp_to_json(started_at),
+            finished_at=_timestamp_to_json(finished_at),
+            input_symbols=list(input_symbols),
+            mode=mode,
+            error=error,
         )
 
 
@@ -140,3 +197,9 @@ def _value_to_json(value: object) -> str:
 def _datetime_to_json(value: datetime) -> str:
     normalized = value.astimezone(UTC)
     return normalized.isoformat().replace("+00:00", "Z")
+
+
+def _timestamp_to_json(value: datetime | str) -> str:
+    if isinstance(value, datetime):
+        return _datetime_to_json(value)
+    return value

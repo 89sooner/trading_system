@@ -1,3 +1,5 @@
+export type BacktestRunStatus = 'queued' | 'running' | 'succeeded' | 'failed'
+
 // Dashboard
 export interface DashboardStatus {
   state: string
@@ -81,7 +83,7 @@ export interface BacktestRunRequestDTO {
 
 export interface BacktestRunAcceptedDTO {
   run_id: string
-  status: string
+  status: BacktestRunStatus
 }
 
 export interface EquityPoint {
@@ -110,21 +112,21 @@ export interface BacktestResult {
 
 export interface BacktestRunStatusDTO {
   run_id: string
-  status: string
+  status: BacktestRunStatus
   started_at: string
-  finished_at: string
+  finished_at: string | null
   input_symbols: string[]
   mode: string
-  result?: BacktestResult
+  result?: BacktestResult | null
   error?: string | null
 }
 
 // Backtest run list (Phase 8)
 export interface BacktestRunListItem {
   run_id: string
-  status: string
+  status: BacktestRunStatus
   started_at: string
-  finished_at: string
+  finished_at: string | null
   input_symbols: string[]
   mode: string
 }

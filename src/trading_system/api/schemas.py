@@ -86,14 +86,14 @@ class BacktestResultDTO(BaseModel):
 
 class BacktestRunAcceptedDTO(BaseModel):
     run_id: str
-    status: Literal["succeeded", "failed"]
+    status: Literal["queued", "succeeded", "failed"]
 
 
 class BacktestRunStatusDTO(BaseModel):
     run_id: str
-    status: Literal["running", "succeeded", "failed"]
+    status: Literal["queued", "running", "succeeded", "failed"]
     started_at: str
-    finished_at: str
+    finished_at: str | None
     input_symbols: list[str]
     mode: Literal["backtest", "live"]
     result: BacktestResultDTO | None = None
@@ -260,7 +260,7 @@ class BacktestRunListItemDTO(BaseModel):
     run_id: str
     status: str
     started_at: str
-    finished_at: str
+    finished_at: str | None
     input_symbols: list[str]
     mode: str
 

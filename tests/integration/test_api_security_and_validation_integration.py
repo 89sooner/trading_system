@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+
 from fastapi.testclient import TestClient
 
 from trading_system.api.routes import backtest as backtest_routes
@@ -29,58 +31,63 @@ def _client() -> TestClient:
     return TestClient(create_app())
 
 
+@contextmanager
+def _managed_client():
+    backtest_routes._RUN_REPOSITORY.clear()
+    with TestClient(create_app()) as client:
+        yield client
+
+
 def test_api_key_auth_failure_returns_401(monkeypatch) -> None:
     monkeypatch.setenv("TRADING_SYSTEM_ALLOWED_API_KEYS", "test-key")
-    client = _client()
+    with _managed_client() as client:
+        response = client.post("/api/v1/backtests", json=_payload())
 
-    response = client.post("/api/v1/backtests", json=_payload())
-
-    assert response.status_code == 401
-    assert response.json() == {
-        "error_code": "auth_invalid_api_key",
-        "message": "Missing or invalid API key.",
-    }
+        assert response.status_code == 401
+        assert response.json() == {
+            "error_code": "auth_invalid_api_key",
+            "message": "Missing or invalid API key.",
+        }
 
 
 def test_request_validation_failure_returns_standardized_400(monkeypatch) -> None:
     monkeypatch.setenv("TRADING_SYSTEM_ALLOWED_API_KEYS", "test-key")
-    client = _client()
-    payload = _payload()
-    payload["backtest"]["fee_bps"] = "1001"
+    with _managed_client() as client:
+        payload = _payload()
+        payload["backtest"]["fee_bps"] = "1001"
 
-    response = client.post(
-        "/api/v1/backtests",
-        json=payload,
-        headers={"X-API-Key": "test-key"},
-    )
+        response = client.post(
+            "/api/v1/backtests",
+            json=payload,
+            headers={"X-API-Key": "test-key"},
+        )
 
-    assert response.status_code == 400
-    assert response.json() == {
-        "error_code": "invalid_fee_bps",
-        "message": "fee_bps must be between 0 and 1000.",
-    }
+        assert response.status_code == 400
+        assert response.json() == {
+            "error_code": "invalid_fee_bps",
+            "message": "fee_bps must be between 0 and 1000.",
+        }
 
 
 def test_rate_limit_returns_429(monkeypatch) -> None:
     monkeypatch.setenv("TRADING_SYSTEM_ALLOWED_API_KEYS", "test-key")
     monkeypatch.setenv("TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS", "1")
     monkeypatch.setenv("TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS", "60")
-    client = _client()
+    with _managed_client() as client:
+        first_response = client.post(
+            "/api/v1/backtests",
+            json=_payload(),
+            headers={"X-API-Key": "test-key"},
+        )
+        second_response = client.post(
+            "/api/v1/backtests",
+            json=_payload(),
+            headers={"X-API-Key": "test-key"},
+        )
 
-    first_response = client.post(
-        "/api/v1/backtests",
-        json=_payload(),
-        headers={"X-API-Key": "test-key"},
-    )
-    second_response = client.post(
-        "/api/v1/backtests",
-        json=_payload(),
-        headers={"X-API-Key": "test-key"},
-    )
-
-    assert first_response.status_code == 201
-    assert second_response.status_code == 429
-    assert second_response.json() == {
-        "error_code": "rate_limit_exceeded",
-        "message": "Too many requests. Please retry later.",
-    }
+        assert first_response.status_code == 202
+        assert second_response.status_code == 429
+        assert second_response.json() == {
+            "error_code": "rate_limit_exceeded",
+            "message": "Too many requests. Please retry later.",
+        }

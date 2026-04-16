@@ -179,3 +179,19 @@ def test_save_updates_existing_in_index(tmp_path):
     runs, total = repo.list()
     assert total == 1
     assert runs[0].status == "succeeded"
+
+
+def test_pending_run_roundtrip_preserves_nullable_finished_at(tmp_path):
+    repo = FileBacktestRunRepository(tmp_path)
+    run = BacktestRunDTO.queued(
+        run_id="queued-run",
+        started_at="2024-01-01T00:00:00Z",
+        input_symbols=["AAPL"],
+        mode="backtest",
+    )
+    repo.save(run)
+
+    retrieved = repo.get("queued-run")
+    assert retrieved is not None
+    assert retrieved.status == "queued"
+    assert retrieved.finished_at is None

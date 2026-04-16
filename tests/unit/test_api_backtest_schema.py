@@ -1,3 +1,6 @@
+import time
+from contextlib import contextmanager
+
 from fastapi.testclient import TestClient
 
 from trading_system.api.routes import backtest as backtest_routes
@@ -24,42 +27,56 @@ def _base_payload() -> dict:
     }
 
 
+def _wait_for_terminal_run(client: TestClient, run_id: str, timeout: float = 3.0) -> dict:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        response = client.get(f"/api/v1/backtests/{run_id}")
+        assert response.status_code == 200
+        body = response.json()
+        if body["status"] in {"succeeded", "failed"}:
+            return body
+        time.sleep(0.05)
+    raise AssertionError(f"Run {run_id} did not reach terminal state within {timeout}s")
+
+
+@contextmanager
+def _client():
+    with TestClient(create_app()) as client:
+        yield client
+
+
 def test_backtest_result_schema_is_stable_for_visualization_clients() -> None:
     backtest_routes._RUN_REPOSITORY.clear()
-    client = TestClient(create_app())
-
-    create_response = client.post("/api/v1/backtests", json=_base_payload())
-    run_id = create_response.json()["run_id"]
-    get_response = client.get(f"/api/v1/backtests/{run_id}")
-
-    assert get_response.status_code == 200
-    result = get_response.json()["result"]
-    assert set(result.keys()) == {
-        "summary",
-        "equity_curve",
-        "drawdown_curve",
-        "signals",
-        "orders",
-        "risk_rejections",
-    }
-    assert set(result["summary"].keys()) == {"return", "max_drawdown", "volatility", "win_rate"}
-    assert all(set(point.keys()) == {"timestamp", "equity"} for point in result["equity_curve"])
-    assert all(set(point.keys()) == {"timestamp", "drawdown"} for point in result["drawdown_curve"])
-    assert all(set(event.keys()) == {"event", "payload"} for event in result["orders"])
-    assert all(set(event.keys()) == {"event", "payload"} for event in result["risk_rejections"])
-    assert all(set(event.keys()) == {"event", "payload"} for event in result["signals"])
+    with _client() as client:
+        create_response = client.post("/api/v1/backtests", json=_base_payload())
+        run_id = create_response.json()["run_id"]
+        result = _wait_for_terminal_run(client, run_id)["result"]
+        assert set(result.keys()) == {
+            "summary",
+            "equity_curve",
+            "drawdown_curve",
+            "signals",
+            "orders",
+            "risk_rejections",
+        }
+        assert set(result["summary"].keys()) == {"return", "max_drawdown", "volatility", "win_rate"}
+        assert all(set(point.keys()) == {"timestamp", "equity"} for point in result["equity_curve"])
+        assert all(
+            set(point.keys()) == {"timestamp", "drawdown"}
+            for point in result["drawdown_curve"]
+        )
+        assert all(set(event.keys()) == {"event", "payload"} for event in result["orders"])
+        assert all(set(event.keys()) == {"event", "payload"} for event in result["risk_rejections"])
+        assert all(set(event.keys()) == {"event", "payload"} for event in result["signals"])
 
 
 def test_backtest_result_schema_has_matching_curve_lengths() -> None:
     backtest_routes._RUN_REPOSITORY.clear()
-    client = TestClient(create_app())
-
-    create_response = client.post("/api/v1/backtests", json=_base_payload())
-    run_id = create_response.json()["run_id"]
-    get_response = client.get(f"/api/v1/backtests/{run_id}")
-
-    result = get_response.json()["result"]
-    assert len(result["equity_curve"]) == len(result["drawdown_curve"])
+    with _client() as client:
+        create_response = client.post("/api/v1/backtests", json=_base_payload())
+        run_id = create_response.json()["run_id"]
+        result = _wait_for_terminal_run(client, run_id)["result"]
+        assert len(result["equity_curve"]) == len(result["drawdown_curve"])
 
 
 def test_live_preflight_schema_supports_multi_symbol_details(monkeypatch) -> None:
@@ -77,26 +94,26 @@ def test_live_preflight_schema_supports_multi_symbol_details(monkeypatch) -> Non
         "trading_system.app.services.KisApiClient.from_env",
         lambda: _StubServicesKisClient(),
     )
-    client = TestClient(create_app())
-    payload = _base_payload()
-    payload["mode"] = "live"
-    payload["provider"] = "kis"
-    payload["broker"] = "kis"
-    payload["symbols"] = ["005930", "035720"]
+    with _client() as client:
+        payload = _base_payload()
+        payload["mode"] = "live"
+        payload["provider"] = "kis"
+        payload["broker"] = "kis"
+        payload["symbols"] = ["005930", "035720"]
 
-    response = client.post("/api/v1/live/preflight", json=payload)
+        response = client.post("/api/v1/live/preflight", json=payload)
 
-    assert response.status_code == 200
-    body = response.json()
-    assert set(body.keys()) == {
-        "status",
-        "message",
-        "ready",
-        "reasons",
-        "quote_summary",
-        "quote_summaries",
-        "symbol_count",
-        "paper_result",
-    }
-    assert body["symbol_count"] == 2
-    assert len(body["quote_summaries"]) == 2
+        assert response.status_code == 200
+        body = response.json()
+        assert set(body.keys()) == {
+            "status",
+            "message",
+            "ready",
+            "reasons",
+            "quote_summary",
+            "quote_summaries",
+            "symbol_count",
+            "paper_result",
+        }
+        assert body["symbol_count"] == 2
+        assert len(body["quote_summaries"]) == 2

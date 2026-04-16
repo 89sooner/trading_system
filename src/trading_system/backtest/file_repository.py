@@ -123,7 +123,7 @@ class FileBacktestRunRepository:
                 run_id=r["run_id"],
                 status=r["status"],
                 started_at=r["started_at"],
-                finished_at=r.get("finished_at", ""),
+                finished_at=r.get("finished_at"),
                 input_symbols=r.get("input_symbols", []),
                 mode=r.get("mode", ""),
             )
@@ -164,7 +164,7 @@ class FileBacktestRunRepository:
                         "run_id": data["run_id"],
                         "status": data["status"],
                         "started_at": data.get("started_at", ""),
-                        "finished_at": data.get("finished_at", ""),
+                        "finished_at": data.get("finished_at"),
                         "input_symbols": data.get("input_symbols", []),
                         "mode": data.get("mode", ""),
                     })
@@ -186,7 +186,7 @@ def _deserialize_run(data: dict) -> BacktestRunDTO:
         run_id=data["run_id"],
         status=data["status"],
         started_at=data["started_at"],
-        finished_at=data.get("finished_at", ""),
+        finished_at=data.get("finished_at"),
         input_symbols=data.get("input_symbols", []),
         mode=data.get("mode", ""),
         result=result,

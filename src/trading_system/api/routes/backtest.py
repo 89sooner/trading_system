@@ -4,7 +4,7 @@ from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
 from trading_system.api.errors import RequestValidationError
 from trading_system.api.schemas import (
@@ -28,6 +28,7 @@ from trading_system.app.settings import (
     PortfolioRiskSettings,
     RiskSettings,
 )
+from trading_system.backtest.dispatcher import BacktestRunDispatcher, QueuedBacktestRun
 from trading_system.backtest.dto import BacktestResultDTO as SerializedBacktestResultDTO
 from trading_system.backtest.dto import BacktestRunDTO
 from trading_system.backtest.engine import BacktestResult
@@ -187,6 +188,54 @@ def _to_api_result_dto(result: SerializedBacktestResultDTO) -> BacktestResultDTO
     )
 
 
+def _repository_factory() -> BacktestRunRepository:
+    repo = _RUN_REPOSITORY
+    if isinstance(repo, FileBacktestRunRepository):
+        return repo
+    try:
+        from trading_system.backtest.supabase_repository import SupabaseBacktestRunRepository
+    except Exception:
+        SupabaseBacktestRunRepository = None  # type: ignore[assignment]
+    if (
+        SupabaseBacktestRunRepository is not None
+        and isinstance(repo, SupabaseBacktestRunRepository)
+    ):
+        return _create_run_repository()
+    return repo
+
+
+def _execute_backtest_run(item: QueuedBacktestRun) -> BacktestRunDTO:
+    finished_at = datetime.now(UTC)
+    try:
+        assert isinstance(item.payload, AppSettings)
+        services = build_services(item.payload)
+        result = services.run()
+        return BacktestRunDTO.succeeded(
+            run_id=item.run_id,
+            started_at=item.started_at,
+            finished_at=finished_at,
+            input_symbols=item.input_symbols,
+            mode=item.mode,
+            result=result,
+        )
+    except Exception as exc:
+        return BacktestRunDTO.failed(
+            run_id=item.run_id,
+            started_at=item.started_at,
+            finished_at=finished_at,
+            input_symbols=item.input_symbols,
+            mode=item.mode,
+            error=str(exc),
+        )
+
+
+def create_backtest_dispatcher() -> BacktestRunDispatcher:
+    return BacktestRunDispatcher(
+        repo_factory=_repository_factory,
+        executor=_execute_backtest_run,
+    )
+
+
 @router.get("/backtests", response_model=BacktestRunListResponseDTO)
 def list_backtest_runs(
     page: int = 1,
@@ -210,29 +259,48 @@ def list_backtest_runs(
     return BacktestRunListResponseDTO(runs=items, total=total, page=page, page_size=page_size)
 
 
+def create_backtest_run(
+    payload: BacktestRunRequestDTO,
+    request: Request | None = None,
+) -> BacktestRunAcceptedDTO:
+    settings = _to_app_settings(payload)
+    run_id = str(uuid4())
+    dispatcher = getattr(request.app.state, "backtest_dispatcher", None) if request else None
+    queued_run = BacktestRunDTO.queued(
+        run_id=run_id,
+        started_at=datetime.now(UTC),
+        input_symbols=settings.symbols,
+        mode=settings.mode.value,
+    )
+    _RUN_REPOSITORY.save(queued_run)
+
+    item = QueuedBacktestRun(
+        run_id=run_id,
+        started_at=queued_run.started_at,
+        input_symbols=settings.symbols,
+        mode=settings.mode.value,
+        payload=settings,
+    )
+
+    if dispatcher is None:
+        final_run = _execute_backtest_run(item)
+        _RUN_REPOSITORY.save(final_run)
+        return BacktestRunAcceptedDTO(run_id=run_id, status=final_run.status)
+
+    dispatcher.submit(item)
+    return BacktestRunAcceptedDTO(run_id=run_id, status="queued")
+
+
 @router.post(
     "/backtests",
     response_model=BacktestRunAcceptedDTO,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_202_ACCEPTED,
 )
-def create_backtest_run(payload: BacktestRunRequestDTO) -> BacktestRunAcceptedDTO:
-    settings = _to_app_settings(payload)
-    run_id = str(uuid4())
-    started_at = datetime.now(UTC)
-    services = build_services(settings)
-    result = services.run()
-    finished_at = datetime.now(UTC)
-
-    stored_run = BacktestRunDTO.succeeded(
-        run_id=run_id,
-        started_at=started_at,
-        finished_at=finished_at,
-        input_symbols=settings.symbols,
-        mode=settings.mode.value,
-        result=result,
-    )
-    _RUN_REPOSITORY.save(stored_run)
-    return BacktestRunAcceptedDTO(run_id=run_id, status="succeeded")
+async def create_backtest_run_endpoint(
+    payload: BacktestRunRequestDTO,
+    request: Request,
+) -> BacktestRunAcceptedDTO:
+    return create_backtest_run(payload, request)
 
 
 @router.get("/backtests/{run_id}", response_model=BacktestRunStatusDTO)

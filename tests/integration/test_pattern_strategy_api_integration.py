@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from trading_system.api.errors import RequestValidationError
 from trading_system.api.routes.backtest import (
     _RUN_REPOSITORY,
@@ -56,6 +58,7 @@ def test_train_save_strategy_and_run_backtest_flow(monkeypatch, tmp_path) -> Non
     assert profile.strategy.pattern_set_id == saved.pattern_set_id
 
     _RUN_REPOSITORY.clear()
+    fake_request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace()))
     created = create_backtest_run(
         BacktestRunRequestDTO.model_validate(
             {
@@ -79,7 +82,8 @@ def test_train_save_strategy_and_run_backtest_flow(monkeypatch, tmp_path) -> Non
                     "profile_id": "mock-profile",
                 },
             }
-        )
+        ),
+        request=fake_request,
     )
 
     detail = get_backtest_run(created.run_id)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime
 
 import psycopg
 
@@ -144,10 +145,18 @@ def _deserialize_row(row: tuple) -> BacktestRunDTO:
     return BacktestRunDTO(
         run_id=run_id,
         status=status,
-        started_at=str(started_at) if started_at else "",
-        finished_at=str(finished_at) if finished_at else "",
+        started_at=_serialize_db_timestamp(started_at),
+        finished_at=_serialize_db_timestamp(finished_at) if finished_at else None,
         input_symbols=list(input_symbols or []),
         mode=mode or "",
         result=result,
         error=error,
     )
+
+
+def _serialize_db_timestamp(value: datetime | str | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, datetime):
+        return value.isoformat().replace("+00:00", "Z")
+    return str(value)

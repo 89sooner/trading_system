@@ -77,6 +77,18 @@ class TestGet:
         mock_cursor.fetchone.return_value = None
         assert repo.get("missing") is None
 
+    def test_get_preserves_nullable_finished_at_for_pending_run(self):
+        repo, _, mock_cursor = _make_repo()
+        mock_cursor.fetchone.return_value = (
+            "run-1", "queued",
+            "2024-01-01T00:00:00", None,
+            ["BTCUSDT"], "backtest", None, None,
+        )
+        result = repo.get("run-1")
+        assert result is not None
+        assert result.status == "queued"
+        assert result.finished_at is None
+
 
 class TestList:
     def test_list_passes_status_filter(self):

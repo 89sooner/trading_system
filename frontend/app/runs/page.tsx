@@ -12,6 +12,8 @@ import { formatUtcTimestamp } from '@/lib/formatters'
 import { RefreshCw } from 'lucide-react'
 import type { BacktestRunListItem } from '@/lib/api/types'
 
+const ACTIVE_STATUSES = new Set(['queued', 'running'])
+
 function serverItemToRunRecord(item: BacktestRunListItem): RunRecord {
   return {
     runId: item.run_id,
@@ -62,6 +64,11 @@ export default function RunsPage() {
     queryFn: () => listBacktestRuns({ page_size: 100 }),
     staleTime: 30_000,
     retry: 1,
+    refetchInterval: (query) => {
+      const data = query.state.data
+      const hasActiveRun = data?.runs.some((run) => ACTIVE_STATUSES.has(run.status)) ?? false
+      return hasActiveRun ? 2_000 : false
+    },
   })
 
   // Server API is the primary source; fall back to localStorage on error.

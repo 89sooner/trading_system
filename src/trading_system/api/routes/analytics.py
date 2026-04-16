@@ -15,7 +15,17 @@ router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
 @router.get("/backtests/{run_id}/trades", response_model=TradeAnalyticsResponseDTO)
 def get_backtest_trade_analytics(run_id: str) -> TradeAnalyticsResponseDTO:
     run = _RUN_REPOSITORY.get(run_id)
-    if run is None or run.result is None:
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backtest run not found")
+    if run.status in {"queued", "running"}:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Backtest run is still {run.status}.",
+        )
+    if run.status == "failed":
+        detail = run.error or "Backtest run failed."
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
+    if run.result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backtest run not found")
 
     trades = extract_trades(run.result.orders)

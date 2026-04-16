@@ -251,6 +251,13 @@ Validation failures are returned as 4xx (`settings_validation_error` or `invalid
 The same endpoint accepts `live_execution=live` when KIS runtime guards are satisfied.
 `GET /health` is intentionally unauthenticated so load balancers and Railway-style health checks can probe the service without an API key.
 
+Backtest API execution is asynchronous:
+
+- `POST /api/v1/backtests` returns `202 Accepted` with `status="queued"`.
+- Poll `GET /api/v1/backtests/<run_id>` until the run reaches `succeeded` or `failed`.
+- Pending runs may report `queued` or `running` with `result=null` and `finished_at=null`.
+- `GET /api/v1/analytics/backtests/<run_id>/trades` returns `409` until the run has succeeded.
+
 Visualization response example (fixed schema):
 
 ```json
@@ -325,6 +332,13 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
 입력 검증 실패는 4xx(`settings_validation_error` 또는 `invalid_*`)로, 실행 중 오류는 구조화된 5xx(`runtime_error` 또는 `internal_server_error`)로 반환합니다. 인증 실패는 `auth_invalid_api_key`, 과도한 요청은 `rate_limit_exceeded`로 반환됩니다.
 동일 엔드포인트에서 KIS 가드 조건을 만족하면 `live_execution=live`도 허용됩니다.
 `GET /health`는 로드밸런서와 Railway 같은 헬스체크가 API 키 없이 호출할 수 있도록 인증 예외 경로로 유지됩니다.
+
+백테스트 API는 비동기 실행 모델을 사용합니다.
+
+- `POST /api/v1/backtests`는 `202 Accepted`와 `status="queued"`를 반환합니다.
+- 이후 `GET /api/v1/backtests/<run_id>`를 polling 하여 `succeeded` 또는 `failed`에 도달했는지 확인합니다.
+- 진행 중 run은 `queued` 또는 `running` 상태이며, 이때 `result=null`, `finished_at=null`일 수 있습니다.
+- `GET /api/v1/analytics/backtests/<run_id>/trades`는 run이 성공 완료되기 전까지 `409`를 반환합니다.
 
 시각화 응답 예시(고정 스키마):
 
