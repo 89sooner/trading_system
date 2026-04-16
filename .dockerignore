@@ -1,0 +1,49 @@
+# Version control
+.git/
+.gitignore
+
+# Frontend (not needed in backend image)
+frontend/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local data (runtime, not build time)
+data/
+
+# IDE and OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Local env files (secrets must not enter image)
+.env
+.env.*
+
+# Test artifacts
+htmlcov/
+.coverage
+coverage.xml
+
+# OMC / agent state
+.omc/
+.claude/
+
+# Docs (optional, reduces context size)
+docs/
+prd/
