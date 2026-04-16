@@ -157,7 +157,7 @@ The intended high-value workflow today is:
   4. Each bar runs through the unified execution step:
      strategy evaluation -> signal -> order mapping -> risk check -> broker fill -> portfolio update.
   5. Equity points, orders, signals, and risk rejections are collected.
-  6. The API stores the finished run in the in-memory run repository and returns `succeeded`.
+  6. The API stores the finished run in the configured run repository and returns `succeeded`.
 - Outputs:
   - summary return metrics
   - equity curve
@@ -165,7 +165,7 @@ The intended high-value workflow today is:
   - signal, order, and rejection event streams
 - Current constraints:
   - the API executes backtests synchronously rather than as background jobs
-  - run results are persisted only in the API process memory
+  - persistence depends on deployment configuration: file-backed by default, Supabase-backed when `DATABASE_URL` is set
   - the frontend new-run page accepts a single symbol input even though backtest internals can handle multiple symbols
   - the CLI path does not currently expose pattern-profile selection flags
 
@@ -179,7 +179,7 @@ The intended high-value workflow today is:
   - `GET /api/v1/backtests/{run_id}`
   - `GET /api/v1/analytics/backtests/{run_id}/trades`
 - Preconditions:
-  - a backtest run exists and has succeeded
+  - a backtest run exists, has succeeded, and is still available in the configured repository
 - Main flow:
   1. The user opens run history or a run detail page.
   2. The system loads the stored run result.
@@ -190,7 +190,7 @@ The intended high-value workflow today is:
   - trade-level summary: trade count, win rate, risk/reward, max drawdown, average hold time
 - Current constraints:
   - frontend run history metadata lives in browser storage, not the backend
-  - if the API process restarts, run detail lookups fail even if the browser still remembers the `run_id`
+  - if the configured repository is unavailable or misconfigured, the browser may still remember a `run_id` that the backend can no longer resolve
 
 ### UC-06. Run live preflight safely
 
@@ -272,14 +272,17 @@ The intended high-value workflow today is:
   - `GET /api/v1/dashboard/status`
   - `GET /api/v1/dashboard/positions`
   - `GET /api/v1/dashboard/events`
+  - `GET /api/v1/dashboard/equity`
+  - `GET /api/v1/dashboard/stream`
   - `POST /api/v1/dashboard/control`
 - Preconditions:
   - an API server is running with a live loop attached
 - Main flow:
-  1. The dashboard polls status, positions, and events every 5 seconds.
-  2. The operator inspects loop state, heartbeat freshness, cash, positions, unrealized PnL, and recent events.
-  3. The operator can send `pause`, `resume`, or `reset`.
-  4. The system applies only valid state transitions and logs control events.
+  1. The dashboard loads server-side equity history and opens an SSE stream for live updates.
+  2. If the SSE connection drops, the UI falls back to 5-second polling for status, positions, and events.
+  3. The operator inspects loop state, heartbeat freshness, cash, positions, unrealized PnL, recent events, and the equity curve.
+  4. The operator can send `pause`, `resume`, or `reset`.
+  5. The system applies only valid state transitions and logs control events.
 - Outputs:
   - real-time operational visibility
   - limited runtime control surface
@@ -335,7 +338,6 @@ The current implementation is strong for research, controlled paper trading, and
 
 Key gaps users must account for:
 
-- no durable backend storage for backtest runs
 - no asynchronous job queue for long-running backtests
 - no multi-user auth model beyond shared API key validation
 - no advanced order lifecycle dashboard

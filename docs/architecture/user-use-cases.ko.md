@@ -157,7 +157,7 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
   4. 각 bar는 통합 실행 스텝을 통과한다.
      strategy evaluation -> signal -> order mapping -> risk check -> broker fill -> portfolio update
   5. equity point, order, signal, risk rejection 이벤트를 수집한다.
-  6. API는 완료된 실행 결과를 in-memory run repository에 저장하고 `succeeded`를 반환한다.
+  6. API는 완료된 실행 결과를 현재 설정된 run repository에 저장하고 `succeeded`를 반환한다.
 - 산출물:
   - 수익률 요약 지표
   - equity curve
@@ -165,7 +165,7 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
   - signal, order, rejection 이벤트 스트림
 - 현재 제약:
   - API는 백테스트를 백그라운드 작업이 아니라 동기 방식으로 실행한다
-  - 실행 결과는 API 프로세스 메모리에만 저장된다
+  - 영속화 방식은 배포 설정에 따라 달라진다: 기본은 파일 기반, `DATABASE_URL` 설정 시 Supabase 기반
   - 프론트엔드의 새 실행 화면은 단일 심볼 입력만 받지만, 내부 백테스트 엔진은 다중 심볼 처리도 가능하다
   - 현재 CLI 경로에는 pattern profile 선택용 플래그가 노출되어 있지 않다
 
@@ -179,7 +179,7 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
   - `GET /api/v1/backtests/{run_id}`
   - `GET /api/v1/analytics/backtests/{run_id}/trades`
 - 선행조건:
-  - 백테스트 실행 결과가 존재하고 `succeeded` 상태여야 한다
+  - 백테스트 실행 결과가 존재하고 `succeeded` 상태이며, 현재 설정된 repository에서 조회 가능해야 한다
 - 주요 흐름:
   1. 사용자가 실행 이력 또는 실행 상세 화면을 연다.
   2. 시스템이 저장된 실행 결과를 불러온다.
@@ -190,7 +190,7 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
   - 거래 단위 요약: trade count, win rate, risk/reward, max drawdown, 평균 보유 시간
 - 현재 제약:
   - 프론트엔드의 실행 이력 메타데이터는 백엔드가 아니라 브라우저 저장소에 있다
-  - API 프로세스가 재시작되면 브라우저가 `run_id`를 기억하고 있어도 상세 조회는 실패한다
+  - 설정된 repository가 내려가 있거나 잘못 구성되면 브라우저가 `run_id`를 기억하고 있어도 백엔드 상세 조회는 실패할 수 있다
 
 ### UC-06. 안전한 라이브 프리플라이트 실행
 
@@ -272,14 +272,17 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
   - `GET /api/v1/dashboard/status`
   - `GET /api/v1/dashboard/positions`
   - `GET /api/v1/dashboard/events`
+  - `GET /api/v1/dashboard/equity`
+  - `GET /api/v1/dashboard/stream`
   - `POST /api/v1/dashboard/control`
 - 선행조건:
   - 라이브 루프가 연결된 API 서버가 실행 중이어야 한다
 - 주요 흐름:
-  1. 대시보드는 5초마다 status, positions, events를 polling 한다.
-  2. 운영자는 루프 상태, heartbeat freshness, cash, positions, unrealized PnL, 최근 이벤트를 확인한다.
-  3. 운영자는 `pause`, `resume`, `reset`을 보낼 수 있다.
-  4. 시스템은 유효한 상태 전이만 적용하고 control 이벤트를 로그에 남긴다.
+  1. 대시보드는 서버에서 최근 equity 이력을 먼저 읽고, 라이브 업데이트를 위해 SSE 스트림을 연다.
+  2. SSE 연결이 끊기면 UI는 status, positions, events에 대해 5초 polling fallback으로 전환한다.
+  3. 운영자는 루프 상태, heartbeat freshness, cash, positions, unrealized PnL, 최근 이벤트, equity curve를 확인한다.
+  4. 운영자는 `pause`, `resume`, `reset`을 보낼 수 있다.
+  5. 시스템은 유효한 상태 전이만 적용하고 control 이벤트를 로그에 남긴다.
 - 산출물:
   - 실시간 운영 가시성
   - 제한된 런타임 제어 표면
@@ -335,7 +338,6 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
 
 사용자가 감안해야 할 주요 갭은 다음과 같습니다.
 
-- 백테스트 실행 결과를 위한 durable backend storage가 없음
 - 장시간 백테스트를 위한 비동기 job queue가 없음
 - 공유 API key 검증 외의 다중 사용자 auth 모델이 없음
 - 고급 주문 수명주기 대시보드가 없음

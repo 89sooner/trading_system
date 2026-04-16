@@ -1,10 +1,10 @@
 # 워크스페이스 분석
 
-이 문서는 2026년 3월 28일 기준 `trading-system` 워크스페이스의 현재 구현 상태를 정리합니다.
+이 문서는 2026년 4월 16일 기준 `trading-system` 워크스페이스의 현재 구현 상태를 정리합니다.
 
 ## 저장소 상태
 
-이 저장소는 더 이상 스캐폴드 수준이 아닙니다. 현재는 결정적 백테스트, 가드가 있는 라이브 실행 경로, FastAPI 표면, React 프론트엔드, 패턴/전략 저장소, 거래 애널리틱스, 대시보드 제어, 포트폴리오 영속화, KIS 연동까지 포함합니다.
+이 저장소는 더 이상 스캐폴드 수준이 아닙니다. 현재는 결정적 백테스트, 가드가 있는 라이브 실행 경로, FastAPI 표면, React 프론트엔드, Supabase 기반 영속화 선택지, 거래 애널리틱스, 대시보드 제어, API key 관리, webhook 알림, 포트폴리오 영속화, KIS 연동까지 포함합니다.
 
 현재 구현된 동작:
 
@@ -12,9 +12,10 @@
 - `app.services`는 전략 저장소, 패턴 저장소, 데이터 provider, 브로커 어댑터, 리스크 제어, 포트폴리오 영속화, 라이브 preflight 검사를 조립합니다.
 - `execution.step.execute_trading_step`은 백테스트와 라이브 런타임이 공통으로 사용하는 실행 코어입니다.
 - `backtest.engine.run_backtest`는 결정적 재생, 이벤트 수집, equity 추적, 다중 심볼 처리를 오케스트레이션합니다.
-- `api.server`는 API key, CORS, rate-limit 미들웨어 뒤에 백테스트, 라이브 preflight, 패턴, 전략, 애널리틱스, 대시보드 라우트를 노출합니다.
-- `frontend/src/routes`는 패턴 관리, 전략 프로필, 실행 결과 검토, 라이브 대시보드 모니터링을 위한 브라우저 워크플로를 제공합니다.
+- `api.server`는 API key, CORS, rate-limit 미들웨어 뒤에 백테스트, 라이브 preflight, 패턴, 전략, 애널리틱스, admin 키 관리, `/health`, 대시보드 라우트를 노출합니다.
+- `frontend/app/*`는 백테스트 실행, 패턴 관리, 전략 프로필, 실행 결과 검토, API key 관리, 라이브 대시보드 모니터링을 위한 브라우저 워크플로를 제공합니다.
 - `execution.reconciliation.reconcile`은 브로커가 잔고 스냅샷을 제공하는 경우 로컬 `PortfolioBook`을 브로커 상태와 맞출 수 있습니다.
+- `notifications.webhook`은 선택된 런타임 이벤트를 `httpx` 기반 bounded worker로 외부 webhook에 전달합니다.
 
 ## 레이어 분석
 
@@ -98,7 +99,7 @@
 - API는 완료된 실행 결과를 저장해 이후 조회 및 애널리틱스 검토에 사용합니다.
 
 현재 한계:
-- 백테스트는 동기 방식으로 실행되고, 실행 결과는 in-memory API repository에만 저장되므로 API 프로세스 재시작 후에는 유지되지 않습니다.
+- 백테스트는 여전히 요청 경로에서 동기 방식으로 실행되며, 결과 영속화는 가능하지만 비동기 큐/잡 실행 모델은 아직 없습니다.
 
 ### Analytics
 
@@ -116,8 +117,9 @@
 운영자 대상 애플리케이션 표면이 CLI 외에 별도로 존재합니다.
 
 - API는 runtime, patterns, strategies, analytics, dashboard control을 다룹니다.
-- 프론트엔드는 신규 실행, 저장된 실행, 패턴 세트, 전략 프로필, 대시보드 조회 라우트를 제공합니다.
+- 프론트엔드는 신규 실행, 저장된 실행, 패턴 세트, 전략 프로필, API key 관리, 대시보드 조회 라우트를 제공합니다.
 - 대시보드 제어는 공식적으로 `pause`, `resume`, `reset`을 지원합니다.
+- 대시보드는 SSE(`/api/v1/dashboard/stream`)를 우선 사용하고, 필요 시 polling fallback과 서버측 equity 이력(`/api/v1/dashboard/equity`)을 함께 사용합니다.
 
 현재 한계:
 - `/api/v1/live/preflight`는 이제 다중 심볼을 허용하지만, 기존 소비자는 여전히 단일 `quote_summary` 필드만 가정할 수 있어 `quote_summaries`/`symbol_count`로의 전환이 필요할 수 있습니다.
@@ -151,7 +153,7 @@
 
 ## 더 넓은 프로덕션 사용 전 남은 갭
 
-1. **Durable run storage**: 백테스트 실행 결과와 메타데이터를 위한 영속 저장소와 비동기 job 모델이 필요합니다.
+1. **비동기 실행 모델**: 백테스트 결과 영속화는 가능해졌지만, 긴 실행은 여전히 요청 경로에서 동기적으로 수행됩니다.
 2. **Frontend live orchestration**: live loop 프로세스를 시작, 연결, 관리하는 1급 UI 흐름이 아직 없습니다.
 3. **Config parity**: 전략 선택과 일부 런타임 전용 필드는 아직 typed YAML loader에 완전히 반영되지 않았습니다.
 4. **Exchange snapshot integration**: 일반 reconciliation 경로와 KIS balance snapshot은 연결되었지만, pending-order authority는 아직 전용 unresolved-order API가 아니라 잔고 스냅샷 신호에 의존합니다.
@@ -159,7 +161,7 @@
 
 ## 권장 다음 백로그
 
-1. 영속 백테스트 실행 저장소와 비동기 실행 모델을 추가합니다.
+1. 비동기 실행 모델, 보존(retention) 제어, 장시간 백테스트에 대한 운영 가시성을 강화합니다.
 2. 특히 KIS를 포함한 브로커 연동에서 reconciliation용 unresolved/open-order source를 더 강하게 만듭니다.
 3. 추가 전략 런타임 설정을 YAML의 1급 필드로 만들지, API/runtime 전용으로 유지할지 결정합니다.
-4. API 서버, live loop, dashboard를 함께 시작하는 배포/운영 문서를 추가합니다.
+4. API 서버를 attached live loop와 함께 띄우는 운영 절차와 배포 후 상시 점검 절차를 더 구체화합니다.

@@ -29,27 +29,32 @@ Open [http://localhost:3000](http://localhost:3000).
 |---|---|---|
 | `NEXT_PUBLIC_API_BASE_URL` | `http://127.0.0.1:8000/api/v1` | Backend API base URL |
 
-The base URL and API key can also be changed at runtime via the **ApiSettingsBar** in the top nav (persisted in localStorage).
+The base URL and API key can also be changed at runtime via the **ApiSettingsBar** in the top nav.
+
+- `baseUrl` is persisted in `localStorage`
+- `apiKey` is memory-only and is cleared on a full page reload
 
 ## Routes
 
 | Path | Description |
 |---|---|
-| `/` | Redirect to dashboard |
-| `/dashboard` | Live trading system monitoring (5 s polling) |
+| `/` | Create and submit a new backtest run |
+| `/dashboard` | Live runtime monitoring with SSE-first updates, polling fallback, and server equity history |
 | `/runs` | Backtest run history |
 | `/runs/[runId]` | Run detail — equity curve, drawdown, trade analytics, signals, fills |
 | `/strategies` | Strategy profiles — list and create |
 | `/patterns` | Pattern sets — list and train |
 | `/patterns/[patternSetId]` | Pattern set detail |
-| `/admin` | Admin operations |
+| `/admin` | API key management (list, create, revoke) |
 
 ## Scripts
 
 ```bash
 npm run dev      # development server
 npm run build    # production build
+npm run start    # production server
 npm run lint     # ESLint
+npm run test:e2e # Playwright end-to-end tests
 ```
 
 ## Design System

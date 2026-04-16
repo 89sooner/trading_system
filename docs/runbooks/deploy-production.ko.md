@@ -114,27 +114,8 @@ WHERE table_schema = 'public';
 1. https://railway.app 에 로그인한다.
 2. **New Project** → **Deploy from GitHub repo** 선택.
 3. GitHub 계정을 연결하고 이 리포지토리를 선택한다.
-4. Railway가 배포 방식을 자동 선택해 빌드를 시작한다.
-   - `Dockerfile`이 감지되면 Docker 기반으로 빌드될 수 있다.
-   - 서비스가 `Railpack`(Python + `uv`)으로 잡히는 경우도 있다.
-   - 빌드가 완료될 때까지 기다리지 않고, 바로 환경변수 설정으로 진행한다.
-5. 서비스가 `Railpack`으로 배포되는 경우 **Settings** 또는 **Deploy** 설정에서
-   **Start Command** 를 아래 값으로 직접 입력한다.
-
-```bash
-uv run --no-sync -m uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port $PORT
-```
-
-6. `Railpack`을 사용하는 경우 빌드 단계에서 `uv sync --locked`가 실행되므로,
-   `pyproject.toml`을 수정했다면 반드시 로컬에서 `uv lock`을 다시 실행한 뒤
-   갱신된 `uv.lock`까지 함께 커밋/푸시해야 한다.
-
-```bash
-UV_CACHE_DIR=.uv-cache uv lock
-git add pyproject.toml uv.lock
-git commit -m "Update uv lockfile"
-git push
-```
+4. Railway는 저장소의 `Dockerfile`과 `railway.json`을 기준으로 서비스를 빌드/배포한다.
+5. 컨테이너는 `uvicorn trading_system.api.server:app`으로 시작하므로, 문서화된 경로에서는 별도 Start Command를 추가로 지정할 필요가 없다.
 
 ### 2-2. 환경변수 설정
 
@@ -156,6 +137,8 @@ Railway 대시보드 → 생성된 서비스 → **Variables** 탭에서 아래 
 |--------|---------|------|
 | `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` | *(Vercel 배포 후 설정, 3단계 참고)* | CORS 허용 오리진 |
 | `TRADING_SYSTEM_WEBHOOK_URL` | `https://hooks.example.com/trading` | Webhook 알림 URL (미설정 시 비활성) |
+| `TRADING_SYSTEM_WEBHOOK_EVENTS` | `order.filled,risk.rejected` | Webhook 전송 대상 이벤트 allowlist |
+| `TRADING_SYSTEM_WEBHOOK_TIMEOUT` | `5` | Webhook 요청 타임아웃(초) |
 | `TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS` | `120` | 분당 요청 제한 (기본 60) |
 
 > `TRADING_SYSTEM_CORS_ALLOW_ORIGINS`는 Vercel 배포 URL을 얻은 뒤 **3-4 단계**에서 추가한다.
@@ -174,6 +157,8 @@ RAILWAY_URL="https://your-service.railway.app"
 curl -s "$RAILWAY_URL/health"
 # 기대 응답: {"status": "ok"}
 ```
+
+`/health`는 Railway나 로드밸런서가 별도 인증 헤더 없이 헬스체크를 수행할 수 있도록 API key 인증 예외 경로로 유지된다.
 
 ### 2-5. API 동작 확인
 
@@ -322,33 +307,14 @@ psql "$DATABASE_URL" -c "SELECT run_id, status, started_at FROM backtest_runs OR
 #    → psycopg[binary] 버전 확인
 # 2. COPY 대상 파일 누락
 #    → uv.lock 파일이 있으면 Dockerfile이 복사하므로 확인
-# 3. Railpack + uv sync --locked 실패
-#    → pyproject.toml 변경 후 uv.lock 미갱신 여부 확인
-# 4. Railpack Start Command 미설정
-#    → "No start command detected" 로그 확인
+# 3. 컨테이너 시작 직후 import/crash
+#    → webhook 모듈의 runtime dependency 누락 여부 확인
 ```
 
 **해결**: Railway 대시보드 → **Deployments** → 실패한 배포의 **View Logs** 에서 오류 메시지 확인.
 
 추가 체크:
-1. 로그에 `Railpack`이 보이면 Dockerfile이 아니라 Railpack 배포로 실행 중인 것이다.
-2. `No start command detected`가 보이면 Start Command를 아래 값으로 설정한다.
-
-```bash
-uv run --no-sync -m uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port $PORT
-```
-
-3. `The lockfile at uv.lock needs to be updated, but --locked was provided`가 보이면
-   로컬에서 아래 명령으로 lockfile을 갱신한 뒤 `uv.lock`까지 커밋/푸시한다.
-
-```bash
-UV_CACHE_DIR=.uv-cache uv lock
-git add pyproject.toml uv.lock
-git commit -m "Update uv lockfile"
-git push
-```
-
-4. 배포는 성공했지만 시작 직후 `ModuleNotFoundError: No module named 'httpx'`로 크래시하면
+1. 배포는 성공했지만 시작 직후 `ModuleNotFoundError: No module named 'httpx'`로 크래시하면
    `httpx`가 개발 전용 의존성(`dev`)에만 있고 운영 의존성(`dependencies`)에 빠진 상태일 수 있다.
    이 경우 `pyproject.toml`에서 `httpx`를 runtime dependency로 옮기고 `uv.lock`을 다시 갱신한다.
 
@@ -425,6 +391,8 @@ TRADING_SYSTEM_CORS_ALLOW_ORIGINS=https://your-app.vercel.app
 
 # 선택
 TRADING_SYSTEM_WEBHOOK_URL=
+TRADING_SYSTEM_WEBHOOK_EVENTS=order.filled,risk.rejected,pattern.alert,system.error,portfolio.reconciliation.position_adjusted
+TRADING_SYSTEM_WEBHOOK_TIMEOUT=5
 TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS=120
 TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS=60
 ```

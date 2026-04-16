@@ -26,6 +26,7 @@ Suggested flow:
 Current implementation note:
 
 - The repository orchestrates both deterministic backtests and continuous live trading loops through a unified execution core (`execute_trading_step`).
-- HTTP APIs expose backtests, pattern/strategy management, analytics, and dashboard control on top of the same runtime services.
+- HTTP APIs expose backtests, pattern/strategy management, analytics, admin key management, `/health`, and dashboard control on top of the same runtime services.
 - Live trading is managed by `LiveTradingLoop` with state control (`AppRunnerState`), heartbeat logging, and graceful shutdown.
-- Portfolio manages local persistence (`book.json`) for seamless restart-safe operations across live sessions.
+- Portfolio state persists locally via `book.json`, while backtest runs and dashboard equity history persist through file-based storage or Supabase-backed PostgreSQL depending on `DATABASE_URL`.
+- Webhook notifications provide bounded fire-and-forget outbound delivery for selected runtime events.

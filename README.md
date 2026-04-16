@@ -372,7 +372,8 @@ The repository now includes a Next.js frontend under `frontend/`. Current user-f
 - `/patterns/$patternSetId`: inspect one saved pattern set
 - `/strategies`: create and list strategy profiles
 - `/runs` and `/runs/$runId`: inspect run history, result charts, signals, fills, rejections, and trade analytics
-- `/dashboard`: inspect live loop status, positions, recent events, and control actions (`pause`, `resume`, `reset`)
+- `/dashboard`: inspect live loop status, positions, recent events, equity history, SSE connectivity, and control actions (`pause`, `resume`, `reset`)
+- `/admin`: create, list, and revoke API keys through the browser
 
 **One-stop script (recommended):**
 
@@ -426,7 +427,10 @@ API endpoint contract used by the frontend client:
 - `GET /api/v1/dashboard/status`
 - `GET /api/v1/dashboard/positions`
 - `GET /api/v1/dashboard/events`
+- `GET /api/v1/dashboard/equity`
+- `GET /api/v1/dashboard/stream` (SSE, optional `api_key` query parameter)
 - `POST /api/v1/dashboard/control`
+- `GET /api/v1/admin/keys`, `POST /api/v1/admin/keys`, `DELETE /api/v1/admin/keys/{key_id}`
 
 Frontend error handling is separated by path:
 
@@ -445,7 +449,8 @@ The dashboard route only works when the backend API is started with an attached 
 - `/patterns/$patternSetId`: 저장된 패턴셋 상세 조회
 - `/strategies`: 전략 프로필 생성 및 목록 조회
 - `/runs`, `/runs/$runId`: 실행 이력, 결과 차트, 신호, 체결/거절, 거래 애널리틱스 조회
-- `/dashboard`: 라이브 루프 상태, 포지션, 최근 이벤트, 제어 액션(`pause`, `resume`, `reset`) 조회
+- `/dashboard`: 라이브 루프 상태, 포지션, 최근 이벤트, equity 이력, SSE 연결 상태, 제어 액션(`pause`, `resume`, `reset`) 조회
+- `/admin`: 브라우저에서 API key 생성, 목록 조회, 폐기
 
 **원스톱 스크립트 (권장):**
 
@@ -499,7 +504,10 @@ http://127.0.0.1:9000/api/v1
 - `GET /api/v1/dashboard/status`
 - `GET /api/v1/dashboard/positions`
 - `GET /api/v1/dashboard/events`
+- `GET /api/v1/dashboard/equity`
+- `GET /api/v1/dashboard/stream` (SSE, 필요 시 `api_key` 쿼리 파라미터 사용)
 - `POST /api/v1/dashboard/control`
+- `GET /api/v1/admin/keys`, `POST /api/v1/admin/keys`, `DELETE /api/v1/admin/keys/{key_id}`
 
 프론트 오류 메시지는 다음 경로로 구분해 표시합니다.
 
@@ -527,13 +535,13 @@ These keys are loaded at startup and are never shown in the Admin UI. Restart th
 
 **Method 2 — Dynamic keys via Admin UI**
 
-Open `http://127.0.0.1:5173/admin` in your browser:
+Open `http://127.0.0.1:3000/admin` in your browser:
 
 1. Enter a name for the key (e.g. `Trading Bot`) and click **Generate Key**.
-2. Copy the key from the one-time reveal box — it is not stored in plain text and cannot be retrieved again.
+2. Copy the key from the one-time reveal box — this is the only time the full value is shown in the UI.
 3. To revoke a key, click **Revoke** next to it in the Active Keys table.
 
-Dynamic keys are stored in `data/api_keys.json` and take effect immediately without a server restart.
+Dynamic keys are stored in `data/api_keys.json` and take effect immediately without a server restart. The list view exposes only a masked preview, but the underlying file stores the full key value, so file permissions and host-level access still matter.
 
 **Using a key**
 
@@ -568,13 +576,13 @@ TRADING_SYSTEM_ALLOWED_API_KEYS=my-secret-key,another-key
 
 **방법 2 — Admin UI를 통한 동적 키**
 
-브라우저에서 `http://127.0.0.1:5173/admin`을 여세요:
+브라우저에서 `http://127.0.0.1:3000/admin`을 여세요:
 
 1. 키 이름(예: `Trading Bot`)을 입력하고 **Generate Key**를 클릭합니다.
-2. 일회성 표시 박스에서 키를 복사하세요 — 평문으로 저장되지 않으며 이후 다시 조회할 수 없습니다.
+2. 일회성 표시 박스에서 키를 복사하세요 — UI에서 전체 값이 다시 노출되는 시점은 이 생성 직후 한 번뿐입니다.
 3. 키를 비활성화하려면 Active Keys 표에서 **Revoke**를 클릭합니다.
 
-동적 키는 `data/api_keys.json`에 저장되며, 서버 재시작 없이 즉시 적용됩니다.
+동적 키는 `data/api_keys.json`에 저장되며, 서버 재시작 없이 즉시 적용됩니다. 목록 화면에는 마스킹된 preview만 노출되지만 파일 자체에는 전체 키 값이 저장되므로, 파일 권한과 호스트 접근 통제는 여전히 중요합니다.
 
 **키 사용 방법**
 
@@ -691,17 +699,21 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_KIS_CANO` / `TRADING_SYSTEM_KIS_ACNT_PRDT_CD`: KIS account number and product code
 - `TRADING_SYSTEM_KIS_BASE_URL` (optional): override KIS REST base URL
 - `TRADING_SYSTEM_KIS_PRICE_TR_ID` (optional): override domestic quote TR id for preflight quote checks
+- `TRADING_SYSTEM_KIS_BALANCE_TR_ID` (optional): override domestic balance inquiry TR id for reconciliation snapshots
 - `TRADING_SYSTEM_KIS_MARKET_DIV` (optional): override quote market division code (`J` default for domestic stock)
 - `TRADING_SYSTEM_ALLOWED_API_KEYS`: comma-separated API keys accepted by HTTP middleware (`X-API-Key`)
+- `TRADING_SYSTEM_API_KEYS_PATH` (optional): file path for dynamic API key storage managed by `/api/v1/admin/keys` (default: `data/api_keys.json`)
 - `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` (optional): comma-separated CORS origins; overrides config file value
 - `TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS` / `TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS` (optional): simple per-path rate limit
 - `TRADING_SYSTEM_CSV_DIR` (optional): CSV directory for `--provider csv` (default: `data/market`)
 - `TRADING_SYSTEM_PORTFOLIO_DIR` (optional): Directory where the portfolio book JSON is persisted (default: `data/portfolio`)
+- `TRADING_SYSTEM_RUNS_DIR` (optional): Directory for file-based backtest run persistence when `DATABASE_URL` is unset (default: `data/runs`)
 - `TRADING_SYSTEM_EQUITY_DIR` (optional): Directory for file-based live equity snapshots when `DATABASE_URL` is unset (default: `data/equity`)
 - `DATABASE_URL` (optional): PostgreSQL connection string for Supabase-backed run/equity persistence. When set, apply `scripts/migrations/001_create_backtest_runs.sql` and `scripts/migrations/002_create_equity_snapshots.sql` before starting the API or live paper mode.
 - `TRADING_SYSTEM_LIVE_POLL_INTERVAL` (optional): Seconds to wait between live ticks (default: `10`)
 - `TRADING_SYSTEM_HEARTBEAT_INTERVAL` (optional): Seconds between heartbeat logs (default: `60`)
 - `TRADING_SYSTEM_RECONCILIATION_INTERVAL` (optional): Seconds between broker balance reconciliation attempts in the live loop (default: `300`)
+- `TRADING_SYSTEM_WEBHOOK_URL` / `TRADING_SYSTEM_WEBHOOK_EVENTS` / `TRADING_SYSTEM_WEBHOOK_TIMEOUT` (optional): outbound webhook URL, event allowlist, and timeout for fire-and-forget notifications
 
 ### KO
 
@@ -715,17 +727,21 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_KIS_CANO` / `TRADING_SYSTEM_KIS_ACNT_PRDT_CD`: 한국투자 계좌번호와 상품코드
 - `TRADING_SYSTEM_KIS_BASE_URL` (선택): 한국투자 REST 기본 URL 재정의
 - `TRADING_SYSTEM_KIS_PRICE_TR_ID` (선택): 프리플라이트 현재가 조회용 TR ID 재정의
+- `TRADING_SYSTEM_KIS_BALANCE_TR_ID` (선택): reconciliation용 국내주식 잔고 조회 TR ID 재정의
 - `TRADING_SYSTEM_KIS_MARKET_DIV` (선택): 현재가 조회 시장 구분 코드 재정의 (기본값 `J`, 국내주식)
 - `TRADING_SYSTEM_ALLOWED_API_KEYS`: HTTP 미들웨어가 허용할 API 키 목록(쉼표 구분, `X-API-Key`)
+- `TRADING_SYSTEM_API_KEYS_PATH` (선택): `/api/v1/admin/keys`가 관리하는 동적 API key 저장 파일 경로 (기본값: `data/api_keys.json`)
 - `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` (선택): CORS 허용 오리진 목록(쉼표 구분, 설정 파일 값보다 우선)
 - `TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS` / `TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS` (선택): 경로 단위 단순 요청 제한
 - `TRADING_SYSTEM_CSV_DIR` (선택): `--provider csv`용 CSV 디렉터리 (기본값: `data/market`)
 - `TRADING_SYSTEM_PORTFOLIO_DIR` (선택): 포트폴리오 상태(JSON)가 영속화되는 디렉터리 (기본값: `data/portfolio`)
+- `TRADING_SYSTEM_RUNS_DIR` (선택): `DATABASE_URL`이 없을 때 백테스트 런 메타데이터를 저장하는 디렉터리 (기본값: `data/runs`)
 - `TRADING_SYSTEM_EQUITY_DIR` (선택): `DATABASE_URL`이 없을 때 라이브 equity 스냅샷(JSONL)을 저장하는 디렉터리 (기본값: `data/equity`)
 - `DATABASE_URL` (선택): Supabase 기반 run/equity 영속화용 PostgreSQL 연결 문자열. 값을 설정했다면 API 또는 라이브 페이퍼 모드 시작 전에 `scripts/migrations/001_create_backtest_runs.sql`, `scripts/migrations/002_create_equity_snapshots.sql`를 먼저 적용해야 합니다.
 - `TRADING_SYSTEM_LIVE_POLL_INTERVAL` (선택): 라이브 루프에서 시세를 받아오는 간격 초 단위 (기본값: `10`)
 - `TRADING_SYSTEM_HEARTBEAT_INTERVAL` (선택): 하트비트 로그 기록 간격 (기본값: `60`)
 - `TRADING_SYSTEM_RECONCILIATION_INTERVAL` (선택): 라이브 루프의 브로커 잔고 대사 시도 간격 초 단위 (기본값: `300`)
+- `TRADING_SYSTEM_WEBHOOK_URL` / `TRADING_SYSTEM_WEBHOOK_EVENTS` / `TRADING_SYSTEM_WEBHOOK_TIMEOUT` (선택): fire-and-forget webhook 알림의 URL, 이벤트 허용 목록, 타임아웃
 
 ---
 
@@ -892,8 +908,9 @@ settings = load_settings("configs/base.yaml")
 - Architecture overview: `docs/architecture/overview.md` / `docs/architecture/overview.ko.md`
 - Workspace analysis: `docs/architecture/workspace-analysis.md` / `docs/architecture/workspace-analysis.ko.md`
 - User use cases: `docs/architecture/user-use-cases.md` / `docs/architecture/user-use-cases.ko.md`
-- Incident runbook: `docs/runbooks/incident-response.en.md` / `docs/runbooks/incident-response.md`
-- Release gates: `docs/runbooks/release-gate-checklist.en.md` / `docs/runbooks/release-gate-checklist.md`
+- Incident runbook: `docs/runbooks/incident-response.md` / `docs/runbooks/incident-response.ko.md`
+- Release gates: `docs/runbooks/release-gate-checklist.md` / `docs/runbooks/release-gate-checklist.ko.md`
+- Production deployment: `docs/runbooks/deploy-production.md` / `docs/runbooks/deploy-production.ko.md`
 - KRX CSV verification loop note: `docs/runbooks/krx-csv-verification-loop.md` / `docs/runbooks/krx-csv-verification-loop.ko.md`
 - KIS domestic live operations: `docs/runbooks/kis-domestic-live-operations.md` / `docs/runbooks/kis-domestic-live-operations.ko.md`
 

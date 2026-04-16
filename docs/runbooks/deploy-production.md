@@ -112,26 +112,8 @@ WHERE table_schema = 'public';
 1. Log in at https://railway.app.
 2. **New Project** → **Deploy from GitHub repo**.
 3. Connect your GitHub account and select this repository.
-4. Railway starts a build using the deployment mode it detects automatically.
-   - It may detect and use the `Dockerfile`.
-   - It may also provision the service with `Railpack` (Python + `uv`).
-   - You do not need to wait for the build — proceed to set environment variables now.
-5. If the service is running with `Railpack`, set the **Start Command** manually in
-   **Settings** or **Deploy** configuration to:
-
-```bash
-uv run --no-sync -m uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port $PORT
-```
-
-6. When using `Railpack`, the build step runs `uv sync --locked`, so any dependency
-   change in `pyproject.toml` must be followed by a fresh `uv.lock` update and commit.
-
-```bash
-UV_CACHE_DIR=.uv-cache uv lock
-git add pyproject.toml uv.lock
-git commit -m "Update uv lockfile"
-git push
-```
+4. Railway builds the service from the repository `Dockerfile` and applies `railway.json`.
+5. The container starts with `uvicorn trading_system.api.server:app`, so no extra Railway start command is required for the documented path.
 
 ### 2-2. Set environment variables
 
@@ -154,6 +136,8 @@ Railway dashboard → the created service → **Variables** tab.
 |----------|--------------|-------|
 | `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` | *(set after Step 3, see 3-4)* | CORS allowed origins |
 | `TRADING_SYSTEM_WEBHOOK_URL` | `https://hooks.example.com/trading` | Webhook notification URL (disabled if unset) |
+| `TRADING_SYSTEM_WEBHOOK_EVENTS` | `order.filled,risk.rejected` | Comma-separated event allowlist for webhook delivery |
+| `TRADING_SYSTEM_WEBHOOK_TIMEOUT` | `5` | Webhook request timeout in seconds |
 | `TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS` | `120` | Requests per window per client (default: 60) |
 
 > `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` requires the Vercel URL from Step 3.
@@ -173,6 +157,9 @@ RAILWAY_URL="https://your-service.railway.app"
 curl -s "$RAILWAY_URL/health"
 # Expected: {"status": "ok"}
 ```
+
+`/health` is intentionally exempt from API-key authentication so Railway and
+other load balancers can probe container health without custom headers.
 
 ### 2-5. API connectivity check
 
@@ -318,28 +305,7 @@ Check build logs: Railway dashboard → **Deployments** → failed deploy → **
 Common causes:
 - `psycopg[binary]` wheel download failure on a restricted network — retry
 - Missing files in `COPY` instructions — check `Dockerfile` paths match the repository layout
-- `Railpack` build with `uv sync --locked` and an outdated `uv.lock`
-- `Railpack` service with no explicit Start Command
-
-Additional checks:
-1. If the log shows `Railpack`, the service is not currently building from `Dockerfile`.
-2. If the log shows `No start command detected`, set:
-
-```bash
-uv run --no-sync -m uvicorn trading_system.api.server:create_app --factory --host 0.0.0.0 --port $PORT
-```
-
-3. If the log shows `The lockfile at uv.lock needs to be updated, but --locked was provided`,
-   refresh and commit the lockfile locally:
-
-```bash
-UV_CACHE_DIR=.uv-cache uv lock
-git add pyproject.toml uv.lock
-git commit -m "Update uv lockfile"
-git push
-```
-
-4. If deployment completes but the process crashes immediately with
+- If deployment completes but the process crashes immediately with
    `ModuleNotFoundError: No module named 'httpx'`, `httpx` is likely still listed
    as a development-only dependency instead of a runtime dependency.
    Move it into `[project.dependencies]` and refresh the lockfile.
@@ -412,6 +378,8 @@ TRADING_SYSTEM_CORS_ALLOW_ORIGINS=https://your-app.vercel.app
 
 # Optional
 TRADING_SYSTEM_WEBHOOK_URL=
+TRADING_SYSTEM_WEBHOOK_EVENTS=order.filled,risk.rejected,pattern.alert,system.error,portfolio.reconciliation.position_adjusted
+TRADING_SYSTEM_WEBHOOK_TIMEOUT=5
 TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS=120
 TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS=60
 ```
