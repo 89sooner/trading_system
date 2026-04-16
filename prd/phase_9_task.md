@@ -237,7 +237,7 @@ Exit criteria:
 - [x] Vercel: 프론트엔드 로드 후 Railway API 요청 성공 (CORS 오류 없음)
 - [x] Vercel: `NEXT_PUBLIC_API_BASE_URL` 환경변수로 Railway URL 주입 확인
 - [x] 런 영속화: 백테스트 실행 → Railway 재배포 → `GET /api/v1/backtests` 에서 이전 런 보존
-- [ ] GitHub Actions: `push` 이벤트 트리거 후 `python-ci`, `frontend-ci` 두 job PASS
+- [x] GitHub Actions: `push` 이벤트 트리거 후 `python-ci`, `frontend-ci` 두 job PASS
 
 ---
 

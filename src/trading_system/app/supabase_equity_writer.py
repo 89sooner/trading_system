@@ -9,16 +9,27 @@ class SupabaseEquityWriter:
     """EquityWriter backed by Supabase (PostgreSQL via psycopg3)."""
 
     def __init__(self, database_url: str, session_id: str) -> None:
+        self._database_url = database_url
         self._session_id = session_id
-        self._conn = psycopg.connect(database_url, autocommit=True)
-        self._ensure_schema_ready()
+        self._conn: psycopg.Connection | None = None
+
+    def _get_conn(self) -> psycopg.Connection:
+        """Return the live connection, (re-)connecting if necessary.
+
+        _ensure_schema_ready is called once on first connection so that the
+        table check happens at first use (live mode start), not at server startup.
+        """
+        if self._conn is None or self._conn.closed:
+            self._conn = psycopg.connect(self._database_url, autocommit=True)
+            self._ensure_schema_ready()
+        return self._conn
 
     @property
     def session_id(self) -> str:
         return self._session_id
 
     def append(self, timestamp: str, equity: str, cash: str, positions_value: str) -> None:
-        with self._conn.cursor() as cur:
+        with self._get_conn().cursor() as cur:
             cur.execute(
                 "INSERT INTO equity_snapshots"
                 " (session_id, timestamp, equity, cash, positions_value)"
@@ -27,7 +38,7 @@ class SupabaseEquityWriter:
             )
 
     def read_recent(self, limit: int = 300) -> list[dict]:
-        with self._conn.cursor() as cur:
+        with self._get_conn().cursor() as cur:
             cur.execute(
                 "SELECT timestamp, equity, cash, positions_value"
                 " FROM equity_snapshots"

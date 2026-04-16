@@ -11,12 +11,15 @@ import pytest
 def _make_writer(session_id: str = "sess-1"):
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
+    mock_cursor.fetchone.return_value = ("equity_snapshots",)  # table exists
     mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
     mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+    mock_conn.closed = False  # Prevent _get_conn from reconnecting
 
     with patch("psycopg.connect", return_value=mock_conn):
         from trading_system.app.supabase_equity_writer import SupabaseEquityWriter
         writer = SupabaseEquityWriter("postgresql://fake/db", session_id)
+        writer._get_conn()  # Trigger lazy connection + _ensure_schema_ready inside patch
 
     return writer, mock_conn, mock_cursor
 
@@ -35,15 +38,15 @@ class TestSessionId:
     def test_constructor_raises_clear_error_when_table_missing(self):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = (None,)
+        mock_cursor.fetchone.return_value = (None,)  # table not found
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
 
         with patch("psycopg.connect", return_value=mock_conn):
             from trading_system.app.supabase_equity_writer import SupabaseEquityWriter
-
+            writer = SupabaseEquityWriter("postgresql://fake/db", "missing-table")
             with pytest.raises(RuntimeError, match="002_create_equity_snapshots.sql"):
-                SupabaseEquityWriter("postgresql://fake/db", "missing-table")
+                writer._get_conn()  # Schema check happens lazily on first connection
 
 
 class TestAppend:

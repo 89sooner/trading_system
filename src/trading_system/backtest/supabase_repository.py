@@ -12,10 +12,22 @@ _log = logging.getLogger(__name__)
 
 
 class SupabaseBacktestRunRepository:
-    """BacktestRunRepository backed by Supabase (PostgreSQL via psycopg3)."""
+    """BacktestRunRepository backed by Supabase (PostgreSQL via psycopg3).
+
+    The database connection is established lazily on first use so that
+    importing this module or instantiating the repository does not block
+    application startup when DATABASE_URL is set.
+    """
 
     def __init__(self, database_url: str) -> None:
-        self._conn = psycopg.connect(database_url, autocommit=True)
+        self._database_url = database_url
+        self._conn: psycopg.Connection | None = None
+
+    def _get_conn(self) -> psycopg.Connection:
+        """Return the live connection, (re-)connecting if necessary."""
+        if self._conn is None or self._conn.closed:
+            self._conn = psycopg.connect(self._database_url, autocommit=True)
+        return self._conn
 
     # ------------------------------------------------------------------
     # Protocol implementation
@@ -27,7 +39,7 @@ class SupabaseBacktestRunRepository:
             import dataclasses
             result_json = json.dumps(dataclasses.asdict(run.result), default=str)
 
-        with self._conn.cursor() as cur:
+        with self._get_conn().cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO backtest_runs
@@ -55,7 +67,7 @@ class SupabaseBacktestRunRepository:
             )
 
     def get(self, run_id: str) -> BacktestRunDTO | None:
-        with self._conn.cursor() as cur:
+        with self._get_conn().cursor() as cur:
             cur.execute(
                 "SELECT run_id, status, started_at, finished_at, input_symbols, mode, result, error"
                 " FROM backtest_runs WHERE run_id = %s",
@@ -86,7 +98,7 @@ class SupabaseBacktestRunRepository:
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
         offset = (page - 1) * page_size
 
-        with self._conn.cursor() as cur:
+        with self._get_conn().cursor() as cur:
             cur.execute(f"SELECT COUNT(*) FROM backtest_runs {where}", params)
             total: int = cur.fetchone()[0]  # type: ignore[index]
 
@@ -103,12 +115,12 @@ class SupabaseBacktestRunRepository:
         return dtos, total
 
     def delete(self, run_id: str) -> bool:
-        with self._conn.cursor() as cur:
+        with self._get_conn().cursor() as cur:
             cur.execute("DELETE FROM backtest_runs WHERE run_id = %s", (run_id,))
             return cur.rowcount > 0
 
     def clear(self) -> None:
-        with self._conn.cursor() as cur:
+        with self._get_conn().cursor() as cur:
             cur.execute("DELETE FROM backtest_runs")
 
     def rebuild_index(self) -> None:

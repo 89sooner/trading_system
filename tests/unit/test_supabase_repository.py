@@ -31,10 +31,11 @@ def _make_repo():
     mock_cursor = MagicMock()
     mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
     mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+    mock_conn.closed = False  # Prevent _get_conn from reconnecting
 
-    with patch("psycopg.connect", return_value=mock_conn):
-        from trading_system.backtest.supabase_repository import SupabaseBacktestRunRepository
-        repo = SupabaseBacktestRunRepository("postgresql://fake/db")
+    from trading_system.backtest.supabase_repository import SupabaseBacktestRunRepository
+    repo = SupabaseBacktestRunRepository("postgresql://fake/db")
+    repo._conn = mock_conn  # Inject mock directly; constructor no longer connects eagerly
 
     return repo, mock_conn, mock_cursor
 
