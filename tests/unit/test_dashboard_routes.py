@@ -171,11 +171,12 @@ class TestDashboardControl:
         resp = client.post("/api/v1/dashboard/control", json={"action": "explode"})
         assert resp.status_code == 422
 
-    def test_stop_action_returns_422(self) -> None:
+    def test_stop_action_stops_running_loop(self) -> None:
         loop = _make_loop(AppRunnerState.RUNNING)
         client = _make_client(loop)
         resp = client.post("/api/v1/dashboard/control", json={"action": "stop"})
-        assert resp.status_code == 422
+        assert resp.status_code == 200
+        assert loop.state == AppRunnerState.STOPPED
 
     # ── Idempotent / no-op transitions ──────────────────────────────────
 

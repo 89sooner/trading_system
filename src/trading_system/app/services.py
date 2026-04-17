@@ -117,10 +117,15 @@ class AppServices:
         if self.mode != AppMode.LIVE:
             raise RuntimeError(f"Unsupported mode '{self.mode}'.")
 
-        session_id = datetime.now(UTC).strftime("live_%Y%m%d_%H%M%S")
-        equity_writer = _create_equity_writer(session_id)
-        loop = LiveTradingLoop(services=self, equity_writer=equity_writer)
-        loop.run()
+        self.build_live_loop().run()
+
+    def build_live_loop(self, session_id: str | None = None) -> LiveTradingLoop:
+        if self.mode != AppMode.LIVE:
+            raise RuntimeError(f"Unsupported mode '{self.mode}'.")
+
+        resolved_session_id = session_id or datetime.now(UTC).strftime("live_%Y%m%d_%H%M%S")
+        equity_writer = _create_equity_writer(resolved_session_id)
+        return LiveTradingLoop(services=self, equity_writer=equity_writer)
 
     def run_live_execution(self) -> None:
         if self.mode != AppMode.LIVE:
@@ -139,7 +144,7 @@ class AppServices:
                 "Live order submission is blocked outside KRX market hours "
                 "(weekdays 09:00-15:30 KST)."
             )
-        self.run_live_paper()
+        self.build_live_loop().run()
 
     def strategy_for(self, symbol: str) -> Strategy:
         if self.strategies is None:

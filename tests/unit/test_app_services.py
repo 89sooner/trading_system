@@ -515,3 +515,30 @@ class _MovingQuoteKisClient:
             fill_price=Decimal("70300"),
             fee=Decimal("0"),
         )
+
+
+
+def test_build_live_loop_uses_requested_session_id(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("TRADING_SYSTEM_API_KEY", "dummy-key")
+    monkeypatch.setenv("TRADING_SYSTEM_EQUITY_DIR", str(tmp_path))
+
+    settings = AppSettings.from_cli(
+        mode="live",
+        symbols="BTCUSDT",
+        provider="mock",
+        broker="paper",
+        live_execution="paper",
+        starting_cash="10000",
+        fee_bps="5",
+        trade_quantity="0.1",
+        max_position="1",
+        max_notional="100000",
+        max_order_size="0.25",
+    )
+    settings.validate()
+
+    services = build_services(settings)
+    loop = services.build_live_loop(session_id="live_test_session")
+
+    assert loop.equity_writer is not None
+    assert loop.equity_writer.session_id == "live_test_session"

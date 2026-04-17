@@ -27,6 +27,7 @@ from trading_system.core.compat import UTC
 from trading_system.integrations.kis import is_krx_market_open
 
 if TYPE_CHECKING:
+    from trading_system.app.live_runtime_controller import LiveRuntimeController
     from trading_system.app.loop import LiveTradingLoop
 
 _MAX_SSE_CONNECTIONS = 10
@@ -44,6 +45,10 @@ ZERO = Decimal("0")
 
 def _get_loop(request: Request) -> "LiveTradingLoop | None":
     return getattr(request.app.state, "live_loop", None)
+
+
+def _get_controller(request: Request) -> "LiveRuntimeController | None":
+    return getattr(request.app.state, "live_runtime_controller", None)
 
 
 def _require_loop(request: Request) -> "LiveTradingLoop":
@@ -66,8 +71,23 @@ OptionalLoopDep = Annotated["LiveTradingLoop | None", Depends(_get_loop)]
 
 
 @router.get("/status", response_model=DashboardStatusDTO)
-async def get_status(loop: LoopDep) -> DashboardStatusDTO:
+async def get_status(request: Request, loop: OptionalLoopDep) -> DashboardStatusDTO:
     """Return the current state and heartbeat of the live trading loop."""
+    controller = _get_controller(request)
+    snapshot = controller.snapshot() if controller is not None else None
+    if loop is None:
+        return DashboardStatusDTO(
+            state=AppRunnerState.STOPPED.value,
+            last_heartbeat=None,
+            uptime_seconds=None,
+            controller_state=snapshot.controller_state if snapshot is not None else "idle",
+            session_id=snapshot.session_id if snapshot is not None else None,
+            live_execution=snapshot.live_execution if snapshot is not None else None,
+            last_error=snapshot.last_error if snapshot is not None else None,
+            provider=snapshot.provider if snapshot is not None else None,
+            symbols=snapshot.symbols if snapshot is not None else None,
+        )
+
     started_at = getattr(loop, "_started_at", None)
     uptime = (
         (datetime.now(UTC) - started_at).total_seconds()
@@ -90,6 +110,10 @@ async def get_status(loop: LoopDep) -> DashboardStatusDTO:
         state=loop.state.value,
         last_heartbeat=last_hb.isoformat() if last_hb is not None else None,
         uptime_seconds=uptime,
+        controller_state=snapshot.controller_state if snapshot is not None else None,
+        session_id=snapshot.session_id if snapshot is not None else None,
+        live_execution=snapshot.live_execution if snapshot is not None else None,
+        last_error=snapshot.last_error if snapshot is not None else None,
         provider=provider,
         symbols=symbols if symbols else None,
         market_session=market_session,
@@ -140,8 +164,37 @@ async def get_events(
 
 
 @router.post("/control", response_model=ControlResponseDTO, status_code=status.HTTP_200_OK)
-async def control_loop(body: ControlActionDTO, loop: LoopDep) -> ControlResponseDTO:
-    """Pause, resume, or reset the live trading loop."""
+async def control_loop(
+    body: ControlActionDTO,
+    request: Request,
+    loop: OptionalLoopDep,
+) -> ControlResponseDTO:
+    """Pause, resume, reset, or stop the live trading loop."""
+    controller = _get_controller(request)
+
+    if body.action == "stop":
+        if controller is not None and controller.has_active_session():
+            controller.stop(requested_by="api")
+            return ControlResponseDTO(status="ok", state=AppRunnerState.STOPPED.value)
+        if loop is not None:
+            loop.services.logger.emit(
+                "system.control",
+                severity=30,
+                payload={"action": "stop", "requested_by": "api"},
+            )
+            loop.state = AppRunnerState.STOPPED
+            return ControlResponseDTO(status="ok", state=AppRunnerState.STOPPED.value)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No live runtime session is active.",
+        )
+
+    if loop is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No live trading loop is running.",
+        )
+
     if body.action == "pause":
         if loop.state == AppRunnerState.RUNNING:
             loop.state = AppRunnerState.PAUSED

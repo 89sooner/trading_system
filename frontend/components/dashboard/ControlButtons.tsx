@@ -9,14 +9,14 @@ import {
 import { postDashboardControl } from '@/lib/api/dashboard'
 import { queryClient } from '@/lib/queryClient'
 import { userMessageForError } from '@/lib/api/client'
-import { Pause, Play, RotateCcw } from 'lucide-react'
+import { Pause, Play, RotateCcw, Square } from 'lucide-react'
 
 export function ControlButtons() {
   const [isPending, startTransition] = useTransition()
   const [resetOpen, setResetOpen] = useState(false)
   const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null)
 
-  async function sendControl(action: 'pause' | 'resume' | 'reset') {
+  async function sendControl(action: 'pause' | 'resume' | 'reset' | 'stop') {
     startTransition(async () => {
       try {
         const data = await postDashboardControl(action)
@@ -36,6 +36,9 @@ export function ControlButtons() {
         </Button>
         <Button variant="outline" size="sm" onClick={() => sendControl('resume')} disabled={isPending}>
           <Play className="mr-1 h-3 w-3" /> Resume
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => sendControl('stop')} disabled={isPending}>
+          <Square className="mr-1 h-3 w-3" /> Stop
         </Button>
         <Button variant="destructive" size="sm" onClick={() => setResetOpen(true)} disabled={isPending}>
           <RotateCcw className="mr-1 h-3 w-3" /> Reset

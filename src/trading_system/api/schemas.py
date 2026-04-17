@@ -111,6 +111,46 @@ class LivePreflightResponseDTO(BaseModel):
     paper_result: BacktestResultDTO | None = None
 
 
+
+def _default_runtime_risk() -> RiskSettingsDTO:
+    return RiskSettingsDTO(
+        max_position=Decimal("1"),
+        max_notional=Decimal("100000"),
+        max_order_size=Decimal("0.25"),
+    )
+
+
+def _default_runtime_backtest() -> BacktestSettingsDTO:
+    return BacktestSettingsDTO(
+        starting_cash=Decimal("10000"),
+        fee_bps=Decimal("5"),
+        trade_quantity=Decimal("0.1"),
+    )
+
+
+class LiveRuntimeStartRequestDTO(BaseModel):
+    mode: Literal["live"] = "live"
+    symbols: list[str] = Field(min_length=1)
+    provider: Literal["mock", "csv", "kis"] = "mock"
+    broker: Literal["paper", "kis"] = "paper"
+    live_execution: Literal["paper", "live"] = "paper"
+    risk: RiskSettingsDTO = Field(default_factory=_default_runtime_risk)
+    portfolio_risk: PortfolioRiskSettingsDTO | None = None
+    backtest: BacktestSettingsDTO = Field(default_factory=_default_runtime_backtest)
+    strategy: StrategyConfigDTO | None = None
+
+
+class LiveRuntimeStartResponseDTO(BaseModel):
+    status: Literal["started"] = "started"
+    session_id: str
+    state: str
+    started_at: str
+    symbols: list[str]
+    provider: str
+    broker: str
+    live_execution: Literal["paper", "live"]
+
+
 class ErrorResponseDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -186,6 +226,10 @@ class DashboardStatusDTO(BaseModel):
     state: str
     last_heartbeat: str | None
     uptime_seconds: float | None
+    controller_state: str | None = None
+    session_id: str | None = None
+    live_execution: str | None = None
+    last_error: str | None = None
     provider: str | None = None
     symbols: list[str] | None = None
     market_session: str | None = None
@@ -219,7 +263,7 @@ class EventFeedDTO(BaseModel):
 
 
 class ControlActionDTO(BaseModel):
-    action: Literal["pause", "resume", "reset"]
+    action: Literal["pause", "resume", "reset", "stop"]
 
 
 class ControlResponseDTO(BaseModel):

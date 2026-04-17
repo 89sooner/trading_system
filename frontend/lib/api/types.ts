@@ -5,6 +5,10 @@ export interface DashboardStatus {
   state: string
   last_heartbeat: string | null
   uptime_seconds: number | null
+  controller_state?: string | null
+  session_id?: string | null
+  live_execution?: string | null
+  last_error?: string | null
   provider?: string | null
   symbols?: string[] | null
   market_session?: string | null
@@ -40,6 +44,25 @@ export interface EventFeed {
 export interface ControlResponse {
   status: string
   state: string
+}
+
+export interface LiveRuntimeStartRequestDTO {
+  mode?: 'live'
+  symbols: string[]
+  provider?: 'mock' | 'csv' | 'kis'
+  broker?: 'paper' | 'kis'
+  live_execution?: 'paper' | 'live'
+}
+
+export interface LiveRuntimeStartResponseDTO {
+  status: 'started'
+  session_id: string
+  state: string
+  started_at: string
+  symbols: string[]
+  provider: string
+  broker: string
+  live_execution: 'paper' | 'live'
 }
 
 // Backtests
