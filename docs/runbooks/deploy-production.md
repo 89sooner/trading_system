@@ -202,6 +202,8 @@ In the **Environment Variables** section on the Configure Project screen:
 Click **Deploy** and watch the build logs.
 After a successful deployment, record the Vercel URL: `https://your-app.vercel.app`
 
+Note: the frontend build is pinned to `next build --webpack`. This avoids Turbopack process-spawn failures seen in restricted CI/sandbox environments and is the expected production build path for this repository.
+
 ### 3-4. Add Vercel URL to Railway CORS
 
 Railway dashboard → service → **Variables** tab:
@@ -227,8 +229,16 @@ Railway auto-redeploys after the variable is saved. Wait for redeployment to com
 3. Confirm the dashboard loads without errors.
 4. Open browser DevTools → **Network** tab and confirm no CORS errors
    (`blocked by CORS policy`).
+5. If the dashboard is disconnected, use the launch form to start a `paper` session and confirm status changes from `idle`/`stopped` to `starting` and then `running`.
 
-### 4-2. SSE streaming
+### 4-2. Runtime launch and stop
+
+1. In the dashboard launch form, enter one or more symbols, choose provider/broker, and select `paper` or guarded `live`.
+2. Click **Start Runtime**.
+3. Confirm the dashboard status shows a new `session_id`, `controller_state=active`, and live metrics begin updating.
+4. Use **Stop** and confirm the dashboard returns to a disconnected/stopped state without leaving stale positions or SSE connections in the UI.
+
+### 4-3. SSE streaming
 
 ```bash
 RAILWAY_URL="https://tradingsystem-production-816d.up.railway.app"
@@ -250,7 +260,7 @@ curl -N --max-time 20 -H "Accept: text/event-stream" \
 > If you use `--max-time 20`, the final `curl: (28) Operation timed out ...` message is
 > considered a normal test stop, not an SSE failure.
 
-### 4-3. Run persistence after redeployment
+### 4-4. Run persistence after redeployment
 
 1. Run a backtest from the frontend.
 2. Confirm the run appears in the `/runs` page.
@@ -261,7 +271,7 @@ curl -N --max-time 20 -H "Accept: text/event-stream" \
 5. When possible, confirm the same `run_id` directly in Supabase via SQL Editor or `psql`.
    Treat this as the stronger source of truth than the UI alone.
 
-### 4-4. Verify data in Supabase
+### 4-5. Verify data in Supabase
 
 ```bash
 psql "$DATABASE_URL" \
@@ -274,6 +284,7 @@ psql "$DATABASE_URL" \
 |-------|-----------|
 | `GET /health` | 200 `{"status": "ok"}` |
 | `GET /api/v1/backtests` | 200, no CORS errors |
+| Runtime launch/stop | Session starts from dashboard and stops cleanly |
 | SSE `/dashboard/stream` | Heartbeat received within 15 s |
 | Run list after redeploy | Previous runs preserved |
 | Browser CORS | No errors in DevTools |

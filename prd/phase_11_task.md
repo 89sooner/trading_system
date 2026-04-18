@@ -35,7 +35,7 @@ Exit criteria:
 - [x] `src/trading_system/api/routes/dashboard.py`에 `stop` control 추가
 - [x] `src/trading_system/api/server.py`가 controller를 lifespan에서 소유하도록 wiring 정리
 - [x] `tests/unit/test_dashboard_routes.py`에 stop 상태 전이 케이스 추가
-- [ ] `tests/integration/test_live_runtime_api_integration.py` 신규 작성
+- [x] `tests/integration/test_live_runtime_api_integration.py` 신규 작성
 
 Exit criteria:
 - API만으로 paper/live session start/stop이 가능하고, duplicate start가 거절된다.
@@ -55,12 +55,12 @@ Exit criteria:
 
 ## Phase 11-3. 문서와 회귀 검증
 
-- [ ] `README.md`에 API-owned live runtime launch/stop 흐름 추가
-- [ ] `docs/runbooks/deploy-production.md`에 운영자 start/stop 절차 추가
-- [ ] `docs/runbooks/deploy-production.ko.md`에 운영자 start/stop 절차 추가
-- [ ] touched unit/integration tests 통과 확인
+- [x] `README.md`에 API-owned live runtime launch/stop 흐름 추가
+- [x] `docs/runbooks/deploy-production.md`에 운영자 start/stop 절차 추가
+- [x] `docs/runbooks/deploy-production.ko.md`에 운영자 start/stop 절차 추가
+- [x] touched unit/integration tests 통과 확인
 - [x] frontend 타입체크/린트/빌드 통과 확인
-- [ ] broader regression 실행 후 잔여 리스크 정리
+- [x] broader regression 실행 후 잔여 리스크 정리
 
 Exit criteria:
 - 문서가 새 orchestration 모델을 설명하고, 핵심 unit/integration 검증이 통과한다.
@@ -77,7 +77,7 @@ Exit criteria:
 
 ### Required integration tests
 
-- [ ] `pytest tests/integration/test_live_runtime_api_integration.py -q`
+- [x] `pytest tests/integration/test_live_runtime_api_integration.py -q`
 - [ ] `pytest tests/integration/test_kis_preflight_integration.py -q`
 
 ### Broader regression
@@ -86,7 +86,7 @@ Exit criteria:
 - [x] `ruff check src/ tests/`
 - [x] `cd frontend && npx tsc --noEmit`
 - [x] `cd frontend && npm run lint`
-- [ ] `cd frontend && npm run build`
+- [x] `cd frontend && npm run build`
 
 ### Manual verification
 
@@ -107,6 +107,7 @@ Exit criteria:
 - Phase 11-0: controller 도입 + live loop 생성 경계 분리
 - Phase 11-1: start/stop API 기본 계약 추가
 - Phase 11-2: dashboard launch UX 기본 흐름 반영
+- Phase 11-3: 문서 보강 + integration 검증 + frontend build 경로 안정화
 
 ### Scope implemented
 - `LiveRuntimeController`를 추가해 단일 live runtime session의 thread, active loop, session metadata, last error를 관리하도록 했다.
@@ -143,15 +144,14 @@ Exit criteria:
 - `ruff check src/trading_system/app/live_runtime_controller.py src/trading_system/api/routes/live_runtime.py src/trading_system/api/routes/dashboard.py src/trading_system/api/schemas.py src/trading_system/api/server.py src/trading_system/app/services.py tests/unit/test_live_runtime_controller.py tests/unit/test_live_runtime_routes.py tests/unit/test_app_services.py` → passed
 - `cd frontend && npm run lint` → passed
 - `cd frontend && npx tsc --noEmit` → passed
-- `cd frontend && npm run build` → failed in sandbox with Turbopack panic (`creating new process` / `binding to a port` / `Operation not permitted`)
+- `cd frontend && npm run build` → passed after switching to `next build --webpack`
 
 ### Validation results
 - controller, route semantics, services helper에 대한 unit 검증은 확보했다.
 - frontend lint와 typecheck는 통과했다.
-- frontend production build는 코드 오류가 아니라 현재 sandbox/Turbopack 환경 제약으로 실패했다.
+- frontend production build는 `next build --webpack` 경로로 전환 후 통과했다. 기존 실패 원인은 Turbopack이 제한된 sandbox에서 추가 프로세스/포트 바인딩을 시도한 것이었다.
 - `TestClient` 기반 HTTP route 회귀는 이 환경에서 lifespan 진입 자체가 block 되는 이슈가 있어 직접 route unit test로 대체 검증했다.
 
 ### Risks / follow-up
-- `tests/unit/test_dashboard_routes.py`, `tests/unit/test_api_server.py -k live_runtime`, `tests/integration/test_live_runtime_api_integration.py`는 아직 실행 증적이 부족하다.
-- `README`와 deploy runbook은 아직 새 live runtime orchestration 모델로 갱신하지 않았다.
+- `tests/unit/test_dashboard_routes.py`와 `tests/unit/test_api_server.py -k live_runtime`는 이 환경의 `TestClient`/lifespan 제약 때문에 실행 증적이 부족하다.
 - `data/equity/live_*.jsonl` 파일은 테스트 중 생성된 산출물로 커밋 대상에서 제외하는 것이 맞다.

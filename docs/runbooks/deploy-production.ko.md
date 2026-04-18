@@ -202,6 +202,8 @@ curl -s -H "X-API-Key: $API_KEY" "$RAILWAY_URL/api/v1/backtests"
 배포 성공 후 Vercel이 제공하는 URL을 기록한다.
 형태: `https://your-app.vercel.app`
 
+참고: 이 저장소의 frontend build는 `next build --webpack` 경로를 사용한다. 제한된 sandbox/CI 환경에서 Turbopack이 추가 프로세스 생성 단계에서 실패한 이력이 있어, 운영 배포와 CI 모두 webpack 경로를 기준으로 본다.
+
 ### 3-4. Railway CORS 설정 추가
 
 Vercel 배포 URL을 Railway의 CORS 허용 오리진에 추가한다.
@@ -227,8 +229,16 @@ Railway 대시보드 → 서비스 → **Variables** 탭:
 2. 우측 상단 설정 아이콘 → API Key 입력란에 `TRADING_SYSTEM_ALLOWED_API_KEYS` 값 입력.
 3. 대시보드 페이지가 오류 없이 로드되는지 확인한다.
 4. 브라우저 개발자 도구 → **Network** 탭에서 CORS 오류(`blocked by CORS policy`)가 없는지 확인한다.
+5. 대시보드가 disconnected 상태라면 launch form으로 `paper` 세션을 시작하고, 상태가 `idle`/`stopped`에서 `starting`, `running`으로 전이하는지 확인한다.
 
-### 4-2. SSE 스트리밍 연결
+### 4-2. 런타임 시작/중지 확인
+
+1. 대시보드 launch form에서 심볼, provider/broker, `paper` 또는 guarded `live`를 입력한다.
+2. **Start Runtime** 을 눌러 세션을 시작한다.
+3. 대시보드 status에 새로운 `session_id`, `controller_state=active`, 라이브 메트릭이 보이는지 확인한다.
+4. **Stop** 을 눌러 세션을 종료하고, UI가 clean disconnected/stopped 상태로 돌아오는지 확인한다.
+
+### 4-3. SSE 스트리밍 연결
 
 ```bash
 RAILWAY_URL="https://tradingsystem-production-816d.up.railway.app"
@@ -250,7 +260,7 @@ curl -N --max-time 20 -H "Accept: text/event-stream" \
 > `--max-time 20`을 사용한 경우 마지막의 `curl: (28) Operation timed out ...` 는
 > 테스트 제한시간 도달로 인한 정상 종료로 간주한다.
 
-### 4-3. 백테스트 런 영속화 확인
+### 4-4. 백테스트 런 영속화 확인
 
 1. 프론트엔드에서 백테스트를 한 번 실행한다.
 2. `/runs` 페이지에서 방금 실행한 런이 목록에 보이는지 확인한다.
@@ -261,7 +271,7 @@ curl -N --max-time 20 -H "Accept: text/event-stream" \
 5. 가능하면 Supabase SQL Editor 또는 `psql`로 `backtest_runs` 테이블에 방금 실행한
    `run_id`가 남아있는지 직접 확인한다. UI 확인만으로 끝내지 않는 편이 안전하다.
 
-### 4-4. Supabase 데이터 직접 확인
+### 4-5. Supabase 데이터 직접 확인
 
 ```bash
 psql "$DATABASE_URL" -c "SELECT run_id, status, started_at FROM backtest_runs ORDER BY created_at DESC LIMIT 5;"
@@ -273,6 +283,7 @@ psql "$DATABASE_URL" -c "SELECT run_id, status, started_at FROM backtest_runs OR
 |------|------|
 | `GET /health` | 200 `{"status": "ok"}` |
 | `GET /api/v1/backtests` | 200, CORS 오류 없음 |
+| 런타임 시작/중지 | dashboard에서 세션 시작/종료 성공 |
 | SSE `/dashboard/stream` | heartbeat 수신 |
 | 재배포 후 런 목록 | 이전 런 보존 |
 | 브라우저 CORS | 오류 없음 |

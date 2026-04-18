@@ -251,6 +251,13 @@ Validation failures are returned as 4xx (`settings_validation_error` or `invalid
 The same endpoint accepts `live_execution=live` when KIS runtime guards are satisfied.
 `GET /health` is intentionally unauthenticated so load balancers and Railway-style health checks can probe the service without an API key.
 
+Live runtime orchestration is API-owned:
+
+- `GET /api/v1/dashboard/status` returns controller state even when no loop is active.
+- `POST /api/v1/live/runtime/start` launches one live session after re-running preflight on the server.
+- `POST /api/v1/dashboard/control` now supports `pause`, `resume`, `reset`, and `stop`.
+- Only one live session may be active per API process at a time.
+
 Backtest API execution is asynchronous:
 
 - `POST /api/v1/backtests` returns `202 Accepted` with `status="queued"`.
@@ -333,6 +340,13 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
 동일 엔드포인트에서 KIS 가드 조건을 만족하면 `live_execution=live`도 허용됩니다.
 `GET /health`는 로드밸런서와 Railway 같은 헬스체크가 API 키 없이 호출할 수 있도록 인증 예외 경로로 유지됩니다.
 
+라이브 런타임 orchestration은 API가 직접 소유합니다.
+
+- `GET /api/v1/dashboard/status`는 active loop가 없어도 controller 상태를 반환합니다.
+- `POST /api/v1/live/runtime/start`는 서버에서 preflight를 다시 수행한 뒤 단일 live session을 시작합니다.
+- `POST /api/v1/dashboard/control`은 이제 `pause`, `resume`, `reset`, `stop`을 지원합니다.
+- 한 API 프로세스 안에서 동시에 하나의 live session만 허용됩니다.
+
 백테스트 API는 비동기 실행 모델을 사용합니다.
 
 - `POST /api/v1/backtests`는 `202 Accepted`와 `status="queued"`를 반환합니다.
@@ -375,6 +389,8 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
 }
 ```
 
+Build note: `frontend/package.json` uses `next build --webpack` because the default Turbopack build path can fail in restricted sandbox/process environments while the webpack path remains stable for CI and production packaging.
+
 ### 5.10 Frontend + backend local development / 프론트엔드 + 백엔드 로컬 개발
 
 ### EN
@@ -386,7 +402,7 @@ The repository now includes a Next.js frontend under `frontend/`. Current user-f
 - `/patterns/$patternSetId`: inspect one saved pattern set
 - `/strategies`: create and list strategy profiles
 - `/runs` and `/runs/$runId`: inspect run history, result charts, signals, fills, rejections, and trade analytics
-- `/dashboard`: inspect live loop status, positions, recent events, equity history, SSE connectivity, and control actions (`pause`, `resume`, `reset`)
+- `/dashboard`: inspect controller state, live loop status, positions, recent events, equity history, SSE connectivity, and control actions (`pause`, `resume`, `reset`, `stop`)
 - `/admin`: create, list, and revoke API keys through the browser
 
 **One-stop script (recommended):**
@@ -452,7 +468,7 @@ Frontend error handling is separated by path:
 - 4xx failure: validation/input issue from API
 - 5xx failure: runtime/internal server issue
 
-The dashboard route only works when the backend API is started with an attached live loop. Otherwise the dashboard endpoints return `503`.
+The dashboard now exposes controller state even when no live loop is active. Operators can start one live paper/live session from the UI through `POST /api/v1/live/runtime/start`, and an already-attached external loop still remains a supported compatibility path.
 
 ### KO
 
@@ -463,7 +479,7 @@ The dashboard route only works when the backend API is started with an attached 
 - `/patterns/$patternSetId`: 저장된 패턴셋 상세 조회
 - `/strategies`: 전략 프로필 생성 및 목록 조회
 - `/runs`, `/runs/$runId`: 실행 이력, 결과 차트, 신호, 체결/거절, 거래 애널리틱스 조회
-- `/dashboard`: 라이브 루프 상태, 포지션, 최근 이벤트, equity 이력, SSE 연결 상태, 제어 액션(`pause`, `resume`, `reset`) 조회
+- `/dashboard`: controller 상태, 라이브 루프 상태, 포지션, 최근 이벤트, equity 이력, SSE 연결 상태, 제어 액션(`pause`, `resume`, `reset`, `stop`) 조회
 - `/admin`: 브라우저에서 API key 생성, 목록 조회, 폐기
 
 **원스톱 스크립트 (권장):**
