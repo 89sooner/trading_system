@@ -203,6 +203,8 @@ TRADING_SYSTEM_KIS_ACNT_PRDT_CD=01 \
 uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode live --provider kis --broker kis --symbols 005930 --live-execution live
 ```
 
+For the full KIS live environment template, paper rehearsal checklist, and first real-order gate, use `docs/runbooks/kis-domestic-live-operations.md` / `docs/runbooks/kis-domestic-live-operations.ko.md`.
+
 ### 5.8 Built-in backtest example / 내장 백테스트 예시
 
 ```bash
