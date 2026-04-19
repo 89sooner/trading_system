@@ -26,7 +26,10 @@ export function useDashboardPolling() {
   })
 
   const controllerState = statusQuery.data?.controller_state
-  const hasActiveRuntime = controllerState === 'active' || controllerState === 'starting'
+  const hasActiveRuntime =
+    statusQuery.data?.active === true
+    || controllerState === 'active'
+    || controllerState === 'starting'
 
   const positionsQuery = useQuery({
     queryKey: ['dashboard', 'positions'],

@@ -40,9 +40,14 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
   if (loading) {
     return (
-      <div className={cn('rounded border border-border', className)}>
+      <div
+        className={cn(
+          'overflow-hidden rounded-xl border border-border/80 bg-background shadow-[0_1px_2px_rgba(15,23,42,0.04)]',
+          className,
+        )}
+      >
         <Table>
-          <TableHeader>
+          <TableHeader className="bg-muted/20">
             <TableRow>
               {columns.map((col) => (
                 <TableHead key={col.key} className={col.className}>{col.header}</TableHead>
@@ -67,16 +72,26 @@ export function DataTable<T>({
 
   if (data.length === 0) {
     return (
-      <div className={cn('flex items-center justify-center rounded border border-border py-12', className)}>
+      <div
+        className={cn(
+          'flex items-center justify-center rounded-xl border border-border/80 bg-muted/20 py-12',
+          className,
+        )}
+      >
         <p className="text-sm text-muted-foreground">{emptyMessage}</p>
       </div>
     )
   }
 
   return (
-    <div className={cn('rounded border border-border', className)}>
+    <div
+      className={cn(
+        'overflow-hidden rounded-xl border border-border/80 bg-background shadow-[0_1px_2px_rgba(15,23,42,0.04)]',
+        className,
+      )}
+    >
       <Table>
-        <TableHeader>
+        <TableHeader className="bg-muted/20">
           <TableRow>
             {columns.map((col) => (
               <TableHead key={col.key} className={col.className}>{col.header}</TableHead>

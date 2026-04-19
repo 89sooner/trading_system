@@ -229,14 +229,16 @@ Railway 대시보드 → 서비스 → **Variables** 탭:
 2. 우측 상단 설정 아이콘 → API Key 입력란에 `TRADING_SYSTEM_ALLOWED_API_KEYS` 값 입력.
 3. 대시보드 페이지가 오류 없이 로드되는지 확인한다.
 4. 브라우저 개발자 도구 → **Network** 탭에서 CORS 오류(`blocked by CORS policy`)가 없는지 확인한다.
-5. 대시보드가 disconnected 상태라면 launch form으로 `paper` 세션을 시작하고, 상태가 `idle`/`stopped`에서 `starting`, `running`으로 전이하는지 확인한다.
+5. launch console에서 먼저 **Preflight** 를 실행하고, intended route에 대해 readiness panel에 blocking reason이 없는지 확인한다.
+6. 대시보드가 disconnected 상태라면 launch form으로 `paper` 세션을 시작하고, 상태가 `idle`/`stopped`에서 `starting`, `running`으로 전이하는지 확인한다.
 
 ### 4-2. 런타임 시작/중지 확인
 
 1. 대시보드 launch form에서 심볼, provider/broker, `paper` 또는 guarded `live`를 입력한다.
-2. **Start Runtime** 을 눌러 세션을 시작한다.
-3. 대시보드 status에 새로운 `session_id`, `controller_state=active`, 라이브 메트릭이 보이는지 확인한다.
-4. **Stop** 을 눌러 세션을 종료하고, UI가 clean disconnected/stopped 상태로 돌아오는지 확인한다.
+2. **Preflight** 를 실행하고 `next_allowed_actions` 에 선택한 실행 모드가 포함되는지 확인한다.
+3. **Start Runtime** 을 눌러 세션을 시작한다.
+4. 대시보드 status에 새로운 `session_id`, `controller_state=active`, latest preflight summary, 라이브 메트릭이 보이는지 확인한다.
+5. **Stop** 을 눌러 세션을 종료하고, UI가 clean disconnected/stopped 상태로 돌아오는지 확인한다.
 
 ### 4-3. SSE 스트리밍 연결
 

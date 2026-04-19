@@ -229,14 +229,16 @@ Railway auto-redeploys after the variable is saved. Wait for redeployment to com
 3. Confirm the dashboard loads without errors.
 4. Open browser DevTools → **Network** tab and confirm no CORS errors
    (`blocked by CORS policy`).
-5. If the dashboard is disconnected, use the launch form to start a `paper` session and confirm status changes from `idle`/`stopped` to `starting` and then `running`.
+5. In the launch console, run **Preflight** first and confirm the readiness panel shows no blocking reasons for the intended route.
+6. If the dashboard is disconnected, use the launch form to start a `paper` session and confirm status changes from `idle`/`stopped` to `starting` and then `running`.
 
 ### 4-2. Runtime launch and stop
 
 1. In the dashboard launch form, enter one or more symbols, choose provider/broker, and select `paper` or guarded `live`.
-2. Click **Start Runtime**.
-3. Confirm the dashboard status shows a new `session_id`, `controller_state=active`, and live metrics begin updating.
-4. Use **Stop** and confirm the dashboard returns to a disconnected/stopped state without leaving stale positions or SSE connections in the UI.
+2. Run **Preflight** and verify `next_allowed_actions` includes the selected execution mode.
+3. Click **Start Runtime**.
+4. Confirm the dashboard status shows a new `session_id`, `controller_state=active`, the latest preflight summary, and live metrics begin updating.
+5. Use **Stop** and confirm the dashboard returns to a disconnected/stopped state without leaving stale positions or SSE connections in the UI.
 
 ### 4-3. SSE streaming
 

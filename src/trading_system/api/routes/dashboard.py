@@ -14,11 +14,13 @@ from fastapi.responses import JSONResponse
 from trading_system.api.schemas import (
     ControlActionDTO,
     ControlResponseDTO,
+    DashboardIncidentDTO,
     DashboardStatusDTO,
     EquityPointTimeseriesDTO,
     EquityTimeseriesDTO,
     EventFeedDTO,
     EventRecordDTO,
+    LastPreflightDTO,
     PositionDTO,
     PositionsResponseDTO,
 )
@@ -65,6 +67,62 @@ LoopDep = Annotated["LiveTradingLoop", Depends(_require_loop)]
 OptionalLoopDep = Annotated["LiveTradingLoop | None", Depends(_get_loop)]
 
 
+def _latest_incident(
+    loop: "LiveTradingLoop | None",
+    last_error: str | None,
+) -> DashboardIncidentDTO | None:
+    if loop is None:
+        if last_error is None:
+            return None
+        return DashboardIncidentDTO(
+            event="controller.error",
+            severity="ERROR",
+            timestamp=datetime.now(UTC).isoformat(),
+            summary=last_error,
+        )
+
+    records = loop.services.logger.recent_events(limit=100)
+    for record in reversed(records):
+        severity = record.severity.upper()
+        if (
+            severity in {"WARNING", "ERROR", "CRITICAL"}
+            or record.event.startswith("risk.")
+            or record.event.startswith("portfolio.reconciliation.")
+            or record.event.startswith("system.error")
+        ):
+            summary = record.event
+            for key in ("reason", "error", "action", "state"):
+                value = record.payload.get(key)
+                if value not in (None, ""):
+                    summary = str(value)
+                    break
+            return DashboardIncidentDTO(
+                event=record.event,
+                severity=severity,
+                timestamp=record.timestamp,
+                summary=summary,
+            )
+    return None
+
+
+def _controller_state_detail(state: str | None, active: bool) -> str | None:
+    if state is None:
+        return None
+    if state == "active":
+        return (
+            "Runtime session is attached and processing ticks."
+            if active
+            else "Runtime thread is active."
+        )
+    if state == "starting":
+        return "Runtime thread started and is waiting for the live loop to attach."
+    if state == "error":
+        return "Runtime controller recorded a startup or shutdown error."
+    if state == "idle":
+        return "No runtime session is currently attached to this API process."
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -75,17 +133,44 @@ async def get_status(request: Request, loop: OptionalLoopDep) -> DashboardStatus
     """Return the current state and heartbeat of the live trading loop."""
     controller = _get_controller(request)
     snapshot = controller.snapshot() if controller is not None else None
+    last_preflight = (
+        LastPreflightDTO(
+            checked_at=snapshot.last_preflight.checked_at,
+            ready=snapshot.last_preflight.ready,
+            message=snapshot.last_preflight.message,
+            provider=snapshot.last_preflight.provider,
+            broker=snapshot.last_preflight.broker,
+            symbols=snapshot.last_preflight.symbols,
+            blocking_reasons=snapshot.last_preflight.blocking_reasons,
+            warnings=snapshot.last_preflight.warnings,
+            next_allowed_actions=snapshot.last_preflight.next_allowed_actions,
+        )
+        if snapshot is not None and snapshot.last_preflight is not None
+        else None
+    )
     if loop is None:
         return DashboardStatusDTO(
             state=AppRunnerState.STOPPED.value,
             last_heartbeat=None,
             uptime_seconds=None,
             controller_state=snapshot.controller_state if snapshot is not None else "idle",
+            controller_state_detail=_controller_state_detail(
+                snapshot.controller_state if snapshot is not None else "idle",
+                False,
+            ),
+            active=snapshot.active if snapshot is not None else False,
             session_id=snapshot.session_id if snapshot is not None else None,
             live_execution=snapshot.live_execution if snapshot is not None else None,
             last_error=snapshot.last_error if snapshot is not None else None,
             provider=snapshot.provider if snapshot is not None else None,
+            broker=snapshot.broker if snapshot is not None else None,
             symbols=snapshot.symbols if snapshot is not None else None,
+            stop_supported=snapshot.stop_supported if snapshot is not None else False,
+            last_preflight=last_preflight,
+            latest_incident=_latest_incident(
+                None,
+                snapshot.last_error if snapshot is not None else None,
+            ),
         )
 
     started_at = getattr(loop, "_started_at", None)
@@ -100,6 +185,7 @@ async def get_status(request: Request, loop: OptionalLoopDep) -> DashboardStatus
     recon_status = getattr(runtime, "last_reconciliation_status", None) if runtime else None
     services = getattr(loop, "services", None)
     provider = getattr(services, "provider", None) if services else None
+    broker = getattr(services, "broker", None) if services else None
     symbols = list(getattr(services, "symbols", ())) if services else None
 
     market_session: str | None = None
@@ -111,14 +197,26 @@ async def get_status(request: Request, loop: OptionalLoopDep) -> DashboardStatus
         last_heartbeat=last_hb.isoformat() if last_hb is not None else None,
         uptime_seconds=uptime,
         controller_state=snapshot.controller_state if snapshot is not None else None,
+        controller_state_detail=_controller_state_detail(
+            snapshot.controller_state if snapshot is not None else "active",
+            True,
+        ),
+        active=True,
         session_id=snapshot.session_id if snapshot is not None else None,
         live_execution=snapshot.live_execution if snapshot is not None else None,
         last_error=snapshot.last_error if snapshot is not None else None,
         provider=provider,
+        broker=broker,
         symbols=symbols if symbols else None,
         market_session=market_session,
         last_reconciliation_at=recon_at.isoformat() if recon_at is not None else None,
         last_reconciliation_status=recon_status,
+        stop_supported=snapshot.stop_supported if snapshot is not None else True,
+        last_preflight=last_preflight,
+        latest_incident=_latest_incident(
+            loop,
+            snapshot.last_error if snapshot is not None else None,
+        ),
     )
 
 

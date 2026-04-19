@@ -17,6 +17,7 @@ class _FakeController:
         self._active = False
         self._session = None
         self.stop_calls = 0
+        self._last_preflight = None
 
     def has_active_session(self) -> bool:
         return self._active
@@ -37,23 +38,44 @@ class _FakeController:
         self.stop_calls += 1
         self._active = False
 
+    def record_preflight(self, settings, result) -> None:
+        self._last_preflight = SimpleNamespace(
+            checked_at=result.checked_at,
+            ready=result.ready,
+            message=result.message,
+            provider=settings.provider,
+            broker=settings.broker,
+            symbols=list(settings.symbols),
+            blocking_reasons=list(result.blocking_reasons),
+            warnings=list(result.warnings),
+            next_allowed_actions=list(result.next_allowed_actions),
+        )
+
     def snapshot(self):
         if self._active:
             return SimpleNamespace(
                 controller_state='active',
+                active=True,
                 session_id=self._session.session_id,
                 live_execution=self._session.live_execution,
                 last_error=None,
                 provider=self._session.provider,
+                broker=self._session.broker,
                 symbols=self._session.symbols,
+                stop_supported=True,
+                last_preflight=self._last_preflight,
             )
         return SimpleNamespace(
             controller_state='idle',
+            active=False,
             session_id=None,
             live_execution=None,
             last_error=None,
             provider=None,
+            broker=None,
             symbols=None,
+            stop_supported=False,
+            last_preflight=self._last_preflight,
         )
 
 
@@ -89,6 +111,10 @@ def test_start_route_uses_real_settings_and_returns_session(monkeypatch) -> None
                 quote_summaries=None,
                 symbol_count=1,
                 message='ok',
+                checks=[],
+                symbol_checks=[],
+                next_allowed_actions=['paper'],
+                checked_at='2026-04-18T00:00:00Z',
             )
         ),
     )
@@ -98,6 +124,9 @@ def test_start_route_uses_real_settings_and_returns_session(monkeypatch) -> None
     assert response.status == 'started'
     assert response.session_id == 'live_20260418_000000'
     assert response.symbols == ['BTCUSDT']
+    assert response.preflight is not None
+    assert response.preflight.checked_at == '2026-04-18T00:00:00Z'
+    assert response.preflight.next_allowed_actions == ['paper']
     assert controller.has_active_session() is True
 
 
@@ -109,6 +138,7 @@ async def test_dashboard_status_and_stop_reflect_controller_state() -> None:
         session_id='live_20260418_000000',
         live_execution='paper',
         provider='mock',
+        broker='paper',
         symbols=['BTCUSDT'],
     )
     request = _make_request(controller, live_loop=None)
@@ -117,6 +147,8 @@ async def test_dashboard_status_and_stop_reflect_controller_state() -> None:
     assert status.controller_state == 'active'
     assert status.session_id == 'live_20260418_000000'
     assert status.state == AppRunnerState.STOPPED.value
+    assert status.active is True
+    assert status.stop_supported is True
 
     response = await dashboard_routes.control_loop(
         ControlActionDTO(action='stop'),

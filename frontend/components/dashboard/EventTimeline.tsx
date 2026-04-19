@@ -1,5 +1,6 @@
 'use client'
 
+import { Badge } from '@/components/ui/badge'
 import type { EventRecord } from '@/lib/api/types'
 import { cn } from '@/lib/utils'
 
@@ -23,12 +24,14 @@ interface EventTimelineProps {
 export function EventTimeline({ events, loading }: EventTimelineProps) {
   if (loading) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex gap-2">
-            <div className="h-3 w-16 animate-pulse rounded bg-muted" />
-            <div className="h-3 w-12 animate-pulse rounded bg-muted" />
-            <div className="h-3 w-32 animate-pulse rounded bg-muted" />
+          <div key={i} className="rounded-xl border border-border/80 bg-muted/20 p-4">
+            <div className="flex gap-2">
+              <div className="h-3 w-16 animate-pulse rounded bg-muted" />
+              <div className="h-3 w-12 animate-pulse rounded bg-muted" />
+            </div>
+            <div className="mt-3 h-3 w-40 animate-pulse rounded bg-muted" />
           </div>
         ))}
       </div>
@@ -36,24 +39,35 @@ export function EventTimeline({ events, loading }: EventTimelineProps) {
   }
 
   if (events.length === 0) {
-    return <p className="text-sm text-muted-foreground">No events yet.</p>
+    return (
+      <div className="rounded-xl border border-border/80 bg-muted/20 px-6 py-10 text-center">
+        <p className="text-sm text-muted-foreground">No events yet.</p>
+      </div>
+    )
   }
 
   return (
-    <div className="max-h-72 overflow-y-auto space-y-0.5 font-mono text-xs">
+    <div className="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
       {[...events].reverse().map((e, i) => {
         const ts = new Date(e.timestamp).toLocaleTimeString()
         const payloadStr = Object.entries(e.payload || {})
           .map(([k, v]) => `${k}=${v}`)
           .join(' ')
         return (
-          <div key={i} className="flex items-start gap-2 py-0.5">
-            <span className="text-muted-foreground shrink-0">{ts}</span>
-            <span className={cn('shrink-0 font-semibold', severityColor(e.severity))}>
-              {e.severity}
-            </span>
-            <span className={cn('shrink-0 font-semibold', eventColor(e.event))}>{e.event}</span>
-            <span className="text-muted-foreground truncate">{payloadStr}</span>
+          <div
+            key={i}
+            className="rounded-xl border border-border/80 bg-background px-4 py-3"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="shrink-0 text-xs text-muted-foreground">{ts}</span>
+              <Badge variant="outline" className={cn('font-semibold', severityColor(e.severity))}>
+                {e.severity}
+              </Badge>
+              <span className={cn('text-sm font-medium', eventColor(e.event))}>{e.event}</span>
+            </div>
+            <p className="mt-2 truncate font-mono text-xs text-muted-foreground">
+              {payloadStr || 'No payload'}
+            </p>
           </div>
         )
       })}

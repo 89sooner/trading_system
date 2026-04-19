@@ -41,6 +41,9 @@ def _wait_for_terminal_run(client: TestClient, run_id: str, timeout: float = 3.0
 
 @contextmanager
 def _client():
+    import os
+
+    os.environ["DATABASE_URL"] = ""
     with TestClient(create_app()) as client:
         yield client
 
@@ -110,9 +113,15 @@ def test_live_preflight_schema_supports_multi_symbol_details(monkeypatch) -> Non
             "message",
             "ready",
             "reasons",
+            "blocking_reasons",
+            "warnings",
             "quote_summary",
             "quote_summaries",
             "symbol_count",
+            "checks",
+            "symbol_checks",
+            "next_allowed_actions",
+            "checked_at",
             "paper_result",
         }
         assert body["symbol_count"] == 2

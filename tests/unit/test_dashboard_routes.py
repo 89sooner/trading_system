@@ -33,6 +33,7 @@ def _make_loop(state: AppRunnerState = AppRunnerState.RUNNING) -> MagicMock:
     portfolio.average_costs = {"BTCUSDT": Decimal("50000")}
     loop.services.portfolio = portfolio
     loop.services.provider = "mock"
+    loop.services.broker = "paper"
     loop.services.symbols = ("BTCUSDT",)
 
     # Logger with empty buffer
@@ -52,6 +53,7 @@ def _make_client(loop=None) -> TestClient:
         with open(empty_keys, "w") as f:
             f.write("[]")
     os.environ["TRADING_SYSTEM_API_KEYS_PATH"] = empty_keys
+    os.environ["DATABASE_URL"] = ""
     app = create_app(live_loop=loop)
     return TestClient(app, raise_server_exceptions=False)
 
@@ -62,10 +64,12 @@ def _make_client(loop=None) -> TestClient:
 
 
 class TestDashboardStatus:
-    def test_no_loop_returns_503(self) -> None:
+    def test_no_loop_returns_controller_snapshot(self) -> None:
         client = _make_client(loop=None)
         resp = client.get("/api/v1/dashboard/status")
-        assert resp.status_code == 503
+        assert resp.status_code == 200
+        assert resp.json()["controller_state"] == "idle"
+        assert resp.json()["active"] is False
 
     def test_running_loop_returns_state(self) -> None:
         loop = _make_loop(AppRunnerState.RUNNING)
@@ -73,6 +77,8 @@ class TestDashboardStatus:
         resp = client.get("/api/v1/dashboard/status")
         assert resp.status_code == 200
         assert resp.json()["state"] == "running"
+        assert resp.json()["broker"] == "paper"
+        assert resp.json()["active"] is True
 
     def test_paused_loop_returns_state(self) -> None:
         loop = _make_loop(AppRunnerState.PAUSED)

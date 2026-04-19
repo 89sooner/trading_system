@@ -30,7 +30,7 @@ export function ControlButtons() {
 
   return (
     <>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <Button variant="outline" size="sm" onClick={() => sendControl('pause')} disabled={isPending}>
           <Pause className="mr-1 h-3 w-3" /> Pause
         </Button>
@@ -45,7 +45,7 @@ export function ControlButtons() {
         </Button>
       </div>
       {message && (
-        <p className={`text-xs ${message.isError ? 'text-danger' : 'text-success'}`}>
+        <p className={`max-w-sm text-right text-xs ${message.isError ? 'text-danger' : 'text-success'}`}>
           {message.text}
         </p>
       )}

@@ -50,9 +50,11 @@ interface PositionsPanelProps {
 
 export function PositionsPanel({ data, loading }: PositionsPanelProps) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium">Positions</h2>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between rounded-xl border border-border/80 bg-muted/20 px-4 py-3">
+        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          Open positions
+        </span>
         {data && (
           <span className="text-xs text-muted-foreground">
             Cash: <span className="font-mono text-foreground">{data.cash}</span>

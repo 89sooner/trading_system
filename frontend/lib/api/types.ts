@@ -6,14 +6,39 @@ export interface DashboardStatus {
   last_heartbeat: string | null
   uptime_seconds: number | null
   controller_state?: string | null
+  controller_state_detail?: string | null
+  active?: boolean
   session_id?: string | null
   live_execution?: string | null
   last_error?: string | null
   provider?: string | null
+  broker?: string | null
   symbols?: string[] | null
   market_session?: string | null
   last_reconciliation_at?: string | null
   last_reconciliation_status?: string | null
+  stop_supported?: boolean
+  last_preflight?: LastPreflight | null
+  latest_incident?: DashboardIncident | null
+}
+
+export interface DashboardIncident {
+  event: string
+  severity: string
+  timestamp: string
+  summary: string
+}
+
+export interface LastPreflight {
+  checked_at: string
+  ready: boolean
+  message: string
+  provider: string
+  broker: string
+  symbols: string[]
+  blocking_reasons: string[]
+  warnings: string[]
+  next_allowed_actions: string[]
 }
 
 export interface Position {
@@ -54,6 +79,38 @@ export interface LiveRuntimeStartRequestDTO {
   live_execution?: 'paper' | 'live'
 }
 
+export interface ReadinessCheck {
+  name: string
+  status: 'pass' | 'warn' | 'fail'
+  summary: string
+  details?: Record<string, string> | null
+}
+
+export interface SymbolReadiness {
+  symbol: string
+  status: 'pass' | 'warn' | 'fail'
+  summary: string
+  price?: string | null
+  volume?: string | null
+}
+
+export interface LivePreflightResponseDTO {
+  status: 'ok'
+  message: string
+  ready: boolean
+  reasons: string[]
+  blocking_reasons: string[]
+  warnings: string[]
+  quote_summary?: Record<string, string> | null
+  quote_summaries?: Record<string, string>[] | null
+  symbol_count: number
+  checks: ReadinessCheck[]
+  symbol_checks: SymbolReadiness[]
+  next_allowed_actions: string[]
+  checked_at?: string | null
+  paper_result?: BacktestResult | null
+}
+
 export interface LiveRuntimeStartResponseDTO {
   status: 'started'
   session_id: string
@@ -63,6 +120,7 @@ export interface LiveRuntimeStartResponseDTO {
   provider: string
   broker: string
   live_execution: 'paper' | 'live'
+  preflight?: LivePreflightResponseDTO | null
 }
 
 // Backtests

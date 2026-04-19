@@ -6,6 +6,7 @@ import type {
   EventFeed,
   ControlResponse,
   EquityTimeseriesResponse,
+  LivePreflightResponseDTO,
   LiveRuntimeStartRequestDTO,
   LiveRuntimeStartResponseDTO,
 } from './types'
@@ -21,6 +22,12 @@ export const postDashboardControl = (action: 'pause' | 'resume' | 'reset' | 'sto
 
 export const getDashboardEquity = (limit = 300) =>
   requestJson<EquityTimeseriesResponse>(`/dashboard/equity?limit=${limit}`)
+
+export const postLivePreflight = (payload: LiveRuntimeStartRequestDTO) =>
+  requestJson<LivePreflightResponseDTO>('/live/preflight', {
+    method: 'POST',
+    body: JSON.stringify({ mode: 'live', ...payload }),
+  })
 
 /** Build the SSE stream URL including the optional api_key query param. */
 export function getDashboardStreamUrl(): string {

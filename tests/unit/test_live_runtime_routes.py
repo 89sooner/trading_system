@@ -11,6 +11,7 @@ import trading_system.api.routes.live_runtime as live_runtime_routes
 from trading_system.api.schemas import ControlActionDTO, LiveRuntimeStartRequestDTO
 from trading_system.app.services import PreflightCheckResult
 from trading_system.app.state import AppRunnerState
+from trading_system.core.ops import EventRecord
 
 
 def _make_request(controller, live_loop=None):
@@ -59,11 +60,25 @@ async def test_dashboard_status_without_loop_returns_controller_snapshot() -> No
     controller = MagicMock()
     controller.snapshot.return_value = SimpleNamespace(
         controller_state='idle',
+        active=False,
         session_id=None,
         live_execution=None,
         last_error='boom',
         provider=None,
+        broker=None,
         symbols=None,
+        stop_supported=False,
+        last_preflight=SimpleNamespace(
+            checked_at='2026-04-17T00:00:00Z',
+            ready=False,
+            message='market closed',
+            provider='kis',
+            broker='kis',
+            symbols=['005930'],
+            blocking_reasons=['market_closed'],
+            warnings=['market_closed'],
+            next_allowed_actions=['review'],
+        ),
     )
     request = _make_request(controller, live_loop=None)
 
@@ -72,6 +87,52 @@ async def test_dashboard_status_without_loop_returns_controller_snapshot() -> No
     assert response.state == AppRunnerState.STOPPED.value
     assert response.controller_state == 'idle'
     assert response.last_error == 'boom'
+    assert response.active is False
+    assert response.last_preflight is not None
+    assert response.last_preflight.provider == 'kis'
+    assert response.last_preflight.blocking_reasons == ['market_closed']
+
+
+@pytest.mark.anyio
+async def test_dashboard_status_normalizes_latest_incident_severity() -> None:
+    controller = MagicMock()
+    controller.snapshot.return_value = SimpleNamespace(
+        controller_state='active',
+        active=True,
+        session_id='live_20260417_000000',
+        live_execution='paper',
+        last_error=None,
+        provider='mock',
+        broker='paper',
+        symbols=['BTCUSDT'],
+        stop_supported=True,
+        last_preflight=None,
+    )
+    loop = MagicMock()
+    loop.state = AppRunnerState.RUNNING
+    loop._started_at = None  # noqa: SLF001
+    loop._last_heartbeat = None  # noqa: SLF001
+    loop.runtime.last_reconciliation_at = None
+    loop.runtime.last_reconciliation_status = None
+    loop.services.provider = 'mock'
+    loop.services.broker = 'paper'
+    loop.services.symbols = ('BTCUSDT',)
+    loop.services.logger.recent_events.return_value = [
+        EventRecord(
+            event='system.error',
+            severity='warning',
+            correlation_id='cid-1',
+            timestamp='2026-04-17T00:00:00Z',
+            payload={'reason': 'simulated warning'},
+        )
+    ]
+    request = _make_request(controller, live_loop=loop)
+
+    response = await dashboard_routes.get_status(request, loop)
+
+    assert response.latest_incident is not None
+    assert response.latest_incident.severity == 'WARNING'
+    assert response.latest_incident.summary == 'simulated warning'
 
 
 def test_start_live_runtime_rejects_duplicate_session(monkeypatch) -> None:
@@ -113,6 +174,10 @@ def test_start_live_runtime_runs_preflight_and_returns_started(monkeypatch) -> N
                 quote_summaries=None,
                 symbol_count=1,
                 message='ok',
+                checks=[],
+                symbol_checks=[],
+                next_allowed_actions=['paper'],
+                checked_at='2026-04-17T00:00:00Z',
             )
         ),
     )
@@ -121,6 +186,8 @@ def test_start_live_runtime_runs_preflight_and_returns_started(monkeypatch) -> N
 
     assert response.status == 'started'
     assert response.state == 'starting'
+    assert response.preflight is not None
+    assert response.preflight.next_allowed_actions == ['paper']
     controller.start.assert_called_once_with(settings)
 
 
@@ -142,6 +209,12 @@ def test_start_live_runtime_rejects_failed_preflight(monkeypatch) -> None:
                 quote_summaries=None,
                 symbol_count=1,
                 message='market closed',
+                blocking_reasons=['market_closed'],
+                warnings=[],
+                checks=[],
+                symbol_checks=[],
+                next_allowed_actions=['review'],
+                checked_at='2026-04-17T00:00:00Z',
             )
         ),
     )

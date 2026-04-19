@@ -2,13 +2,15 @@
 
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { KeyRound, RefreshCw, Shield, ShieldCheck } from 'lucide-react'
+import { DataTable, type Column } from '@/components/domain/DataTable'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { SurfacePanel } from '@/components/layout/SurfacePanel'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
-import { DataTable, type Column } from '@/components/domain/DataTable'
-import { listApiKeys, createApiKey, deleteApiKey } from '@/lib/api/admin'
+import { createApiKey, deleteApiKey, listApiKeys } from '@/lib/api/admin'
 import { formatUtcTimestamp } from '@/lib/formatters'
 import type { ApiKeyListItem, CreateApiKeyResponse } from '@/lib/api/types'
 
@@ -17,7 +19,9 @@ const columns: Column<ApiKeyListItem>[] = [
   {
     key: 'key_preview',
     header: 'Key',
-    cell: (row) => <code className="font-mono text-xs text-muted-foreground">{row.key_preview}</code>,
+    cell: (row) => (
+      <code className="font-mono text-xs text-muted-foreground">{row.key_preview}</code>
+    ),
   },
   {
     key: 'created_at',
@@ -60,89 +64,157 @@ export default function AdminPage() {
   }
 
   function handleCopy() {
-    if (createdKey) {
-      navigator.clipboard.writeText(createdKey.key)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
+    if (!createdKey) return
+    navigator.clipboard.writeText(createdKey.key)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
     <div className="space-y-6">
-      <PageHeader title="API Key Management" description="Generate and manage API keys" />
+      <PageHeader
+        title="API Key Management"
+        description="Generate, review, and revoke API keys used by operators and internal clients."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline">One-time reveal</Badge>
+            <Badge variant="outline">Repository-managed keys</Badge>
+            <Badge variant="outline">Manual revoke</Badge>
+          </div>
+        }
+      />
 
-      {createdKey && (
-        <Card className="border-success/30 bg-success/5">
-          <CardHeader><CardTitle className="text-success">New API Key Created</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            <p className="text-xs text-success">Copy this key now — it will not be shown again.</p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 rounded bg-success/10 px-3 py-2 font-mono text-sm text-foreground break-all">
+      {createdKey ? (
+        <SurfacePanel
+          eyebrow="New Secret"
+          title="API key created"
+          description="Copy this value now. It is shown once and then removed from the screen."
+          action={<ShieldCheck className="h-4 w-4 text-success" />}
+        >
+          <div className="rounded-xl border border-success/25 bg-success/5 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-success">
+              Copy before dismissing
+            </p>
+            <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center">
+              <code className="flex-1 rounded-lg border border-success/20 bg-background px-3 py-3 font-mono text-sm break-all">
                 {createdKey.key}
               </code>
-              <Button size="sm" variant="outline" onClick={handleCopy}>
-                {copied ? 'Copied!' : 'Copy'}
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={handleCopy}>
+                  {copied ? 'Copied!' : 'Copy'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setCreatedKey(null)}>
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+          </div>
+        </SurfacePanel>
+      ) : null}
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+        <SurfacePanel
+          eyebrow="Provisioning"
+          title="Generate a new key"
+          description="Create a named API key for an operator or internal client integration."
+          action={<KeyRound className="h-4 w-4 text-muted-foreground" />}
+        >
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
+              <div className="space-y-1">
+                <Label htmlFor="keyName">Key Name</Label>
+                <Input
+                  id="keyName"
+                  placeholder="e.g. Trading Bot"
+                  value={newKeyName}
+                  onChange={(e) => setNewKeyName(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t border-border/80 pt-4">
+              <p className="text-xs text-muted-foreground">
+                Generated keys are immediately available to the backend repository.
+              </p>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? 'Generating...' : 'Generate Key'}
               </Button>
             </div>
-            <Button size="sm" variant="ghost" className="text-xs text-muted-foreground" onClick={() => setCreatedKey(null)}>
-              Dismiss
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader><CardTitle>Generate New Key</CardTitle></CardHeader>
-        <CardContent>
-          <form onSubmit={handleCreate} className="flex items-end gap-3">
-            <div className="flex-1 space-y-1">
-              <Label htmlFor="keyName">Key Name</Label>
-              <Input id="keyName" placeholder="e.g. Trading Bot" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} required />
-            </div>
-            <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? 'Generating...' : 'Generate Key'}
-            </Button>
+            {createMutation.isError ? (
+              <p className="text-sm text-danger">Failed to create key.</p>
+            ) : null}
           </form>
-          {createMutation.isError && (
-            <p className="mt-2 text-xs text-danger">Failed to create key.</p>
-          )}
-        </CardContent>
-      </Card>
+        </SurfacePanel>
 
-      <Card>
-        <CardHeader><CardTitle>Active Keys</CardTitle></CardHeader>
-        <CardContent>
-          {keys.length === 0 && !isLoading ? (
-            <p className="text-xs text-muted-foreground">
-              No keys managed here yet. Keys set via <code className="text-foreground">TRADING_SYSTEM_ALLOWED_API_KEYS</code> in <code className="text-foreground">.env</code> always work.
+        <SurfacePanel
+          eyebrow="Security"
+          title="Operator notes"
+          description="Keep API key usage explicit and revocable."
+          action={<Shield className="h-4 w-4 text-muted-foreground" />}
+        >
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
+              Keys shown here are repository-managed. Environment keys configured through{' '}
+              <code className="text-foreground">TRADING_SYSTEM_ALLOWED_API_KEYS</code> remain valid separately.
+            </div>
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
+              Use names that reveal ownership and purpose. That makes later review and revoke decisions much easier.
+            </div>
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
+              Revoke old keys instead of reusing them across multiple tools or operators.
+            </div>
+          </div>
+        </SurfacePanel>
+      </div>
+
+      <SurfacePanel
+        eyebrow="Active Keys"
+        title="Current keys"
+        description="The currently managed API keys available from the repository-backed admin path."
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['admin', 'keys'] })}
+          >
+            <RefreshCw className="mr-1 h-3 w-3" /> Refresh
+          </Button>
+        }
+      >
+        {keys.length === 0 && !isLoading ? (
+          <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
+            <p className="text-sm text-muted-foreground">
+              No keys managed here yet. Keys set via{' '}
+              <code className="text-foreground">TRADING_SYSTEM_ALLOWED_API_KEYS</code> in{' '}
+              <code className="text-foreground">.env</code> always work.
             </p>
-          ) : (
-            <DataTable
-              columns={[
-                ...columns,
-                {
-                  key: 'revoke',
-                  header: '',
-                  cell: (row) => (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      disabled={deleteMutation.isPending}
-                      onClick={() => deleteMutation.mutate(row.key_id)}
-                    >
-                      Revoke
-                    </Button>
-                  ),
-                },
-              ]}
-              data={keys}
-              keyExtractor={(row) => row.key_id}
-              loading={isLoading}
-              emptyMessage="No keys."
-            />
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        ) : (
+          <DataTable
+            columns={[
+              ...columns,
+              {
+                key: 'revoke',
+                header: '',
+                cell: (row) => (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={deleteMutation.isPending}
+                    onClick={() => deleteMutation.mutate(row.key_id)}
+                  >
+                    Revoke
+                  </Button>
+                ),
+              },
+            ]}
+            data={keys}
+            keyExtractor={(row) => row.key_id}
+            loading={isLoading}
+            emptyMessage="No keys."
+          />
+        )}
+      </SurfacePanel>
     </div>
   )
 }

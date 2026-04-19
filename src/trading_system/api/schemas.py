@@ -105,9 +105,15 @@ class LivePreflightResponseDTO(BaseModel):
     message: str
     ready: bool = True
     reasons: list[str] = Field(default_factory=list)
+    blocking_reasons: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
     quote_summary: dict[str, str] | None = None
     quote_summaries: list[dict[str, str]] | None = None
     symbol_count: int = 1
+    checks: list["ReadinessCheckDTO"] = Field(default_factory=list)
+    symbol_checks: list["SymbolReadinessDTO"] = Field(default_factory=list)
+    next_allowed_actions: list[str] = Field(default_factory=list)
+    checked_at: str | None = None
     paper_result: BacktestResultDTO | None = None
 
 
@@ -149,6 +155,7 @@ class LiveRuntimeStartResponseDTO(BaseModel):
     provider: str
     broker: str
     live_execution: Literal["paper", "live"]
+    preflight: LivePreflightResponseDTO | None = None
 
 
 class ErrorResponseDTO(BaseModel):
@@ -222,19 +229,59 @@ class StrategyProfileDTO(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class ReadinessCheckDTO(BaseModel):
+    name: str
+    status: Literal["pass", "warn", "fail"]
+    summary: str
+    details: dict[str, str] | None = None
+
+
+class SymbolReadinessDTO(BaseModel):
+    symbol: str
+    status: Literal["pass", "warn", "fail"]
+    summary: str
+    price: str | None = None
+    volume: str | None = None
+
+
+class LastPreflightDTO(BaseModel):
+    checked_at: str
+    ready: bool
+    message: str
+    provider: str
+    broker: str
+    symbols: list[str]
+    blocking_reasons: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    next_allowed_actions: list[str] = Field(default_factory=list)
+
+
+class DashboardIncidentDTO(BaseModel):
+    event: str
+    severity: str
+    timestamp: str
+    summary: str
+
+
 class DashboardStatusDTO(BaseModel):
     state: str
     last_heartbeat: str | None
     uptime_seconds: float | None
     controller_state: str | None = None
+    controller_state_detail: str | None = None
+    active: bool = False
     session_id: str | None = None
     live_execution: str | None = None
     last_error: str | None = None
     provider: str | None = None
+    broker: str | None = None
     symbols: list[str] | None = None
     market_session: str | None = None
     last_reconciliation_at: str | None = None
     last_reconciliation_status: str | None = None
+    stop_supported: bool = False
+    last_preflight: LastPreflightDTO | None = None
+    latest_incident: DashboardIncidentDTO | None = None
 
 
 class PositionDTO(BaseModel):
@@ -332,3 +379,6 @@ class EquityTimeseriesDTO(BaseModel):
     session_id: str
     points: list[EquityPointTimeseriesDTO]
     total: int
+
+
+LivePreflightResponseDTO.model_rebuild()

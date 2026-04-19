@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request, status
 
-from trading_system.api.routes.backtest import _to_app_settings
+from trading_system.api.routes.backtest import _to_app_settings, _to_live_preflight_response
 from trading_system.api.schemas import LiveRuntimeStartRequestDTO, LiveRuntimeStartResponseDTO
 from trading_system.app.services import build_services
 
@@ -37,6 +37,7 @@ def start_live_runtime(
 
     settings = _to_app_settings(payload)
     preflight = build_services(settings).preflight_live()
+    controller.record_preflight(settings, preflight)
     if not preflight.ready:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=preflight.message)
 
@@ -50,4 +51,5 @@ def start_live_runtime(
         provider=session.provider,
         broker=session.broker,
         live_execution=session.live_execution,
+        preflight=_to_live_preflight_response(preflight),
     )

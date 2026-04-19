@@ -11,6 +11,8 @@ from trading_system.backtest.dto import BacktestRunDTO
 
 def _build_client() -> TestClient:
     backtest_routes._RUN_REPOSITORY.clear()
+    import os
+    os.environ["DATABASE_URL"] = ""
     return TestClient(create_app())
 
 
@@ -49,6 +51,8 @@ def _wait_for_terminal_run(client: TestClient, run_id: str, timeout: float = 3.0
 @contextmanager
 def _client():
     backtest_routes._RUN_REPOSITORY.clear()
+    import os
+    os.environ["DATABASE_URL"] = ""
     with TestClient(create_app()) as client:
         yield client
 
@@ -85,6 +89,8 @@ def test_live_preflight_returns_ok_message(monkeypatch) -> None:
         assert response.json()["status"] == "ok"
         assert "preflight passed" in response.json()["message"]
         assert response.json()["symbol_count"] == 1
+        assert response.json()["checks"]
+        assert response.json()["next_allowed_actions"] == ["paper"]
 
 
 def test_settings_validation_errors_return_422() -> None:
@@ -137,6 +143,11 @@ def test_live_preflight_returns_readiness_without_executing(monkeypatch) -> None
         body = response.json()
         assert "ready" in body
         assert "reasons" in body
+        assert "blocking_reasons" in body
+        assert "warnings" in body
+        assert "checks" in body
+        assert "symbol_checks" in body
+        assert "next_allowed_actions" in body
         assert body["symbol_count"] == 1
         assert body["quote_summary"]["symbol"] == "005930"
 
@@ -167,6 +178,7 @@ def test_live_preflight_accepts_multiple_symbols_for_kis(monkeypatch) -> None:
         assert body["symbol_count"] == 2
         assert body["quote_summary"]["symbol"] == "005930"
         assert [quote["symbol"] for quote in body["quote_summaries"]] == ["005930", "035720"]
+        assert [check["symbol"] for check in body["symbol_checks"]] == ["005930", "035720"]
 
 
 @pytest.mark.anyio

@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
@@ -48,6 +48,23 @@ from trading_system.strategy.repository import StrategyProfileRepository
 
 
 @dataclass(slots=True)
+class ReadinessCheck:
+    name: str
+    status: str
+    summary: str
+    details: dict[str, str] | None = None
+
+
+@dataclass(slots=True)
+class SymbolReadiness:
+    symbol: str
+    status: str
+    summary: str
+    price: str | None = None
+    volume: str | None = None
+
+
+@dataclass(slots=True)
 class PreflightCheckResult:
     ready: bool
     reasons: list[str]
@@ -55,6 +72,12 @@ class PreflightCheckResult:
     quote_summaries: list[dict[str, str]] | None
     symbol_count: int
     message: str
+    blocking_reasons: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    checks: list[ReadinessCheck] = field(default_factory=list)
+    symbol_checks: list[SymbolReadiness] = field(default_factory=list)
+    next_allowed_actions: list[str] = field(default_factory=list)
+    checked_at: str | None = None
 
 
 @dataclass(slots=True)
@@ -111,6 +134,30 @@ class AppServices:
             quote_summaries=None,
             symbol_count=len(self.symbols),
             message="Live mode preflight passed (no orders were submitted).",
+            blocking_reasons=[],
+            warnings=[],
+            checks=[
+                ReadinessCheck(
+                    name="runtime_path",
+                    status="pass",
+                    summary="Generic live runtime path is available for paper execution.",
+                ),
+                ReadinessCheck(
+                    name="order_submission",
+                    status="warn",
+                    summary="Real order submission is only supported on the KIS live path.",
+                ),
+            ],
+            symbol_checks=[
+                SymbolReadiness(
+                    symbol=symbol,
+                    status="pass",
+                    summary="No provider-specific preflight was required for this symbol.",
+                )
+                for symbol in self.symbols
+            ],
+            next_allowed_actions=["paper"],
+            checked_at=datetime.now(UTC).isoformat(),
         )
 
     def run_live_paper(self) -> None:
@@ -130,8 +177,14 @@ class AppServices:
     def run_live_execution(self) -> None:
         if self.mode != AppMode.LIVE:
             raise RuntimeError(f"Unsupported mode '{self.mode}'.")
+        self.validate_live_execution_guards()
+        self.build_live_loop().run()
+
+    def validate_live_execution_guards(self) -> None:
+        if self.mode != AppMode.LIVE:
+            raise RuntimeError(f"Unsupported mode '{self.mode}'.")
         if self.live_execution != LiveExecutionMode.LIVE:
-            raise RuntimeError("run_live_execution requires --live-execution live.")
+            raise RuntimeError("Live order validation requires --live-execution live.")
         if self.provider != "kis" or self.broker != "kis":
             raise RuntimeError("Live order submission requires '--provider kis --broker kis'.")
         if not _is_live_orders_enabled():
@@ -144,7 +197,6 @@ class AppServices:
                 "Live order submission is blocked outside KRX market hours "
                 "(weekdays 09:00-15:30 KST)."
             )
-        self.build_live_loop().run()
 
     def strategy_for(self, symbol: str) -> Strategy:
         if self.strategies is None:
@@ -311,16 +363,84 @@ def _build_live_preflight(
         return None
 
     def preflight(symbols: tuple[str, ...]) -> PreflightCheckResult:
+        checked_at = datetime.now(UTC).isoformat()
         reasons: list[str] = []
+        blocking_reasons: list[str] = []
+        warnings: list[str] = []
         ready = True
         quote_summaries: list[dict[str, str]] = []
         primary_quote_summary: dict[str, str] | None = None
+        checks: list[ReadinessCheck] = [
+            ReadinessCheck(
+                name="broker_route",
+                status=(
+                    "pass"
+                    if settings.provider == "kis" and settings.broker == "kis"
+                    else "warn"
+                ),
+                summary=(
+                    "KIS provider and broker route are selected."
+                    if settings.provider == "kis" and settings.broker == "kis"
+                    else (
+                        "Paper execution is available, but real orders require "
+                        "provider=kis and broker=kis."
+                    )
+                ),
+            )
+        ]
+        symbol_checks: list[SymbolReadiness] = []
 
         market_open = is_krx_market_open()
         if not market_open:
             reasons.append("market_closed")
             if settings.live_execution == LiveExecutionMode.LIVE:
+                blocking_reasons.append("market_closed")
                 ready = False
+            else:
+                warnings.append("market_closed")
+        checks.append(
+            ReadinessCheck(
+                name="market_session",
+                status=(
+                    "pass"
+                    if market_open
+                    else "fail" if settings.live_execution == LiveExecutionMode.LIVE else "warn"
+                ),
+                summary=(
+                    "KRX regular session is currently open."
+                    if market_open
+                    else (
+                        "KRX regular session is closed. "
+                        "Live orders are blocked outside market hours."
+                    )
+                ),
+            )
+        )
+
+        live_order_gate_status = "pass"
+        live_order_gate_summary = "Paper execution is available from the dashboard."
+        if settings.provider == "kis" and settings.broker == "kis":
+            if _is_live_orders_enabled():
+                live_order_gate_summary = (
+                    "Live-order environment flag is enabled for the guarded KIS route."
+                )
+            else:
+                live_order_gate_status = "warn"
+                live_order_gate_summary = (
+                    "Live-order environment flag is disabled. Paper execution is still allowed."
+                )
+                if settings.live_execution == LiveExecutionMode.LIVE:
+                    ready = False
+                    reasons.append("live_orders_disabled")
+                    blocking_reasons.append("live_orders_disabled")
+        checks.append(
+            ReadinessCheck(
+                name="live_order_gate",
+                status=live_order_gate_status,
+                summary=live_order_gate_summary,
+                details={"live_execution": settings.live_execution.value},
+            )
+        )
 
         for symbol in symbols:
             try:
@@ -335,9 +455,59 @@ def _build_live_preflight(
                 quote_summaries.append(quote_summary)
                 if quote.volume == 0:
                     reasons.append(f"zero_volume:{symbol}")
+                    warnings.append(f"zero_volume:{symbol}")
+                    symbol_checks.append(
+                        SymbolReadiness(
+                            symbol=symbol,
+                            status="warn",
+                            summary="Quote was returned but the sampled volume was zero.",
+                            price=quote_summary["price"],
+                            volume=quote_summary["volume"],
+                        )
+                    )
+                    continue
+                symbol_checks.append(
+                    SymbolReadiness(
+                        symbol=symbol,
+                        status="pass",
+                        summary="Quote and sampled volume look valid.",
+                        price=quote_summary["price"],
+                        volume=quote_summary["volume"],
+                    )
+                )
             except Exception as exc:
-                reasons.append(f"quote_error:{symbol}: {exc}")
+                reason = f"quote_error:{symbol}: {exc}"
+                reasons.append(reason)
+                blocking_reasons.append(reason)
                 ready = False
+                symbol_checks.append(
+                    SymbolReadiness(
+                        symbol=symbol,
+                        status="fail",
+                        summary=str(exc),
+                    )
+                )
+
+        checks.append(
+            ReadinessCheck(
+                name="symbol_quotes",
+                status=(
+                    "fail"
+                    if any(item.status == "fail" for item in symbol_checks)
+                    else "warn"
+                    if any(item.status == "warn" for item in symbol_checks)
+                    else "pass"
+                ),
+                summary=(
+                    "At least one symbol quote failed validation."
+                    if any(item.status == "fail" for item in symbol_checks)
+                    else "At least one symbol reported zero sampled volume."
+                    if any(item.status == "warn" for item in symbol_checks)
+                    else "All symbols returned valid quote samples."
+                ),
+                details={"symbol_count": str(len(symbols))},
+            )
+        )
 
         if ready and not reasons:
             sym = symbols[0] if symbols else "N/A"
@@ -352,6 +522,19 @@ def _build_live_preflight(
         else:
             message = f"KIS live preflight completed with issues: {', '.join(reasons)}"
 
+        next_allowed_actions: list[str] = []
+        if not blocking_reasons:
+            next_allowed_actions.append("paper")
+            if (
+                settings.provider == "kis"
+                and settings.broker == "kis"
+                and market_open
+                and _is_live_orders_enabled()
+                and not any(item.status == "fail" for item in symbol_checks)
+            ):
+                next_allowed_actions.append("live")
+        next_allowed_actions.append("review")
+
         return PreflightCheckResult(
             ready=ready,
             reasons=reasons,
@@ -359,6 +542,12 @@ def _build_live_preflight(
             quote_summaries=quote_summaries or None,
             symbol_count=len(symbols),
             message=message,
+            blocking_reasons=blocking_reasons,
+            warnings=warnings,
+            checks=checks,
+            symbol_checks=symbol_checks,
+            next_allowed_actions=next_allowed_actions,
+            checked_at=checked_at,
         )
 
     return preflight

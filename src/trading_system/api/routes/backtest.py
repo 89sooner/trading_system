@@ -16,9 +16,11 @@ from trading_system.api.schemas import (
     BacktestRunStatusDTO,
     LivePreflightRequestDTO,
     LivePreflightResponseDTO,
+    ReadinessCheckDTO,
     StrategyConfigDTO,
+    SymbolReadinessDTO,
 )
-from trading_system.app.services import build_services
+from trading_system.app.services import PreflightCheckResult, build_services
 from trading_system.app.settings import (
     AppMode,
     AppSettings,
@@ -188,6 +190,40 @@ def _to_api_result_dto(result: SerializedBacktestResultDTO) -> BacktestResultDTO
     )
 
 
+def _to_live_preflight_response(result: PreflightCheckResult) -> LivePreflightResponseDTO:
+    return LivePreflightResponseDTO(
+        message=result.message,
+        ready=result.ready,
+        reasons=result.reasons,
+        blocking_reasons=result.blocking_reasons,
+        warnings=result.warnings,
+        quote_summary=result.quote_summary,
+        quote_summaries=result.quote_summaries,
+        symbol_count=result.symbol_count,
+        checks=[
+            ReadinessCheckDTO(
+                name=check.name,
+                status=check.status,
+                summary=check.summary,
+                details=check.details,
+            )
+            for check in result.checks
+        ],
+        symbol_checks=[
+            SymbolReadinessDTO(
+                symbol=check.symbol,
+                status=check.status,
+                summary=check.summary,
+                price=check.price,
+                volume=check.volume,
+            )
+            for check in result.symbol_checks
+        ],
+        next_allowed_actions=result.next_allowed_actions,
+        checked_at=result.checked_at,
+    )
+
+
 def _repository_factory() -> BacktestRunRepository:
     repo = _RUN_REPOSITORY
     if isinstance(repo, FileBacktestRunRepository):
@@ -322,15 +358,14 @@ def get_backtest_run(run_id: str) -> BacktestRunStatusDTO:
 
 
 @router.post("/live/preflight", response_model=LivePreflightResponseDTO)
-def run_live_preflight(payload: LivePreflightRequestDTO) -> LivePreflightResponseDTO:
+def run_live_preflight(
+    payload: LivePreflightRequestDTO,
+    request: Request,
+) -> LivePreflightResponseDTO:
     settings = _to_app_settings(payload)
     services = build_services(settings)
     result = services.preflight_live()
-    return LivePreflightResponseDTO(
-        message=result.message,
-        ready=result.ready,
-        reasons=result.reasons,
-        quote_summary=result.quote_summary,
-        quote_summaries=result.quote_summaries,
-        symbol_count=result.symbol_count,
-    )
+    controller = getattr(request.app.state, "live_runtime_controller", None)
+    if controller is not None:
+        controller.record_preflight(settings, result)
+    return _to_live_preflight_response(result)

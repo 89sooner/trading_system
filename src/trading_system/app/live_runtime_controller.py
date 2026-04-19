@@ -11,7 +11,7 @@ from trading_system.app.state import AppRunnerState
 from trading_system.core.compat import UTC
 
 if TYPE_CHECKING:
-    from trading_system.app.services import AppServices
+    from trading_system.app.services import AppServices, PreflightCheckResult
 
 
 @dataclass(slots=True, frozen=True)
@@ -35,6 +35,21 @@ class LiveRuntimeControllerSnapshot:
     symbols: list[str] | None = None
     started_at: str | None = None
     last_error: str | None = None
+    stop_supported: bool = False
+    last_preflight: 'LiveRuntimePreflightSnapshot | None' = None
+
+
+@dataclass(slots=True, frozen=True)
+class LiveRuntimePreflightSnapshot:
+    checked_at: str
+    ready: bool
+    message: str
+    provider: str
+    broker: str
+    symbols: list[str]
+    blocking_reasons: list[str]
+    warnings: list[str]
+    next_allowed_actions: list[str]
 
 
 class LiveRuntimeController:
@@ -51,6 +66,7 @@ class LiveRuntimeController:
         self._active_loop: LiveTradingLoop | None = None
         self._active_session: LiveRuntimeSession | None = None
         self._last_error: str | None = None
+        self._last_preflight: LiveRuntimePreflightSnapshot | None = None
 
     def snapshot(self) -> LiveRuntimeControllerSnapshot:
         with self._lock:
@@ -58,6 +74,7 @@ class LiveRuntimeController:
             loop = self._active_loop
             session = self._active_session
             last_error = self._last_error
+            last_preflight = self._last_preflight
 
         if session is not None and thread is not None and thread.is_alive():
             return LiveRuntimeControllerSnapshot(
@@ -70,6 +87,8 @@ class LiveRuntimeController:
                 symbols=session.symbols,
                 started_at=session.started_at,
                 last_error=last_error,
+                stop_supported=loop is not None,
+                last_preflight=last_preflight,
             )
 
         if last_error is not None:
@@ -77,9 +96,30 @@ class LiveRuntimeController:
                 controller_state='error',
                 active=False,
                 last_error=last_error,
+                stop_supported=False,
+                last_preflight=last_preflight,
             )
 
-        return LiveRuntimeControllerSnapshot(controller_state='idle', active=False)
+        return LiveRuntimeControllerSnapshot(
+            controller_state='idle',
+            active=False,
+            stop_supported=False,
+            last_preflight=last_preflight,
+        )
+
+    def record_preflight(self, settings: AppSettings, result: 'PreflightCheckResult') -> None:
+        with self._lock:
+            self._last_preflight = LiveRuntimePreflightSnapshot(
+                checked_at=result.checked_at or datetime.now(UTC).isoformat(),
+                ready=result.ready,
+                message=result.message,
+                provider=settings.provider,
+                broker=settings.broker,
+                symbols=list(settings.symbols),
+                blocking_reasons=list(result.blocking_reasons),
+                warnings=list(result.warnings),
+                next_allowed_actions=list(result.next_allowed_actions),
+            )
 
     def has_active_session(self) -> bool:
         with self._lock:
@@ -155,6 +195,8 @@ class LiveRuntimeController:
     ) -> None:
         try:
             services = self._services_builder(settings)
+            if settings.live_execution.value == 'live':
+                services.validate_live_execution_guards()
             loop = services.build_live_loop(session_id=session.session_id)
             with self._lock:
                 self._active_loop = loop
