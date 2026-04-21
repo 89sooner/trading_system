@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from trading_system.backtest.dto import BacktestRunDTO
+from trading_system.backtest.dto import BacktestRunDTO, BacktestRunMetadataDTO
 
 
 def _make_run(**kwargs) -> BacktestRunDTO:
@@ -18,6 +18,7 @@ def _make_run(**kwargs) -> BacktestRunDTO:
         finished_at="2024-01-01T00:01:00",
         input_symbols=["BTCUSDT"],
         mode="backtest",
+        metadata=None,
         result=None,
         error=None,
     )
@@ -55,8 +56,21 @@ class TestSaveExecutesUpsert:
         repo, _, mock_cursor = _make_repo()
         repo.save(_make_run(result=None))
         _, params = mock_cursor.execute.call_args[0]
-        # result_json is the 7th param (index 6)
-        assert params[6] is None
+        assert params[7] is None
+
+    def test_save_metadata_serializes_json(self):
+        repo, _, mock_cursor = _make_repo()
+        repo.save(
+            _make_run(
+                metadata=BacktestRunMetadataDTO(
+                    provider="mock",
+                    broker="paper",
+                    source="frontend",
+                )
+            )
+        )
+        _, params = mock_cursor.execute.call_args[0]
+        assert params[6] is not None
 
 
 class TestGet:
@@ -65,7 +79,7 @@ class TestGet:
         mock_cursor.fetchone.return_value = (
             "run-1", "succeeded",
             "2024-01-01T00:00:00", "2024-01-01T00:01:00",
-            ["BTCUSDT"], "backtest", None, None,
+            ["BTCUSDT"], "backtest", None, None, None,
         )
         result = repo.get("run-1")
         assert result is not None
@@ -82,12 +96,30 @@ class TestGet:
         mock_cursor.fetchone.return_value = (
             "run-1", "queued",
             "2024-01-01T00:00:00", None,
-            ["BTCUSDT"], "backtest", None, None,
+            ["BTCUSDT"], "backtest", None, None, None,
         )
         result = repo.get("run-1")
         assert result is not None
         assert result.status == "queued"
         assert result.finished_at is None
+
+    def test_get_deserializes_metadata_when_present(self):
+        repo, _, mock_cursor = _make_repo()
+        mock_cursor.fetchone.return_value = (
+            "run-1",
+            "succeeded",
+            "2024-01-01T00:00:00",
+            "2024-01-01T00:01:00",
+            ["BTCUSDT"],
+            "backtest",
+            {"provider": "mock", "broker": "paper", "source": "frontend"},
+            None,
+            None,
+        )
+        result = repo.get("run-1")
+        assert result is not None
+        assert result.metadata is not None
+        assert result.metadata.provider == "mock"
 
 
 class TestList:

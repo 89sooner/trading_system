@@ -37,6 +37,17 @@ class EventDTO:
 
 
 @dataclass(slots=True, frozen=True)
+class BacktestRunMetadataDTO:
+    provider: str | None = None
+    broker: str | None = None
+    strategy_profile_id: str | None = None
+    pattern_set_id: str | None = None
+    source: str | None = None
+    requested_by: str | None = None
+    notes: str | None = None
+
+
+@dataclass(slots=True, frozen=True)
 class BacktestResultDTO:
     summary: SummaryDTO
     equity_curve: list[EquityPointDTO]
@@ -85,6 +96,7 @@ class BacktestRunDTO:
     finished_at: str | None
     input_symbols: list[str]
     mode: str
+    metadata: BacktestRunMetadataDTO | None = None
     result: BacktestResultDTO | None = None
     error: str | None = None
 
@@ -96,6 +108,7 @@ class BacktestRunDTO:
         started_at: datetime | str,
         input_symbols: tuple[str, ...] | list[str],
         mode: str,
+        metadata: BacktestRunMetadataDTO | None = None,
     ) -> "BacktestRunDTO":
         return cls(
             run_id=run_id,
@@ -104,6 +117,7 @@ class BacktestRunDTO:
             finished_at=None,
             input_symbols=list(input_symbols),
             mode=mode,
+            metadata=metadata,
         )
 
     @classmethod
@@ -114,6 +128,7 @@ class BacktestRunDTO:
         started_at: datetime | str,
         input_symbols: tuple[str, ...] | list[str],
         mode: str,
+        metadata: BacktestRunMetadataDTO | None = None,
     ) -> "BacktestRunDTO":
         return cls(
             run_id=run_id,
@@ -122,6 +137,7 @@ class BacktestRunDTO:
             finished_at=None,
             input_symbols=list(input_symbols),
             mode=mode,
+            metadata=metadata,
         )
 
     @classmethod
@@ -134,6 +150,7 @@ class BacktestRunDTO:
         input_symbols: tuple[str, ...] | list[str],
         mode: str,
         result: BacktestResult,
+        metadata: BacktestRunMetadataDTO | None = None,
     ) -> "BacktestRunDTO":
         return cls(
             run_id=run_id,
@@ -142,6 +159,7 @@ class BacktestRunDTO:
             finished_at=_timestamp_to_json(finished_at),
             input_symbols=list(input_symbols),
             mode=mode,
+            metadata=metadata,
             result=BacktestResultDTO.from_result(result),
         )
 
@@ -155,6 +173,7 @@ class BacktestRunDTO:
         input_symbols: tuple[str, ...] | list[str],
         mode: str,
         error: str,
+        metadata: BacktestRunMetadataDTO | None = None,
     ) -> "BacktestRunDTO":
         return cls(
             run_id=run_id,
@@ -163,6 +182,7 @@ class BacktestRunDTO:
             finished_at=_timestamp_to_json(finished_at),
             input_symbols=list(input_symbols),
             mode=mode,
+            metadata=metadata,
             error=error,
         )
 

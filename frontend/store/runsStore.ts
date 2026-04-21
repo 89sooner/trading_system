@@ -7,6 +7,11 @@ export interface RunRecord {
   symbol: string
   strategyProfile: string | null
   createdAt: string
+  metadata?: {
+    provider?: string | null
+    broker?: string | null
+    source?: string | null
+  }
 }
 
 interface RunsStore {

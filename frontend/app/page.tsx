@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { createBacktestRun } from '@/lib/api/backtests'
 import { userMessageForError } from '@/lib/api/client'
 import { formatCurrency } from '@/lib/formatters'
@@ -32,6 +33,7 @@ const schema = z.object({
   startingCash: positiveNumber,
   feeBps: z.number().finite().nonnegative(),
   tradeQuantity: positiveNumber,
+  notes: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -65,6 +67,7 @@ export default function CreateRunPage() {
       startingCash: 100000,
       feeBps: 5,
       tradeQuantity: 0.1,
+      notes: '',
     },
   })
 
@@ -94,6 +97,10 @@ export default function CreateRunPage() {
           type: 'pattern_signal',
           profile_id: values.strategyProfileId || null,
         },
+        metadata: {
+          source: 'frontend',
+          notes: values.notes?.trim() || null,
+        },
       })
 
       saveRun({
@@ -102,6 +109,11 @@ export default function CreateRunPage() {
         symbol,
         strategyProfile: values.strategyProfileId || null,
         createdAt: new Date().toISOString(),
+        metadata: {
+          provider: 'mock',
+          broker: 'paper',
+          source: 'frontend',
+        },
       })
 
       router.push(`/runs/${result.run_id}`)
@@ -255,6 +267,18 @@ export default function CreateRunPage() {
                     <p className="text-xs text-danger">{errors.maxOrderSize.message}</p>
                   ) : null}
                 </div>
+              </div>
+            </div>
+
+            <div className={sectionClass}>
+              <div className="space-y-1">
+                <Label htmlFor="notes">Operator Note</Label>
+                <Textarea
+                  id="notes"
+                  rows={3}
+                  placeholder="Optional note explaining the purpose of this run."
+                  {...register('notes')}
+                />
               </div>
             </div>
 

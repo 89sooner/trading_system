@@ -26,7 +26,9 @@
 현재 구현 메모:
 
 - 저장소는 백테스트와 라이브 루프 모두에서 공통 실행 코어(`execute_trading_step`)를 사용한다.
-- HTTP API는 같은 런타임 서비스 위에서 백테스트, 패턴/전략 관리, 애널리틱스, admin 키 관리, `/health`, 대시보드 제어를 노출한다.
+- HTTP API는 같은 런타임 서비스 위에서 백테스트, 패턴/전략 관리, 애널리틱스, admin 키 관리, `/health`, 대시보드 제어, live runtime session history를 노출한다.
 - 라이브 트레이딩은 상태 제어(`AppRunnerState`), heartbeat 로깅, 정상 종료를 포함한 `LiveTradingLoop`로 관리된다.
-- 포트폴리오 상태는 라이브 세션 재시작 복구를 위해 `book.json`에 저장되며, 백테스트 런과 대시보드 equity 이력은 `DATABASE_URL` 유무에 따라 파일 기반 또는 Supabase PostgreSQL 기반으로 영속화된다.
+- 포트폴리오 상태는 라이브 세션 재시작 복구를 위해 `book.json`에 저장되며, 백테스트 런, run metadata, 대시보드 equity 이력, live runtime session history는 `DATABASE_URL` 유무에 따라 파일 기반 또는 Supabase PostgreSQL 기반으로 영속화된다.
+- 백테스트 런은 provider, broker, strategy profile, pattern set, source, notes 같은 운영 메타데이터를 함께 저장한다.
+- 저장소 기반 API key는 disabled 상태와 last-used 추적 같은 기본 거버넌스 필드를 가진다.
 - 선택된 런타임 이벤트는 bounded worker 기반 webhook 알림으로 외부에 전달할 수 있다.

@@ -19,6 +19,7 @@ from trading_system.api.routes.strategies import router as strategies_router
 from trading_system.api.schemas import ErrorResponseDTO
 from trading_system.api.security import SecuritySettings, build_security_middleware
 from trading_system.app.live_runtime_controller import LiveRuntimeController
+from trading_system.app.live_runtime_history import create_live_runtime_session_repository
 from trading_system.app.services import build_services
 from trading_system.app.settings import SettingsValidationError as AppSettingsValidationError
 from trading_system.config.settings import SettingsValidationError as ConfigSettingsValidationError
@@ -40,9 +41,11 @@ def create_app(live_loop=None) -> FastAPI:
 
     app.state.live_loop = live_loop
     app.state.backtest_dispatcher = dispatcher
+    app.state.live_runtime_history_repository = create_live_runtime_session_repository()
     app.state.live_runtime_controller = LiveRuntimeController(
         services_builder=build_services,
         attach_loop=lambda loop: setattr(app.state, 'live_loop', loop),
+        history_repository=app.state.live_runtime_history_repository,
     )
 
     api_keys_path = Path(os.getenv('TRADING_SYSTEM_API_KEYS_PATH') or 'data/api_keys.json')

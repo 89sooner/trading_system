@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import {
   Table,
   TableBody,
@@ -13,7 +14,7 @@ import { cn } from '@/lib/utils'
 export interface Column<T> {
   key: string
   header: string
-  cell: (row: T) => React.ReactNode
+  cell: (row: T) => ReactNode
   className?: string
 }
 

@@ -1,6 +1,6 @@
 # 현재 시스템 사용자 유즈케이스
 
-이 문서는 2026년 3월 28일 기준 `trading_system` 워크스페이스가 지원하는 사용자 관점의 유즈케이스를 정리한 것입니다.
+이 문서는 2026년 4월 19일 기준 `trading_system` 워크스페이스가 지원하는 사용자 관점의 유즈케이스를 정리한 것입니다.
 
 ## 1. 범위
 
@@ -37,10 +37,11 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
 | `trading_system.app.main` | CLI에서 백테스트 또는 라이브 실행 | 운영자, 개발자 |
 | `/api/v1/backtests` | 결정적 백테스트를 시작하고 실행 결과 조회 | 프론트엔드, API 클라이언트 |
 | `/api/v1/live/preflight` | 라이브 실행 전 또는 실행 모드 선택 시 런타임 경로 검증 | 운영자, 통합 담당자 |
+| `/api/v1/live/runtime/sessions` | 최근 live runtime session history 조회 | 운영자, 통합 담당자 |
 | `/api/v1/patterns` | 패턴 세트 학습, 저장, 목록 조회, 상세 조회 | 리서처 |
 | `/api/v1/strategies` | 재사용 가능한 전략 프로필 저장 및 조회 | 리서처 |
 | `/api/v1/analytics/backtests/{run_id}/trades` | 완료된 백테스트의 거래 단위 애널리틱스 조회 | 리서처 |
-| `/api/v1/dashboard/*` | 연결된 라이브 루프 모니터링 및 제어 | 운영자 |
+| `/api/v1/dashboard/*` | 활성 라이브 루프 모니터링 및 제어 | 운영자 |
 | 프론트엔드 라우트 `/`, `/patterns`, `/strategies`, `/runs`, `/dashboard` | API 기반 브라우저 워크플로 | 리서처, 운영자 |
 
 ## 4. 사용자가 다루는 핵심 아티팩트
@@ -50,8 +51,9 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
 | 패턴 세트 | `configs/patterns/*.json` | 재사용 가능한 학습 패턴 정의 |
 | 전략 프로필 | `configs/strategies/*.json` | 패턴 라벨을 매매 액션으로 매핑하는 설정 |
 | 포트폴리오 스냅샷 | `data/portfolio/book.json` | 라이브 세션 재시작 시 복구 가능한 포트폴리오 상태 |
-| 백테스트 실행 결과 | API 프로세스 메모리 내 | 즉시 조회 가능한 실행 결과 및 애널리틱스 |
-| 프론트엔드 실행 이력 | 브라우저 로컬 스토리지 | UI의 최근 실행 목록 |
+| 백테스트 실행 결과 + metadata | 파일 저장소 또는 Supabase PostgreSQL | durable한 실행 조회, 운영 문맥, 애널리틱스 |
+| 라이브 runtime session history | 파일 저장소 또는 Supabase PostgreSQL | 최근 라이브 세션 조회와 사후 검토 |
+| 프론트엔드 실행 이력 fallback | 브라우저 로컬 스토리지 | 백엔드가 내려간 경우를 위한 보조 캐시 |
 
 ## 5. 엔드 투 엔드 사용자 여정
 
@@ -189,8 +191,8 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
   - 실행 단위 요약: return, drawdown, volatility, win rate
   - 거래 단위 요약: trade count, win rate, risk/reward, max drawdown, 평균 보유 시간
 - 현재 제약:
-  - 프론트엔드의 실행 이력 메타데이터는 백엔드가 아니라 브라우저 저장소에 있다
-  - 설정된 repository가 내려가 있거나 잘못 구성되면 브라우저가 `run_id`를 기억하고 있어도 백엔드 상세 조회는 실패할 수 있다
+  - 서버 저장소가 이제 run history의 primary source이지만, 백엔드 장애 시를 대비한 브라우저 fallback cache는 여전히 존재한다
+  - run review는 route/strategy metadata를 보여주지만, promotion/approval workflow는 아직 없다
 
 ### UC-06. 안전한 라이브 프리플라이트 실행
 
@@ -235,8 +237,8 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
   - 최근 이벤트 스트림
   - 재시작 복구 가능한 포트폴리오 스냅샷
 - 현재 제약:
-  - 대시보드에는 `stop` 제어가 없다
-  - 페이퍼 실행은 라이브와 같은 루프 메커니즘을 공유하지만, 외부 프로세스 오케스트레이션은 운영자 책임이다
+  - `stop` 제어는 지원하지만, 과거 live session을 전용으로 탐색하는 프런트엔드 화면은 아직 없다
+  - 페이퍼 실행은 라이브와 같은 루프 메커니즘을 공유하며, API 프로세스는 한 번에 하나의 active runtime session만 소유한다
   - 라이브 대시보드는 활성 루프가 `app.state.live_loop`에 연결된 상태로 API 서버가 실행될 때만 동작한다
 
 ### UC-08. KIS를 통한 실주문 라이브 실행

@@ -1,6 +1,6 @@
 # Current System User Use Cases
 
-This document summarizes the user-facing use cases supported by the current `trading_system` workspace as of March 28, 2026.
+This document summarizes the user-facing use cases supported by the current `trading_system` workspace as of April 19, 2026.
 
 ## 1. Scope
 
@@ -37,10 +37,11 @@ The integrator connects the workspace to infrastructure, configures API keys/COR
 | `trading_system.app.main` | Run backtest or live execution from CLI | Operator, developer |
 | `/api/v1/backtests` | Start deterministic backtest and fetch run result | Frontend, API client |
 | `/api/v1/live/preflight` | Validate live runtime path before or during execution mode selection | Operator, integrator |
+| `/api/v1/live/runtime/sessions` | Inspect recent live runtime session history | Operator, integrator |
 | `/api/v1/patterns` | Train, save, list, and inspect pattern sets | Researcher |
 | `/api/v1/strategies` | Save and retrieve reusable strategy profiles | Researcher |
 | `/api/v1/analytics/backtests/{run_id}/trades` | Inspect trade-level analytics for a completed run | Researcher |
-| `/api/v1/dashboard/*` | Monitor and control an attached live loop | Operator |
+| `/api/v1/dashboard/*` | Monitor and control the active live loop | Operator |
 | Frontend routes `/`, `/patterns`, `/strategies`, `/runs`, `/dashboard` | Browser-based workflow over the API | Researcher, operator |
 
 ## 4. Core artifacts users interact with
@@ -50,8 +51,9 @@ The integrator connects the workspace to infrastructure, configures API keys/COR
 | Pattern set | `configs/patterns/*.json` | Reusable learned pattern definitions |
 | Strategy profile | `configs/strategies/*.json` | Reusable mapping from pattern labels to actions |
 | Portfolio snapshot | `data/portfolio/book.json` | Restart-safe live portfolio state |
-| Backtest run result | In memory in API process | Immediate run lookup and analytics |
-| Frontend run history | Browser local storage | Recent run list in the UI |
+| Backtest run result + metadata | File repository or Supabase-backed PostgreSQL | Durable run lookup, review context, and analytics |
+| Live runtime session history | File repository or Supabase-backed PostgreSQL | Recent live session lookup and post-run review |
+| Frontend run history fallback | Browser local storage | Fallback cache when the backend is unavailable |
 
 ## 5. End-to-end user journey
 
@@ -189,8 +191,8 @@ The intended high-value workflow today is:
   - run-level summary: return, drawdown, volatility, win rate
   - trade-level summary: trade count, win rate, risk/reward, max drawdown, average hold time
 - Current constraints:
-  - frontend run history metadata lives in browser storage, not the backend
-  - if the configured repository is unavailable or misconfigured, the browser may still remember a `run_id` that the backend can no longer resolve
+  - the server repository is now the primary run history source, but the browser still keeps a small fallback cache for unavailable-backend cases
+  - run review now includes route and strategy metadata, but there is still no broader promotion/approval workflow
 
 ### UC-06. Run live preflight safely
 
@@ -235,9 +237,9 @@ The intended high-value workflow today is:
   - recent event stream
   - restart-safe saved portfolio snapshot
 - Current constraints:
-  - no dashboard `stop` control exists
-  - paper execution shares the same loop mechanics as live, but external process orchestration is still up to the operator
-  - live dashboard access only works when the API server is started with the active loop attached to `app.state.live_loop`
+  - `stop` is now supported, but there is still no dedicated frontend history screen for browsing past live sessions
+  - paper execution shares the same loop mechanics as live, while the API process now owns one active runtime session at a time
+  - live dashboard access still depends on the active loop being attached to `app.state.live_loop`
 
 ### UC-08. Submit real live orders through KIS
 

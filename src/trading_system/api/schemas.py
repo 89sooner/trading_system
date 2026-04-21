@@ -31,6 +31,22 @@ class StrategyConfigDTO(BaseModel):
     threshold_overrides: dict[str, float] = Field(default_factory=dict)
 
 
+class RunMetadataRequestDTO(BaseModel):
+    source: str | None = None
+    requested_by: str | None = None
+    notes: str | None = None
+
+
+class RunMetadataDTO(BaseModel):
+    provider: str | None = None
+    broker: str | None = None
+    strategy_profile_id: str | None = None
+    pattern_set_id: str | None = None
+    source: str | None = None
+    requested_by: str | None = None
+    notes: str | None = None
+
+
 class BacktestRunRequestDTO(BaseModel):
     mode: Literal["backtest"] = "backtest"
     symbols: list[str] = Field(min_length=1)
@@ -41,6 +57,7 @@ class BacktestRunRequestDTO(BaseModel):
     portfolio_risk: PortfolioRiskSettingsDTO | None = None
     backtest: BacktestSettingsDTO
     strategy: StrategyConfigDTO | None = None
+    metadata: RunMetadataRequestDTO | None = None
 
 
 class LivePreflightRequestDTO(BaseModel):
@@ -96,6 +113,7 @@ class BacktestRunStatusDTO(BaseModel):
     finished_at: str | None
     input_symbols: list[str]
     mode: Literal["backtest", "live"]
+    metadata: RunMetadataDTO | None = None
     result: BacktestResultDTO | None = None
     error: str | None = None
 
@@ -156,6 +174,24 @@ class LiveRuntimeStartResponseDTO(BaseModel):
     broker: str
     live_execution: Literal["paper", "live"]
     preflight: LivePreflightResponseDTO | None = None
+
+
+class LiveRuntimeSessionRecordDTO(BaseModel):
+    session_id: str
+    started_at: str
+    ended_at: str | None
+    provider: str
+    broker: str
+    live_execution: str
+    symbols: list[str]
+    last_state: str
+    last_error: str | None = None
+    preflight_summary: dict | None = None
+
+
+class LiveRuntimeSessionListDTO(BaseModel):
+    sessions: list[LiveRuntimeSessionRecordDTO]
+    total: int
 
 
 class ErrorResponseDTO(BaseModel):
@@ -354,6 +390,7 @@ class BacktestRunListItemDTO(BaseModel):
     finished_at: str | None
     input_symbols: list[str]
     mode: str
+    metadata: RunMetadataDTO | None = None
 
 
 class BacktestRunListResponseDTO(BaseModel):

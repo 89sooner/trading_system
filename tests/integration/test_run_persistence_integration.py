@@ -25,8 +25,16 @@ from trading_system.backtest.file_repository import FileBacktestRunRepository
 def _restore_repository():
     """Restore the module-level repository after each test."""
     original = backtest_routes._RUN_REPOSITORY
+    import os
+
+    old_database_url = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = ""
     yield
     backtest_routes._RUN_REPOSITORY = original
+    if old_database_url is None:
+        os.environ.pop("DATABASE_URL", None)
+    else:
+        os.environ["DATABASE_URL"] = old_database_url
 
 
 def _make_client(repo: FileBacktestRunRepository) -> TestClient:
@@ -50,6 +58,10 @@ def _minimal_payload() -> dict:
             "starting_cash": "10000",
             "fee_bps": "5",
             "trade_quantity": "0.1",
+        },
+        "metadata": {
+            "source": "integration-test",
+            "notes": "persistence check",
         },
     }
 
@@ -112,6 +124,8 @@ def test_run_detail_persists_across_repository_recreation(tmp_path):
         body = detail.json()
         assert body["run_id"] == run_id
         assert body["status"] == "succeeded"
+        assert body["metadata"]["source"] == "integration-test"
+        assert body["metadata"]["provider"] == "mock"
         assert body["result"] is not None
 
 

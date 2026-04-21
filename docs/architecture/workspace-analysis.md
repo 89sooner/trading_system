@@ -1,10 +1,10 @@
 # Workspace Analysis
 
-This document captures the current implementation state of the trading-system workspace as of April 16, 2026.
+This document captures the current implementation state of the trading-system workspace as of April 19, 2026.
 
 ## Repository state
 
-The repository is well beyond a scaffold. It now includes deterministic backtesting, guarded live execution paths, a FastAPI surface, a React frontend, Supabase-backed persistence options, trade analytics, dashboard control, API key administration, webhook delivery, portfolio persistence, and KIS integration.
+The repository is well beyond a scaffold. It now includes deterministic backtesting, guarded live execution paths, a FastAPI surface, a React frontend, Supabase-backed persistence options, trade analytics, dashboard control, API key administration with governance fields, webhook delivery, portfolio persistence, run metadata, live runtime session history, and KIS integration.
 
 Implemented behavior today:
 
@@ -12,8 +12,8 @@ Implemented behavior today:
 - `app.services` composes strategy repositories, pattern repositories, data providers, broker adapters, risk controls, portfolio persistence, and live preflight checks.
 - `execution.step.execute_trading_step` is the shared execution core across backtest and live runtime paths.
 - `backtest.engine.run_backtest` orchestrates deterministic replay, event capture, equity tracking, and multi-symbol processing.
-- `api.server` exposes backtests, live preflight, patterns, strategies, analytics, admin key management, `/health`, and dashboard routes behind API key, CORS, and rate-limit middleware.
-- `frontend/app/*` provides browser workflows for backtest submission, pattern management, strategy profiles, run review, API key administration, and live dashboard monitoring.
+- `api.server` exposes backtests, live preflight, live runtime session history, patterns, strategies, analytics, admin key management, `/health`, and dashboard routes behind API key, CORS, and rate-limit middleware.
+- `frontend/app/*` provides browser workflows for backtest submission, pattern management, strategy profiles, run review, API key administration, and live dashboard monitoring, now with server-sourced run metadata shown in the review surface.
 - `execution.reconciliation.reconcile` can align a local `PortfolioBook` with broker snapshots when the broker supports balance snapshots.
 - `notifications.webhook` provides bounded fire-and-forget delivery for selected runtime events through `httpx`.
 
@@ -26,10 +26,10 @@ The app layer cleanly separates CLI argument handling (`app.main`) from service 
 - `--mode backtest` executes the deterministic replay path.
 - `--mode live` defaults to preflight, can run a paper loop, and can submit live orders only behind explicit KIS-specific guards.
 - `LiveTradingLoop` manages state transitions, heartbeats, reconciliation attempts, and restart-safe portfolio persistence.
-- The dashboard API depends on an attached live loop (`create_app(live_loop=...)`) rather than starting the loop itself.
+- The dashboard API can now start and own one live loop process through `LiveRuntimeController`, while also persisting a durable session history.
 
 Current limitation:
-- There is no built-in frontend or API workflow that starts and owns the live loop process end-to-end.
+- Live session history is now durable and queryable, but there is not yet a dedicated frontend history screen for browsing past sessions.
 
 ### Data
 
@@ -96,10 +96,10 @@ Backtest orchestration is deterministic and uses the same trading-step core as l
 
 - Bars are merged and ordered across symbols
 - Signals, order lifecycle events, and risk rejections are serialized
-- The API stores completed runs for later fetch and analytics inspection
+- The API stores completed runs for later fetch and analytics inspection, together with provider/broker/strategy/source metadata.
 
 Current limitation:
-- Backtest runs are still executed synchronously in-request; persistence is now durable through file storage or Supabase, but there is no asynchronous queue/job runner yet.
+- Backtest runs are still executed synchronously in-request; persistence and metadata are now durable through file storage or Supabase, but there is no asynchronous queue/job runner yet.
 
 ### Analytics
 
@@ -116,13 +116,13 @@ Current limitation:
 
 The operator-facing application surface now exists in addition to the CLI.
 
-- The API covers runtime, patterns, strategies, analytics, and dashboard control
-- The frontend provides routes for new runs, saved runs, pattern sets, strategy profiles, API key administration, and dashboard inspection
-- Dashboard control officially supports `pause`, `resume`, and `reset`
+- The API covers runtime, live runtime session history, patterns, strategies, analytics, and dashboard control
+- The frontend provides routes for new runs, saved runs, pattern sets, strategy profiles, API key administration, and dashboard inspection, with a shared surface design and richer run/admin metadata display
+- Dashboard control officially supports `pause`, `resume`, `reset`, and `stop`
 - The dashboard consumes SSE (`/api/v1/dashboard/stream`) with polling fallback and server-side equity history (`/api/v1/dashboard/equity`)
 
 Current limitation:
-- `/api/v1/live/preflight` now accepts multiple symbols, but legacy consumers may still assume a single `quote_summary` field instead of `quote_summaries`/`symbol_count`.
+- `/api/v1/live/preflight` now accepts multiple symbols and richer readiness fields, but legacy consumers may still assume a single `quote_summary` field instead of `quote_summaries`/`symbol_count`.
 
 ## Configuration and examples
 
@@ -153,15 +153,15 @@ This gives a strong regression baseline for deterministic replay, runtime valida
 
 ## Remaining gaps before broader production use
 
-1. **Asynchronous run execution**: backtest results are now persistable, but long-running backtests still execute synchronously inside the request path.
-2. **Frontend live orchestration**: there is no first-class UI flow to start, attach, and manage the live loop process lifecycle.
+1. **Asynchronous run execution**: backtest results and metadata are now persistable, but long-running backtests still execute synchronously inside the request path.
+2. **Session history UX**: live runtime session history is durable and queryable, but there is no first-class browser workflow for browsing historical sessions yet.
 3. **Config parity**: strategy selection and some runtime-only fields are still not fully represented in the typed YAML loader.
 4. **Exchange snapshot integration**: generic reconciliation exists and KIS balance snapshots are wired, but pending-order authority still depends on balance-snapshot signals rather than a dedicated unresolved-order API.
-5. **Operational hardening**: richer auth, alerting, audit export, and deployment guidance are still lighter than a fully managed trading platform would require.
+5. **Operational hardening**: repository-managed API keys now track disabled/last-used state, but richer auth, alerting, audit export, and deployment guidance are still lighter than a fully managed trading platform would require.
 
 ## Recommended next backlog
 
 1. Add an asynchronous run execution model, retention controls, and clearer operator visibility around long-running backtests.
-2. Improve broker integrations, especially KIS, to expose a stronger unresolved/open-order source for reconciliation.
-3. Decide whether additional strategy runtime settings should become first-class YAML fields or remain API/runtime-only inputs.
-4. Improve operator documentation for launching the API server with an attached live loop and for running recurring production checks instead of only one-time deployment setup.
+2. Add a dedicated browser workflow for live runtime session history and historical incident review.
+3. Improve broker integrations, especially KIS, to expose a stronger unresolved/open-order source for reconciliation.
+4. Decide whether additional strategy runtime settings should become first-class YAML fields or remain API/runtime-only inputs.

@@ -79,12 +79,31 @@ class _FakeController:
         )
 
 
+class _FakeHistoryRepo:
+    def __init__(self) -> None:
+        self._records = []
+
+    def save(self, record) -> None:
+        self._records = [item for item in self._records if item.session_id != record.session_id]
+        self._records.append(record)
+
+    def get(self, session_id: str):
+        for record in self._records:
+            if record.session_id == session_id:
+                return record
+        return None
+
+    def list(self, limit: int = 20):
+        return list(reversed(self._records))[:limit]
+
+
 def _make_request(controller, live_loop=None):
     return SimpleNamespace(
         app=SimpleNamespace(
             state=SimpleNamespace(
                 live_runtime_controller=controller,
                 live_loop=live_loop,
+                live_runtime_history_repository=_FakeHistoryRepo(),
             )
         )
     )
@@ -171,3 +190,35 @@ async def test_dashboard_stop_without_active_runtime_returns_409() -> None:
         )
 
     assert exc.value.status_code == 409
+
+
+def test_live_runtime_session_routes_return_history() -> None:
+    history = _FakeHistoryRepo()
+    record = SimpleNamespace(
+        session_id='live_20260418_000000',
+        started_at='2026-04-18T00:00:00Z',
+        ended_at='2026-04-18T00:10:00Z',
+        provider='kis',
+        broker='kis',
+        live_execution='paper',
+        symbols=['005930'],
+        last_state='stopped',
+        last_error=None,
+        preflight_summary={'message': 'ok', 'ready': True},
+    )
+    history.save(record)
+    request = SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(
+                live_runtime_history_repository=history,
+            )
+        )
+    )
+
+    listing = live_runtime_routes.list_live_runtime_sessions(request, limit=10)
+    detail = live_runtime_routes.get_live_runtime_session('live_20260418_000000', request)
+
+    assert listing.total == 1
+    assert listing.sessions[0].provider == 'kis'
+    assert detail.session_id == 'live_20260418_000000'
+    assert detail.preflight_summary == {'message': 'ok', 'ready': True}

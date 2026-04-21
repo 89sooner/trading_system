@@ -4,6 +4,7 @@ from __future__ import annotations
 from trading_system.backtest.dto import (
     BacktestResultDTO,
     BacktestRunDTO,
+    BacktestRunMetadataDTO,
     DrawdownPointDTO,
     EquityPointDTO,
     EventDTO,
@@ -195,3 +196,31 @@ def test_pending_run_roundtrip_preserves_nullable_finished_at(tmp_path):
     assert retrieved is not None
     assert retrieved.status == "queued"
     assert retrieved.finished_at is None
+
+
+def test_save_and_get_roundtrip_preserves_metadata(tmp_path):
+    repo = FileBacktestRunRepository(tmp_path)
+    run = BacktestRunDTO(
+        run_id="run-meta",
+        status="succeeded",
+        started_at="2024-01-01T00:00:00Z",
+        finished_at="2024-01-01T01:00:00Z",
+        input_symbols=["AAPL"],
+        mode="backtest",
+        metadata=BacktestRunMetadataDTO(
+            provider="mock",
+            broker="paper",
+            strategy_profile_id="trend-v1",
+            source="frontend",
+            notes="metadata roundtrip",
+        ),
+    )
+    repo.save(run)
+
+    retrieved = repo.get("run-meta")
+
+    assert retrieved is not None
+    assert retrieved.metadata is not None
+    assert retrieved.metadata.provider == "mock"
+    assert retrieved.metadata.strategy_profile_id == "trend-v1"
+    assert retrieved.metadata.notes == "metadata roundtrip"

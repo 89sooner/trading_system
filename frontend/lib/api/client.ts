@@ -34,7 +34,10 @@ export async function requestJson<T>(path: string, options: RequestInit = {}): P
     const mergedHeaders = { ...headers, ...(callerHeaders as Record<string, string>) }
     response = await fetch(url, { headers: mergedHeaders, ...restOptions })
   } catch {
-    throw new ApiError('network', 'Cannot reach backend API. Check host/port.')
+    throw new ApiError(
+      'network',
+      `Cannot reach backend API at ${url}. Check that the backend is running and the API base URL is correct.`,
+    )
   }
 
   const rawBody = await response.text()
@@ -62,7 +65,7 @@ export async function requestJson<T>(path: string, options: RequestInit = {}): P
 
 export function userMessageForError(error: unknown): string {
   if (!(error instanceof ApiError)) return 'Unexpected error occurred.'
-  if (error.kind === 'network') return 'Network error: cannot reach backend server.'
+  if (error.kind === 'network') return `Network error: ${error.message}`
   if (error.kind === 'validation') return `Validation error (4xx): ${error.message}`
   if (error.kind === 'server') return `Server error (5xx): ${error.message}`
   return `HTTP error: ${error.message}`

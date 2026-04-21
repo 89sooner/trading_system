@@ -6,6 +6,8 @@ from types import SimpleNamespace
 import pytest
 
 from trading_system.app.live_runtime_controller import LiveRuntimeController
+from trading_system.app.live_runtime_history import LiveRuntimeSessionRecord
+from trading_system.app.services import PreflightCheckResult
 from trading_system.app.settings import (
     AppMode,
     AppSettings,
@@ -33,6 +35,23 @@ class _FakeServices:
 
     def build_live_loop(self, session_id: str | None = None) -> _FakeLoop:
         return self._loop
+
+
+class _HistoryRepo:
+    def __init__(self) -> None:
+        self.records: list[LiveRuntimeSessionRecord] = []
+
+    def save(self, record: LiveRuntimeSessionRecord) -> None:
+        self.records.append(record)
+
+    def get(self, session_id: str):
+        for record in reversed(self.records):
+            if record.session_id == session_id:
+                return record
+        return None
+
+    def list(self, limit: int = 20):
+        return list(reversed(self.records))[:limit]
 
 
 def _make_settings() -> AppSettings:
@@ -117,3 +136,36 @@ def test_controller_records_start_failure() -> None:
 
     assert controller.snapshot().controller_state == 'error'
     assert controller.snapshot().last_error == 'boom'
+
+
+def test_controller_persists_session_history_with_matching_preflight() -> None:
+    history = _HistoryRepo()
+    loop = _FakeLoop()
+    controller = LiveRuntimeController(
+        services_builder=lambda settings: _FakeServices(loop),
+        attach_loop=lambda current: None,
+        history_repository=history,
+    )
+    settings = _make_settings()
+    controller.record_preflight(
+        settings,
+        PreflightCheckResult(
+            ready=True,
+            reasons=[],
+            quote_summary=None,
+            quote_summaries=None,
+            symbol_count=1,
+            message='ok',
+            next_allowed_actions=['paper'],
+            checked_at='2026-04-19T00:00:00Z',
+        ),
+    )
+
+    session = controller.start(settings)
+    controller.stop(timeout=1.0)
+
+    saved = history.get(session.session_id)
+    assert saved is not None
+    assert saved.preflight_summary is not None
+    assert saved.preflight_summary['message'] == 'ok'
+    assert saved.last_state == 'stopped'

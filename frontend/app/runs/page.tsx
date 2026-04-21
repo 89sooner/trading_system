@@ -22,7 +22,8 @@ function serverItemToRunRecord(item: BacktestRunListItem): RunRecord {
     symbol: item.input_symbols[0] ?? '—',
     status: item.status as RunRecord['status'],
     createdAt: item.started_at,
-    strategyProfile: null,
+    strategyProfile: item.metadata?.strategy_profile_id ?? null,
+    metadata: item.metadata ?? undefined,
   }
 }
 
@@ -36,6 +37,15 @@ const columns: Column<RunRecord>[] = [
     key: 'symbol',
     header: 'Symbol',
     cell: (row) => <span className="font-mono">{row.symbol}</span>,
+  },
+  {
+    key: 'route',
+    header: 'Route',
+    cell: (row) => (
+      <span className="text-xs text-muted-foreground">
+        {row.metadata?.provider ?? '-'} / {row.metadata?.broker ?? '-'}
+      </span>
+    ),
   },
   {
     key: 'status',

@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Callable
 
+from trading_system.app.live_runtime_history import (
+    LiveRuntimeSessionRecord,
+    LiveRuntimeSessionRepository,
+)
 from trading_system.app.loop import LiveTradingLoop
 from trading_system.app.settings import AppSettings
 from trading_system.app.state import AppRunnerState
@@ -22,6 +26,7 @@ class LiveRuntimeSession:
     broker: str
     symbols: list[str]
     started_at: str
+    preflight_summary: dict[str, object] | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -58,9 +63,11 @@ class LiveRuntimeController:
         *,
         services_builder: Callable[[AppSettings], 'AppServices'],
         attach_loop: Callable[[LiveTradingLoop | None], None],
+        history_repository: LiveRuntimeSessionRepository | None = None,
     ) -> None:
         self._services_builder = services_builder
         self._attach_loop = attach_loop
+        self._history_repository = history_repository
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
         self._active_loop: LiveTradingLoop | None = None
@@ -145,9 +152,16 @@ class LiveRuntimeController:
                 broker=settings.broker,
                 symbols=list(settings.symbols),
                 started_at=datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
+                preflight_summary=self._preflight_payload(settings),
             )
             started = threading.Event()
             self._last_error = None
+            self._persist_session(
+                session,
+                last_state='starting',
+                ended_at=None,
+                last_error=None,
+            )
             thread = threading.Thread(
                 target=self._run_session,
                 name=f'live-runtime-{session.session_id}',
@@ -193,6 +207,8 @@ class LiveRuntimeController:
         session: LiveRuntimeSession,
         started: threading.Event,
     ) -> None:
+        final_state = 'stopped'
+        last_error: str | None = None
         try:
             services = self._services_builder(settings)
             if settings.live_execution.value == 'live':
@@ -203,13 +219,66 @@ class LiveRuntimeController:
             self._attach_loop(loop)
             started.set()
             loop.run()
+            final_state = loop.state.value
         except Exception as exc:
             with self._lock:
                 self._last_error = str(exc)
+            final_state = 'error'
+            last_error = str(exc)
             started.set()
         finally:
             self._attach_loop(None)
+            self._persist_session(
+                session,
+                last_state=final_state,
+                ended_at=datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
+                last_error=last_error,
+            )
             with self._lock:
                 self._active_loop = None
                 self._active_session = None
                 self._thread = None
+
+    def _preflight_payload(self, settings: AppSettings) -> dict[str, object] | None:
+        snapshot = self._last_preflight
+        if snapshot is None:
+            return None
+        if (
+            snapshot.provider != settings.provider
+            or snapshot.broker != settings.broker
+            or snapshot.symbols != list(settings.symbols)
+        ):
+            return None
+        return {
+            'checked_at': snapshot.checked_at,
+            'ready': snapshot.ready,
+            'message': snapshot.message,
+            'blocking_reasons': list(snapshot.blocking_reasons),
+            'warnings': list(snapshot.warnings),
+            'next_allowed_actions': list(snapshot.next_allowed_actions),
+        }
+
+    def _persist_session(
+        self,
+        session: LiveRuntimeSession,
+        *,
+        last_state: str,
+        ended_at: str | None,
+        last_error: str | None,
+    ) -> None:
+        if self._history_repository is None:
+            return
+        self._history_repository.save(
+            LiveRuntimeSessionRecord(
+                session_id=session.session_id,
+                started_at=session.started_at,
+                ended_at=ended_at,
+                provider=session.provider,
+                broker=session.broker,
+                live_execution=session.live_execution,
+                symbols=list(session.symbols),
+                last_state=last_state,
+                last_error=last_error,
+                preflight_summary=session.preflight_summary,
+            )
+        )

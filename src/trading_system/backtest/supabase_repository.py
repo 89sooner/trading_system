@@ -4,9 +4,12 @@ import json
 import logging
 from datetime import datetime
 
-import psycopg
+try:
+    import psycopg
+except ModuleNotFoundError:  # pragma: no cover - optional import for mocked tests
+    psycopg = None  # type: ignore[assignment]
 
-from trading_system.backtest.dto import BacktestRunDTO
+from trading_system.backtest.dto import BacktestRunDTO, BacktestRunMetadataDTO
 from trading_system.backtest.file_repository import _deserialize_result
 
 _log = logging.getLogger(__name__)
@@ -22,11 +25,13 @@ class SupabaseBacktestRunRepository:
 
     def __init__(self, database_url: str) -> None:
         self._database_url = database_url
-        self._conn: psycopg.Connection | None = None
+        self._conn = None
 
-    def _get_conn(self) -> psycopg.Connection:
+    def _get_conn(self):
         """Return the live connection, (re-)connecting if necessary."""
         if self._conn is None or self._conn.closed:
+            if psycopg is None:
+                raise ModuleNotFoundError("psycopg is required for SupabaseBacktestRunRepository.")
             self._conn = psycopg.connect(self._database_url, autocommit=True)
         return self._conn
 
@@ -39,19 +44,27 @@ class SupabaseBacktestRunRepository:
         if run.result is not None:
             import dataclasses
             result_json = json.dumps(dataclasses.asdict(run.result), default=str)
+        metadata_json = None
+        if run.metadata is not None:
+            import dataclasses
+            metadata_json = json.dumps(dataclasses.asdict(run.metadata), default=str)
 
         with self._get_conn().cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO backtest_runs
-                    (run_id, status, started_at, finished_at, input_symbols, mode, result, error)
-                VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s)
+                    (
+                        run_id, status, started_at, finished_at, input_symbols, mode,
+                        metadata, result, error
+                    )
+                VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s)
                 ON CONFLICT (run_id) DO UPDATE SET
                     status        = EXCLUDED.status,
                     started_at    = EXCLUDED.started_at,
                     finished_at   = EXCLUDED.finished_at,
                     input_symbols = EXCLUDED.input_symbols,
                     mode          = EXCLUDED.mode,
+                    metadata      = EXCLUDED.metadata,
                     result        = EXCLUDED.result,
                     error         = EXCLUDED.error
                 """,
@@ -62,6 +75,7 @@ class SupabaseBacktestRunRepository:
                     run.finished_at or None,
                     list(run.input_symbols),
                     run.mode,
+                    metadata_json,
                     result_json,
                     run.error,
                 ),
@@ -70,7 +84,8 @@ class SupabaseBacktestRunRepository:
     def get(self, run_id: str) -> BacktestRunDTO | None:
         with self._get_conn().cursor() as cur:
             cur.execute(
-                "SELECT run_id, status, started_at, finished_at, input_symbols, mode, result, error"
+                "SELECT run_id, status, started_at, finished_at, input_symbols, mode, "
+                "metadata, result, error"
                 " FROM backtest_runs WHERE run_id = %s",
                 (run_id,),
             )
@@ -103,7 +118,10 @@ class SupabaseBacktestRunRepository:
             cur.execute(f"SELECT COUNT(*) FROM backtest_runs {where}", params)
             total: int = cur.fetchone()[0]  # type: ignore[index]
 
-            cols = "run_id, status, started_at, finished_at, input_symbols, mode, result, error"
+            cols = (
+                "run_id, status, started_at, finished_at, input_symbols, mode, "
+                "metadata, result, error"
+            )
             cur.execute(
                 f"SELECT {cols} FROM backtest_runs {where}"
                 f" ORDER BY started_at DESC NULLS LAST"
@@ -135,12 +153,34 @@ class SupabaseBacktestRunRepository:
 
 
 def _deserialize_row(row: tuple) -> BacktestRunDTO:
-    run_id, status, started_at, finished_at, input_symbols, mode, result_raw, error = row
+    (
+        run_id,
+        status,
+        started_at,
+        finished_at,
+        input_symbols,
+        mode,
+        metadata_raw,
+        result_raw,
+        error,
+    ) = row
 
     result = None
     if result_raw is not None:
         data = result_raw if isinstance(result_raw, dict) else json.loads(result_raw)
         result = _deserialize_result(data)
+    metadata = None
+    if metadata_raw is not None:
+        parsed = metadata_raw if isinstance(metadata_raw, dict) else json.loads(metadata_raw)
+        metadata = BacktestRunMetadataDTO(
+            provider=parsed.get("provider"),
+            broker=parsed.get("broker"),
+            strategy_profile_id=parsed.get("strategy_profile_id"),
+            pattern_set_id=parsed.get("pattern_set_id"),
+            source=parsed.get("source"),
+            requested_by=parsed.get("requested_by"),
+            notes=parsed.get("notes"),
+        )
 
     return BacktestRunDTO(
         run_id=run_id,
@@ -149,6 +189,7 @@ def _deserialize_row(row: tuple) -> BacktestRunDTO:
         finished_at=_serialize_db_timestamp(finished_at) if finished_at else None,
         input_symbols=list(input_symbols or []),
         mode=mode or "",
+        metadata=metadata,
         result=result,
         error=error,
     )

@@ -10,6 +10,7 @@ from pathlib import Path
 from trading_system.backtest.dto import (
     BacktestResultDTO,
     BacktestRunDTO,
+    BacktestRunMetadataDTO,
     DrawdownPointDTO,
     EquityPointDTO,
     EventDTO,
@@ -62,6 +63,7 @@ class FileBacktestRunRepository:
             "finished_at": run.finished_at,
             "input_symbols": run.input_symbols,
             "mode": run.mode,
+            "metadata": dataclasses.asdict(run.metadata) if run.metadata is not None else None,
         }
 
     # ------------------------------------------------------------------
@@ -126,6 +128,7 @@ class FileBacktestRunRepository:
                 finished_at=r.get("finished_at"),
                 input_symbols=r.get("input_symbols", []),
                 mode=r.get("mode", ""),
+                metadata=_deserialize_metadata(r.get("metadata")),
             )
             for r in page_runs
         ]
@@ -167,6 +170,7 @@ class FileBacktestRunRepository:
                         "finished_at": data.get("finished_at"),
                         "input_symbols": data.get("input_symbols", []),
                         "mode": data.get("mode", ""),
+                        "metadata": data.get("metadata"),
                     })
                 except Exception:
                     continue
@@ -189,8 +193,23 @@ def _deserialize_run(data: dict) -> BacktestRunDTO:
         finished_at=data.get("finished_at"),
         input_symbols=data.get("input_symbols", []),
         mode=data.get("mode", ""),
+        metadata=_deserialize_metadata(data.get("metadata")),
         result=result,
         error=data.get("error"),
+    )
+
+
+def _deserialize_metadata(data: dict | None) -> BacktestRunMetadataDTO | None:
+    if not isinstance(data, dict):
+        return None
+    return BacktestRunMetadataDTO(
+        provider=data.get("provider"),
+        broker=data.get("broker"),
+        strategy_profile_id=data.get("strategy_profile_id"),
+        pattern_set_id=data.get("pattern_set_id"),
+        source=data.get("source"),
+        requested_by=data.get("requested_by"),
+        notes=data.get("notes"),
     )
 
 

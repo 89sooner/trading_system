@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Callable
 
-from trading_system.backtest.dto import BacktestRunDTO
+from trading_system.backtest.dto import BacktestRunDTO, BacktestRunMetadataDTO
 from trading_system.backtest.repository import BacktestRunRepository
 from trading_system.core.compat import UTC
 
@@ -23,6 +23,7 @@ class QueuedBacktestRun:
     input_symbols: tuple[str, ...]
     mode: str
     payload: object
+    metadata: object | None = None
 
 
 class BacktestRunDispatcher:
@@ -113,6 +114,11 @@ class BacktestRunDispatcher:
                         started_at=item.started_at,
                         input_symbols=item.input_symbols,
                         mode=item.mode,
+                        metadata=(
+                            item.metadata
+                            if isinstance(item.metadata, BacktestRunMetadataDTO)
+                            else None
+                        ),
                     )
                 )
                 final_run = self._executor(item)

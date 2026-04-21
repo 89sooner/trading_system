@@ -85,7 +85,7 @@ def _cors_headers(origin: str | None, allowed_origins: Iterable[str]) -> dict[st
     return {
         "Access-Control-Allow-Origin": allow_origin,
         "Access-Control-Allow-Headers": "Authorization,Content-Type,X-API-Key,X-Correlation-ID",
-        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
     }
 
 
@@ -141,6 +141,15 @@ def build_security_middleware(settings: SecuritySettings, key_repository=None):
                         },
                         headers={**cors_headers, "X-Correlation-ID": correlation_id},
                     )
+                if (
+                    supplied_key
+                    and supplied_key not in settings.allowed_api_keys
+                    and key_repository is not None
+                ):
+                    try:
+                        key_repository.record_use(supplied_key)
+                    except Exception:
+                        pass
 
             rate_key = f"{request.client.host if request.client else 'unknown'}:{request.url.path}"
             if not limiter.allow(rate_key):

@@ -17,6 +17,7 @@ from trading_system.api.schemas import (
     LivePreflightRequestDTO,
     LivePreflightResponseDTO,
     ReadinessCheckDTO,
+    RunMetadataDTO,
     StrategyConfigDTO,
     SymbolReadinessDTO,
 )
@@ -31,8 +32,13 @@ from trading_system.app.settings import (
     RiskSettings,
 )
 from trading_system.backtest.dispatcher import BacktestRunDispatcher, QueuedBacktestRun
-from trading_system.backtest.dto import BacktestResultDTO as SerializedBacktestResultDTO
-from trading_system.backtest.dto import BacktestRunDTO
+from trading_system.backtest.dto import (
+    BacktestResultDTO as SerializedBacktestResultDTO,
+)
+from trading_system.backtest.dto import (
+    BacktestRunDTO,
+    BacktestRunMetadataDTO,
+)
 from trading_system.backtest.engine import BacktestResult
 from trading_system.backtest.file_repository import FileBacktestRunRepository
 from trading_system.backtest.repository import BacktestRunRepository
@@ -224,6 +230,42 @@ def _to_live_preflight_response(result: PreflightCheckResult) -> LivePreflightRe
     )
 
 
+def _to_run_metadata(
+    payload: BacktestRunRequestDTO,
+    settings: AppSettings,
+) -> BacktestRunMetadataDTO:
+    requested_metadata = payload.metadata
+    strategy = payload.strategy
+    source = requested_metadata.source if requested_metadata is not None else None
+    if source is None:
+        source = "api"
+    return BacktestRunMetadataDTO(
+        provider=settings.provider,
+        broker=settings.broker,
+        strategy_profile_id=(strategy.profile_id if strategy is not None else None),
+        pattern_set_id=(strategy.pattern_set_id if strategy is not None else None),
+        source=source,
+        requested_by=(requested_metadata.requested_by if requested_metadata is not None else None),
+        notes=(requested_metadata.notes if requested_metadata is not None else None),
+    )
+
+
+def _to_api_run_metadata(
+    metadata: BacktestRunMetadataDTO | None,
+) -> RunMetadataDTO | None:
+    if metadata is None:
+        return None
+    return RunMetadataDTO(
+        provider=metadata.provider,
+        broker=metadata.broker,
+        strategy_profile_id=metadata.strategy_profile_id,
+        pattern_set_id=metadata.pattern_set_id,
+        source=metadata.source,
+        requested_by=metadata.requested_by,
+        notes=metadata.notes,
+    )
+
+
 def _repository_factory() -> BacktestRunRepository:
     repo = _RUN_REPOSITORY
     if isinstance(repo, FileBacktestRunRepository):
@@ -252,6 +294,7 @@ def _execute_backtest_run(item: QueuedBacktestRun) -> BacktestRunDTO:
             finished_at=finished_at,
             input_symbols=item.input_symbols,
             mode=item.mode,
+            metadata=item.metadata if isinstance(item.metadata, BacktestRunMetadataDTO) else None,
             result=result,
         )
     except Exception as exc:
@@ -261,6 +304,7 @@ def _execute_backtest_run(item: QueuedBacktestRun) -> BacktestRunDTO:
             finished_at=finished_at,
             input_symbols=item.input_symbols,
             mode=item.mode,
+            metadata=item.metadata if isinstance(item.metadata, BacktestRunMetadataDTO) else None,
             error=str(exc),
         )
 
@@ -289,6 +333,7 @@ def list_backtest_runs(
             finished_at=r.finished_at,
             input_symbols=r.input_symbols,
             mode=r.mode,
+            metadata=_to_api_run_metadata(r.metadata),
         )
         for r in runs
     ]
@@ -300,6 +345,7 @@ def create_backtest_run(
     request: Request | None = None,
 ) -> BacktestRunAcceptedDTO:
     settings = _to_app_settings(payload)
+    metadata = _to_run_metadata(payload, settings)
     run_id = str(uuid4())
     dispatcher = getattr(request.app.state, "backtest_dispatcher", None) if request else None
     queued_run = BacktestRunDTO.queued(
@@ -307,6 +353,7 @@ def create_backtest_run(
         started_at=datetime.now(UTC),
         input_symbols=settings.symbols,
         mode=settings.mode.value,
+        metadata=metadata,
     )
     _RUN_REPOSITORY.save(queued_run)
 
@@ -316,6 +363,7 @@ def create_backtest_run(
         input_symbols=settings.symbols,
         mode=settings.mode.value,
         payload=settings,
+        metadata=metadata,
     )
 
     if dispatcher is None:
@@ -352,6 +400,7 @@ def get_backtest_run(run_id: str) -> BacktestRunStatusDTO:
         finished_at=run.finished_at,
         input_symbols=run.input_symbols,
         mode=run.mode,
+        metadata=_to_api_run_metadata(run.metadata),
         result=_to_api_result_dto(run.result) if run.result is not None else None,
         error=run.error,
     )

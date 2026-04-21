@@ -10,12 +10,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { createApiKey, deleteApiKey, listApiKeys } from '@/lib/api/admin'
+import { createApiKey, deleteApiKey, listApiKeys, updateApiKey } from '@/lib/api/admin'
+import { userMessageForError } from '@/lib/api/client'
 import { formatUtcTimestamp } from '@/lib/formatters'
 import type { ApiKeyListItem, CreateApiKeyResponse } from '@/lib/api/types'
 
 const columns: Column<ApiKeyListItem>[] = [
-  { key: 'name', header: 'Name', cell: (row) => <span>{row.name}</span> },
+  { key: 'label', header: 'Label', cell: (row) => <span>{row.label}</span> },
   {
     key: 'key_preview',
     header: 'Key',
@@ -28,11 +29,29 @@ const columns: Column<ApiKeyListItem>[] = [
     header: 'Created',
     cell: (row) => <span className="text-xs">{formatUtcTimestamp(row.created_at)}</span>,
   },
+  {
+    key: 'last_used_at',
+    header: 'Last Used',
+    cell: (row) => (
+      <span className="text-xs text-muted-foreground">
+        {row.last_used_at ? formatUtcTimestamp(row.last_used_at) : 'Never'}
+      </span>
+    ),
+  },
+  {
+    key: 'disabled',
+    header: 'State',
+    cell: (row) => (
+      <Badge variant={row.disabled ? 'secondary' : 'outline'}>
+        {row.disabled ? 'disabled' : 'active'}
+      </Badge>
+    ),
+  },
 ]
 
 export default function AdminPage() {
   const queryClient = useQueryClient()
-  const [newKeyName, setNewKeyName] = useState('')
+  const [newKeyLabel, setNewKeyLabel] = useState('')
   const [createdKey, setCreatedKey] = useState<CreateApiKeyResponse | null>(null)
   const [copied, setCopied] = useState(false)
 
@@ -42,10 +61,10 @@ export default function AdminPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: (name: string) => createApiKey(name),
+    mutationFn: (label: string) => createApiKey(label),
     onSuccess: (data) => {
       setCreatedKey(data)
-      setNewKeyName('')
+      setNewKeyLabel('')
       queryClient.invalidateQueries({ queryKey: ['admin', 'keys'] })
     },
   })
@@ -57,10 +76,18 @@ export default function AdminPage() {
     },
   })
 
+  const toggleMutation = useMutation({
+    mutationFn: ({ keyId, disabled }: { keyId: string; disabled: boolean }) =>
+      updateApiKey(keyId, disabled),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'keys'] })
+    },
+  })
+
   function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const name = newKeyName.trim()
-    if (name) createMutation.mutate(name)
+    const label = newKeyLabel.trim()
+    if (label) createMutation.mutate(label)
   }
 
   function handleCopy() {
@@ -122,12 +149,12 @@ export default function AdminPage() {
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
               <div className="space-y-1">
-                <Label htmlFor="keyName">Key Name</Label>
+                <Label htmlFor="keyName">Key Label</Label>
                 <Input
                   id="keyName"
                   placeholder="e.g. Trading Bot"
-                  value={newKeyName}
-                  onChange={(e) => setNewKeyName(e.target.value)}
+                  value={newKeyLabel}
+                  onChange={(e) => setNewKeyLabel(e.target.value)}
                   required
                 />
               </div>
@@ -141,7 +168,7 @@ export default function AdminPage() {
               </Button>
             </div>
             {createMutation.isError ? (
-              <p className="text-sm text-danger">Failed to create key.</p>
+              <p className="text-sm text-danger">{userMessageForError(createMutation.error)}</p>
             ) : null}
           </form>
         </SurfacePanel>
@@ -193,6 +220,22 @@ export default function AdminPage() {
           <DataTable
             columns={[
               ...columns,
+              {
+                key: 'toggle',
+                header: '',
+                cell: (row) => (
+                  <Button
+                    size="sm"
+                    variant={row.disabled ? 'outline' : 'secondary'}
+                    disabled={toggleMutation.isPending}
+                    onClick={() =>
+                      toggleMutation.mutate({ keyId: row.key_id, disabled: !row.disabled })
+                    }
+                  >
+                    {row.disabled ? 'Enable' : 'Disable'}
+                  </Button>
+                ),
+              },
               {
                 key: 'revoke',
                 header: '',

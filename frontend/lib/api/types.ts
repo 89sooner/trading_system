@@ -151,6 +151,16 @@ export interface StrategyConfigDTO {
   threshold_overrides?: Record<string, number>
 }
 
+export interface RunMetadata {
+  provider?: string | null
+  broker?: string | null
+  strategy_profile_id?: string | null
+  pattern_set_id?: string | null
+  source?: string | null
+  requested_by?: string | null
+  notes?: string | null
+}
+
 export interface BacktestRunRequestDTO {
   mode: string
   symbols: string[]
@@ -160,6 +170,11 @@ export interface BacktestRunRequestDTO {
   portfolio_risk?: PortfolioRiskDTO
   backtest?: BacktestConfigDTO
   strategy: StrategyConfigDTO
+  metadata?: {
+    source?: string | null
+    requested_by?: string | null
+    notes?: string | null
+  }
 }
 
 export interface BacktestRunAcceptedDTO {
@@ -198,6 +213,7 @@ export interface BacktestRunStatusDTO {
   finished_at: string | null
   input_symbols: string[]
   mode: string
+  metadata?: RunMetadata | null
   result?: BacktestResult | null
   error?: string | null
 }
@@ -210,6 +226,7 @@ export interface BacktestRunListItem {
   finished_at: string | null
   input_symbols: string[]
   mode: string
+  metadata?: RunMetadata | null
 }
 
 export interface BacktestRunListResponse {
@@ -279,16 +296,20 @@ export interface PatternSetDTO {
 // Admin
 export interface ApiKeyListItem {
   key_id: string
-  name: string
+  label: string
   key_preview: string
   created_at: string
+  disabled: boolean
+  last_used_at?: string | null
 }
 
 export interface CreateApiKeyResponse {
   key_id: string
-  name: string
+  label: string
   key: string
   created_at: string
+  disabled: boolean
+  last_used_at?: string | null
 }
 
 // Strategies
