@@ -1,9 +1,28 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+function normalizeLoopbackUrl(url: string): string {
+  if (typeof window === "undefined") return url;
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost") {
+      const currentHost = window.location.hostname;
+      if (currentHost && currentHost !== "127.0.0.1" && currentHost !== "localhost") {
+        parsed.hostname = currentHost;
+        return parsed.toString().replace(/\/$/, "");
+      }
+    }
+  } catch {
+    return url;
+  }
+  return url;
+}
+
 function resolveDefaultBaseUrl(): string {
   const configured = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (configured?.trim()) return configured.trim().replace(/\/$/, "");
+  if (configured?.trim()) {
+    return normalizeLoopbackUrl(configured.trim().replace(/\/$/, ""));
+  }
   if (typeof window !== "undefined") {
     const { protocol, hostname } = window.location;
     return `${protocol}//${hostname}:8000/api/v1`;
@@ -18,7 +37,7 @@ const LEGACY_KEY = "apiBaseUrl";
 function normalizeBaseUrl(url: string): string {
   const trimmed = url.trim();
   if (!trimmed) return DEFAULT_BASE_URL;
-  return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+  return normalizeLoopbackUrl(trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed);
 }
 
 interface ApiStore {
@@ -55,13 +74,16 @@ export const useApiStore = create<ApiStore>()(
         const normalizedDefault = resolveDefaultBaseUrl();
         const normalizedBaseUrl = state.baseUrl ? normalizeBaseUrl(state.baseUrl) : normalizedDefault;
         const migratedBaseUrl =
-          normalizedBaseUrl === "http://127.0.0.1:8000/api/v1" ? normalizedDefault : normalizedBaseUrl;
+          normalizedBaseUrl === "http://127.0.0.1:8000/api/v1"
+            || normalizedBaseUrl === "http://localhost:8000/api/v1"
+            ? normalizedDefault
+            : normalizedBaseUrl;
         return {
           baseUrl: migratedBaseUrl,
           apiKey: state.apiKey ?? "",
         };
       },
-      version: 3,
+      version: 4,
     },
   ),
 );

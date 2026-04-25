@@ -7,7 +7,7 @@ export const listApiKeys = () =>
 export const createApiKey = (label: string) =>
   requestJson<CreateApiKeyResponse>('/admin/keys', {
     method: 'POST',
-    body: JSON.stringify({ label }),
+    body: JSON.stringify({ label, name: label }),
   })
 
 export const deleteApiKey = (keyId: string) =>

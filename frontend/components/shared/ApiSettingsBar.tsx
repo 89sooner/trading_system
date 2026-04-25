@@ -1,24 +1,92 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useApiStore } from '@/store/apiStore'
 import { Button } from '@/components/ui/button'
+import { StatusIndicator } from '@/components/domain/StatusIndicator'
 import { Settings } from 'lucide-react'
+
+type AuthProbeState =
+  | { variant: 'online' | 'offline' | 'warning' | 'error'; label: string }
+
+function localBaseUrl(): string {
+  if (typeof window === 'undefined') return 'http://localhost:8000/api/v1'
+  const { protocol, hostname } = window.location
+  return `${protocol}//${hostname}:8000/api/v1`
+}
 
 export function ApiSettingsBar() {
   const { baseUrl, apiKey, setBaseUrl, setApiKey } = useApiStore()
   const [open, setOpen] = useState(false)
   const [urlDraft, setUrlDraft] = useState(baseUrl)
   const [keyDraft, setKeyDraft] = useState(apiKey)
+  const [probe, setProbe] = useState<AuthProbeState>({
+    variant: 'offline',
+    label: 'Checking',
+  })
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    async function probeAuth() {
+      setProbe({ variant: 'offline', label: 'Checking' })
+      try {
+        const healthResponse = await fetch(`${baseUrl.replace(/\/api\/v1$/, '')}/health`, {
+          method: 'GET',
+          signal: controller.signal,
+        })
+        if (!healthResponse.ok) {
+          setProbe({ variant: 'error', label: `Backend HTTP ${healthResponse.status}` })
+          return
+        }
+
+        const response = await fetch(`${baseUrl}/backtests?page_size=1`, {
+          method: 'GET',
+          headers: apiKey ? { 'X-API-Key': apiKey } : {},
+          signal: controller.signal,
+        })
+        if (response.ok) {
+          setProbe({
+            variant: 'online',
+            label: apiKey ? 'Authenticated' : 'Connected',
+          })
+          return
+        }
+        if (response.status === 401) {
+          setProbe({
+            variant: 'warning',
+            label: apiKey ? 'Backend reachable · invalid key' : 'Backend reachable · key required',
+          })
+          return
+        }
+        setProbe({ variant: 'error', label: `HTTP ${response.status}` })
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') return
+        setProbe({ variant: 'error', label: 'Backend unreachable' })
+      }
+    }
+
+    void probeAuth()
+    return () => controller.abort()
+  }, [apiKey, baseUrl])
+
+  useEffect(() => {
+    setUrlDraft(baseUrl)
+  }, [baseUrl])
+
+  useEffect(() => {
+    setKeyDraft(apiKey)
+  }, [apiKey])
 
   if (!open) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        className="flex items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
       >
         <Settings className="h-3 w-3" />
         API
+        <StatusIndicator variant={probe.variant} label={probe.label} />
       </button>
     )
   }
@@ -49,6 +117,19 @@ export function ApiSettingsBar() {
       >
         Save
       </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 text-xs"
+        onClick={() => {
+          const next = localBaseUrl()
+          setUrlDraft(next)
+          setBaseUrl(next)
+        }}
+      >
+        Local
+      </Button>
+      <StatusIndicator variant={probe.variant} label={probe.label} />
       <button onClick={() => setOpen(false)} className="text-xs text-muted-foreground hover:text-foreground">
         X
       </button>

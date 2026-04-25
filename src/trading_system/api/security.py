@@ -13,6 +13,11 @@ from fastapi.responses import JSONResponse, Response
 from trading_system.config.settings import load_settings
 from trading_system.core.ops import correlation_scope
 
+LOCAL_DEV_CORS_ORIGINS = (
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+)
+
 
 @dataclass(slots=True)
 class SecuritySettings:
@@ -27,12 +32,16 @@ class SecuritySettings:
 
         raw_keys = getenv("TRADING_SYSTEM_ALLOWED_API_KEYS", "")
         raw_origins = getenv("TRADING_SYSTEM_CORS_ALLOW_ORIGINS", "")
+        environment = getenv("TRADING_SYSTEM_ENV", "").strip().lower()
         rate_limit_max = int(getenv("TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS", "60"))
         rate_limit_window = int(getenv("TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS", "60"))
         config_origins = _load_cors_origins_from_config(getenv("TRADING_SYSTEM_CONFIG_PATH"))
+        cors_origins = _split_csv(raw_origins) or config_origins
+        if environment in {"local", "dev", "development", "test"}:
+            cors_origins = _merge_cors_origins(cors_origins, LOCAL_DEV_CORS_ORIGINS)
         return cls(
             allowed_api_keys=_split_csv(raw_keys),
-            cors_allow_origins=_split_csv(raw_origins) or config_origins,
+            cors_allow_origins=cors_origins,
             rate_limit_max_requests=max(1, rate_limit_max),
             rate_limit_window_seconds=max(1, rate_limit_window),
         )
@@ -63,6 +72,17 @@ class SimpleRateLimiter:
 
 def _split_csv(raw_value: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in raw_value.split(",") if item.strip())
+
+
+def _merge_cors_origins(
+    configured: Iterable[str],
+    additions: Iterable[str],
+) -> tuple[str, ...]:
+    merged: list[str] = []
+    for origin in (*tuple(configured), *tuple(additions)):
+        if origin not in merged:
+            merged.append(origin)
+    return tuple(merged)
 
 
 def _load_cors_origins_from_config(config_path: str | None) -> tuple[str, ...]:
