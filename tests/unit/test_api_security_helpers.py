@@ -3,6 +3,7 @@ from trading_system.api.security import SecuritySettings, _cors_headers, _is_aut
 
 def test_health_path_is_auth_exempt() -> None:
     assert _is_auth_exempt_path("/health") is True
+    assert _is_auth_exempt_path("/api/v1/health") is True
 
 
 def test_admin_paths_remain_auth_exempt() -> None:

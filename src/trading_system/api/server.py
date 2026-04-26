@@ -111,9 +111,16 @@ def create_app(live_loop=None) -> FastAPI:
             content=body.model_dump(),
         )
 
-    @app.get('/health', include_in_schema=False)
-    def health() -> dict:
+    def _health_payload() -> dict:
         return {'status': 'ok'}
+
+    @app.get('/health', include_in_schema=False)
+    def root_health() -> dict:
+        return _health_payload()
+
+    @app.get('/api/v1/health', include_in_schema=False)
+    def api_health() -> dict:
+        return _health_payload()
 
     return app
 

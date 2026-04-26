@@ -30,8 +30,9 @@ export function ApiSettingsBar() {
 
     async function probeAuth() {
       setProbe({ variant: 'offline', label: 'Checking' })
+      const normalizedBaseUrl = baseUrl.replace(/\/$/, '')
       try {
-        const healthResponse = await fetch(`${baseUrl.replace(/\/api\/v1$/, '')}/health`, {
+        const healthResponse = await fetch(`${normalizedBaseUrl}/health`, {
           method: 'GET',
           signal: controller.signal,
         })
@@ -40,7 +41,7 @@ export function ApiSettingsBar() {
           return
         }
 
-        const response = await fetch(`${baseUrl}/backtests?page_size=1`, {
+        const response = await fetch(`${normalizedBaseUrl}/backtests?page_size=1`, {
           method: 'GET',
           headers: apiKey ? { 'X-API-Key': apiKey } : {},
           signal: controller.signal,

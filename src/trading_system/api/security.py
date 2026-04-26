@@ -137,7 +137,7 @@ def _extract_api_key(request: Request) -> str | None:
 
 
 def _is_auth_exempt_path(path: str) -> bool:
-    return path == "/health" or path.startswith("/api/v1/admin/")
+    return path in {"/health", "/api/v1/health"} or path.startswith("/api/v1/admin/")
 
 
 def build_security_middleware(settings: SecuritySettings, key_repository=None):
