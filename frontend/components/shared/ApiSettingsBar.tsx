@@ -31,19 +31,21 @@ export function ApiSettingsBar() {
     async function probeAuth() {
       setProbe({ variant: 'offline', label: 'Checking' })
       const normalizedBaseUrl = baseUrl.replace(/\/$/, '')
+      const authHeaders: HeadersInit = apiKey ? { 'X-API-Key': apiKey } : {}
       try {
         const healthResponse = await fetch(`${normalizedBaseUrl}/health`, {
           method: 'GET',
+          headers: authHeaders,
           signal: controller.signal,
         })
-        if (!healthResponse.ok) {
+        if (!healthResponse.ok && healthResponse.status !== 401 && healthResponse.status !== 403) {
           setProbe({ variant: 'error', label: `Backend HTTP ${healthResponse.status}` })
           return
         }
 
         const response = await fetch(`${normalizedBaseUrl}/backtests?page_size=1`, {
           method: 'GET',
-          headers: apiKey ? { 'X-API-Key': apiKey } : {},
+          headers: authHeaders,
           signal: controller.signal,
         })
         if (response.ok) {
