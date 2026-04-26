@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from fnmatch import fnmatchcase
 from pathlib import Path
 from threading import Lock
 from typing import Iterable
@@ -36,7 +37,7 @@ class SecuritySettings:
         rate_limit_max = int(getenv("TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS", "60"))
         rate_limit_window = int(getenv("TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS", "60"))
         config_origins = _load_cors_origins_from_config(getenv("TRADING_SYSTEM_CONFIG_PATH"))
-        cors_origins = _split_csv(raw_origins) or config_origins
+        cors_origins = _split_cors_origins(raw_origins) or config_origins
         if environment in {"local", "dev", "development", "test"}:
             cors_origins = _merge_cors_origins(cors_origins, LOCAL_DEV_CORS_ORIGINS)
         return cls(
@@ -74,14 +75,26 @@ def _split_csv(raw_value: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in raw_value.split(",") if item.strip())
 
 
+def _split_cors_origins(raw_value: str) -> tuple[str, ...]:
+    return tuple(_normalize_cors_origin(item) for item in raw_value.split(",") if item.strip())
+
+
+def _normalize_cors_origin(origin: str) -> str:
+    normalized = origin.strip()
+    if normalized == "*":
+        return normalized
+    return normalized.rstrip("/")
+
+
 def _merge_cors_origins(
     configured: Iterable[str],
     additions: Iterable[str],
 ) -> tuple[str, ...]:
     merged: list[str] = []
     for origin in (*tuple(configured), *tuple(additions)):
-        if origin not in merged:
-            merged.append(origin)
+        normalized = _normalize_cors_origin(origin)
+        if normalized and normalized not in merged:
+            merged.append(normalized)
     return tuple(merged)
 
 
@@ -93,15 +106,25 @@ def _load_cors_origins_from_config(config_path: str | None) -> tuple[str, ...]:
 
 
 def _is_origin_allowed(origin: str | None, allowed_origins: Iterable[str]) -> bool:
-    allowed = tuple(allowed_origins)
-    return "*" in allowed or (origin is not None and origin in allowed)
+    allowed = tuple(_normalize_cors_origin(item) for item in allowed_origins)
+    if "*" in allowed:
+        return True
+    if origin is None:
+        return False
+    normalized_origin = _normalize_cors_origin(origin)
+    return any(
+        normalized_origin == allowed_origin
+        or ("*" in allowed_origin and fnmatchcase(normalized_origin, allowed_origin))
+        for allowed_origin in allowed
+    )
 
 
 def _cors_headers(origin: str | None, allowed_origins: Iterable[str]) -> dict[str, str]:
     if not _is_origin_allowed(origin, allowed_origins):
         return {}
 
-    allow_origin = origin if origin is not None and "*" not in allowed_origins else "*"
+    normalized_allowed = tuple(_normalize_cors_origin(item) for item in allowed_origins)
+    allow_origin = origin if origin is not None and "*" not in normalized_allowed else "*"
     return {
         "Access-Control-Allow-Origin": allow_origin,
         "Access-Control-Allow-Headers": "Authorization,Content-Type,X-API-Key,X-Correlation-ID",

@@ -37,3 +37,30 @@ def test_production_environment_does_not_append_local_cors_origins(monkeypatch) 
 
     assert settings.cors_allow_origins == ("https://app.example.com",)
     assert _cors_headers("http://localhost:3000", settings.cors_allow_origins) == {}
+
+
+def test_cors_origin_trailing_slash_is_normalized(monkeypatch) -> None:
+    monkeypatch.setenv("TRADING_SYSTEM_ENV", "production")
+    monkeypatch.setenv("TRADING_SYSTEM_CORS_ALLOW_ORIGINS", "https://app.example.com/")
+
+    settings = SecuritySettings.from_env()
+
+    assert settings.cors_allow_origins == ("https://app.example.com",)
+    headers = _cors_headers("https://app.example.com", settings.cors_allow_origins)
+    assert headers["Access-Control-Allow-Origin"] == "https://app.example.com"
+
+
+def test_cors_origin_wildcard_pattern_matches_preview_domains(monkeypatch) -> None:
+    monkeypatch.setenv("TRADING_SYSTEM_ENV", "production")
+    monkeypatch.setenv("TRADING_SYSTEM_CORS_ALLOW_ORIGINS", "https://*.vercel.app")
+
+    settings = SecuritySettings.from_env()
+
+    headers = _cors_headers(
+        "https://trading-system-git-main-user.vercel.app",
+        settings.cors_allow_origins,
+    )
+    assert headers["Access-Control-Allow-Origin"] == (
+        "https://trading-system-git-main-user.vercel.app"
+    )
+    assert _cors_headers("https://example.com", settings.cors_allow_origins) == {}

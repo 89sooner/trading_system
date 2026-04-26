@@ -62,7 +62,7 @@ export function ApiSettingsBar() {
         setProbe({ variant: 'error', label: `HTTP ${response.status}` })
       } catch (error) {
         if ((error as Error).name === 'AbortError') return
-        setProbe({ variant: 'error', label: 'Backend unreachable' })
+        setProbe({ variant: 'error', label: 'Network/CORS blocked' })
       }
     }
 

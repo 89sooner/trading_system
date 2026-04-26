@@ -218,7 +218,7 @@ Railway 대시보드 → 서비스 → **Variables** 탭:
 | `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` | `https://your-app.vercel.app` |
 
 > 쉼표로 여러 도메인을 지정할 수 있다: `https://your-app.vercel.app,https://custom-domain.com`
-> 값 끝에 슬래시(`/`)를 붙이지 않는다 — CORS 비교는 정확히 일치 방식이다.
+> 끝 슬래시는 자동 정규화된다. Vercel preview 배포는 `https://*.vercel.app` 같은 wildcard를 사용할 수 있다.
 
 환경변수 추가 후 Railway가 자동으로 재배포한다. 재배포 완료까지 대기한다.
 
@@ -360,9 +360,9 @@ git push
 **증상**: 브라우저 콘솔에 CORS 오류가 보인다.
 
 **체크리스트**:
-1. Railway의 `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` 값이 정확한지 확인.
-   - 올바른 형식: `https://your-app.vercel.app` (끝에 `/` 없음)
-   - 잘못된 형식: `https://your-app.vercel.app/` ← 슬래시 제거
+1. Railway의 `TRADING_SYSTEM_CORS_ALLOW_ORIGINS`에 프론트엔드 origin이 포함되어 있는지 확인.
+   - 정확한 origin: `https://your-app.vercel.app`
+   - Preview wildcard: `https://*.vercel.app`
 2. Railway 환경변수 수정 후 재배포가 완료됐는지 확인.
 3. Vercel의 `NEXT_PUBLIC_API_BASE_URL`에 `/api/v1`가 포함되어 있는지 확인.
 

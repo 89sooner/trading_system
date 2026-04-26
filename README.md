@@ -1004,7 +1004,7 @@ This guide covers deploying the backend to Railway, the frontend to Vercel, and 
 
 #### CORS note
 
-`TRADING_SYSTEM_CORS_ALLOW_ORIGINS` must contain the exact Vercel URL without a trailing slash (e.g. `https://your-app.vercel.app`). Multiple origins are comma-separated. The security middleware in `security.py` handles CORS; no additional `CORSMiddleware` is needed.
+`TRADING_SYSTEM_CORS_ALLOW_ORIGINS` must contain the frontend origin (e.g. `https://your-app.vercel.app`). Multiple origins are comma-separated. Trailing slashes are normalized, and wildcard origins such as `https://*.vercel.app` are supported for Vercel preview deployments. The security middleware in `security.py` handles CORS; no additional `CORSMiddleware` is needed.
 
 #### GitHub Actions CI
 
@@ -1057,7 +1057,7 @@ Push or open a PR to trigger `.github/workflows/ci.yml`. Two jobs run automatica
 
 #### CORS 설정
 
-`TRADING_SYSTEM_CORS_ALLOW_ORIGINS`에는 트레일링 슬래시 없이 Vercel URL을 정확히 입력합니다 (예: `https://your-app.vercel.app`). 여러 오리진은 쉼표로 구분합니다. CORS는 `security.py`의 보안 미들웨어에서 처리하며, 별도 `CORSMiddleware` 추가는 필요하지 않습니다.
+`TRADING_SYSTEM_CORS_ALLOW_ORIGINS`에는 프론트엔드 origin을 입력합니다 (예: `https://your-app.vercel.app`). 여러 오리진은 쉼표로 구분합니다. 끝 슬래시는 자동 정규화되며, Vercel preview 배포용으로 `https://*.vercel.app` 같은 wildcard origin도 지원합니다. CORS는 `security.py`의 보안 미들웨어에서 처리하며, 별도 `CORSMiddleware` 추가는 필요하지 않습니다.
 
 #### GitHub Actions CI
 

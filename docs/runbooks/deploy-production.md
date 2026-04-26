@@ -216,7 +216,7 @@ Railway dashboard → service → **Variables** tab:
 | `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` | `https://your-app.vercel.app` |
 
 > Multiple origins: comma-separated — `https://your-app.vercel.app,https://custom-domain.com`
-> No trailing slash — CORS comparison is exact-match.
+> Trailing slashes are normalized. Vercel preview deployments can use a wildcard such as `https://*.vercel.app`.
 
 Railway auto-redeploys after the variable is saved. Wait for redeployment to complete.
 
@@ -351,10 +351,9 @@ The container started but the process is not responding.
 
 ### CORS error in browser (`blocked by CORS policy`)
 
-1. Confirm `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` value is the exact Vercel URL
-   with no trailing slash.
-   - Correct: `https://your-app.vercel.app`
-   - Wrong: `https://your-app.vercel.app/`
+1. Confirm `TRADING_SYSTEM_CORS_ALLOW_ORIGINS` includes the frontend origin.
+   - Exact: `https://your-app.vercel.app`
+   - Preview wildcard: `https://*.vercel.app`
 2. Confirm the Railway redeployment after adding the variable has completed.
 3. Confirm `NEXT_PUBLIC_API_BASE_URL` includes `/api/v1`
    and does not have a trailing slash.
