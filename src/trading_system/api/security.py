@@ -72,15 +72,19 @@ class SimpleRateLimiter:
 
 
 def _split_csv(raw_value: str) -> tuple[str, ...]:
-    return tuple(item.strip() for item in raw_value.split(",") if item.strip())
+    return tuple(_normalize_env_csv_item(item) for item in raw_value.split(",") if item.strip())
 
 
 def _split_cors_origins(raw_value: str) -> tuple[str, ...]:
     return tuple(_normalize_cors_origin(item) for item in raw_value.split(",") if item.strip())
 
 
+def _normalize_env_csv_item(value: str) -> str:
+    return value.strip().strip("\"'").strip()
+
+
 def _normalize_cors_origin(origin: str) -> str:
-    normalized = origin.strip()
+    normalized = _normalize_env_csv_item(origin)
     if normalized == "*":
         return normalized
     return normalized.rstrip("/")

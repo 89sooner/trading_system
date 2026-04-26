@@ -14,6 +14,14 @@ def test_runtime_paths_still_require_auth() -> None:
     assert _is_auth_exempt_path("/api/v1/backtests") is False
 
 
+def test_allowed_api_keys_strip_quotes_and_outer_whitespace(monkeypatch) -> None:
+    monkeypatch.setenv("TRADING_SYSTEM_ALLOWED_API_KEYS", '"TS-PROD-KEY-A1B2C3D4 "')
+
+    settings = SecuritySettings.from_env()
+
+    assert settings.allowed_api_keys == ("TS-PROD-KEY-A1B2C3D4",)
+
+
 def test_local_environment_appends_loopback_cors_origins(monkeypatch) -> None:
     monkeypatch.setenv("TRADING_SYSTEM_ENV", "local")
     monkeypatch.setenv("TRADING_SYSTEM_CORS_ALLOW_ORIGINS", "https://app.example.com")

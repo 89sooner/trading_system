@@ -26,6 +26,7 @@ class SupabaseBacktestRunRepository:
     def __init__(self, database_url: str) -> None:
         self._database_url = database_url
         self._conn = None
+        self._schema_checked = False
 
     def _get_conn(self):
         """Return the live connection, (re-)connecting if necessary."""
@@ -33,7 +34,16 @@ class SupabaseBacktestRunRepository:
             if psycopg is None:
                 raise ModuleNotFoundError("psycopg is required for SupabaseBacktestRunRepository.")
             self._conn = psycopg.connect(self._database_url, autocommit=True)
+            self._schema_checked = False
+        self._ensure_schema()
         return self._conn
+
+    def _ensure_schema(self) -> None:
+        if self._schema_checked:
+            return
+        with self._conn.cursor() as cur:
+            cur.execute("ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS metadata JSONB")
+        self._schema_checked = True
 
     # ------------------------------------------------------------------
     # Protocol implementation

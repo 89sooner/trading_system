@@ -137,6 +137,7 @@ class SupabaseLiveRuntimeSessionRepository:
     def __init__(self, database_url: str) -> None:
         self._database_url = database_url
         self._conn: Any = None
+        self._schema_checked = False
 
     def save(self, record: LiveRuntimeSessionRecord) -> None:
         preflight_json = (
@@ -240,7 +241,38 @@ class SupabaseLiveRuntimeSessionRepository:
             import psycopg
 
             self._conn = psycopg.connect(self._database_url, autocommit=True)
+            self._schema_checked = False
+        self._ensure_schema()
         return self._conn
+
+    def _ensure_schema(self) -> None:
+        if self._schema_checked:
+            return
+        with self._conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS live_runtime_sessions (
+                    session_id         TEXT PRIMARY KEY,
+                    started_at         TIMESTAMPTZ NOT NULL,
+                    ended_at           TIMESTAMPTZ,
+                    provider           TEXT NOT NULL,
+                    broker             TEXT NOT NULL,
+                    live_execution     TEXT NOT NULL,
+                    symbols            TEXT[] NOT NULL DEFAULT '{}',
+                    last_state         TEXT NOT NULL,
+                    last_error         TEXT,
+                    preflight_summary  JSONB,
+                    created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_live_runtime_sessions_started_at
+                ON live_runtime_sessions (started_at DESC)
+                """
+            )
+        self._schema_checked = True
 
 
 def create_live_runtime_session_repository() -> LiveRuntimeSessionRepository:

@@ -42,6 +42,12 @@ def _make_repo():
 
 
 class TestSaveExecutesUpsert:
+    def test_save_ensures_metadata_column(self):
+        repo, _, mock_cursor = _make_repo()
+        repo.save(_make_run())
+        calls = [call.args[0] for call in mock_cursor.execute.call_args_list]
+        assert any("ADD COLUMN IF NOT EXISTS metadata JSONB" in sql for sql in calls)
+
     def test_save_calls_execute_with_run_id(self):
         repo, _, mock_cursor = _make_repo()
         run = _make_run()
