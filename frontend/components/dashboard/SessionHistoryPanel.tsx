@@ -1,10 +1,12 @@
 'use client'
 
+import Link from 'next/link'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { History, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 import { DataTable, type Column } from '@/components/domain/DataTable'
 import { DashboardPanel } from '@/components/dashboard/DashboardPanel'
 import { SessionDetailDialog } from '@/components/dashboard/SessionDetailDialog'
@@ -63,6 +65,12 @@ export function SessionHistoryPanel() {
         action={
           <div className="flex items-center gap-2">
             <History className="h-4 w-4 text-muted-foreground" />
+            <Link
+              href="/dashboard/sessions"
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            >
+              Search
+            </Link>
             <Button variant="outline" size="sm" onClick={() => sessionsQuery.refetch()}>
               <RefreshCw className="mr-1 h-3 w-3" />
               Refresh

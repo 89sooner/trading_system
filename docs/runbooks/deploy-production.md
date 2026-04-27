@@ -83,6 +83,7 @@ psql "$DATABASE_URL" -f scripts/migrations/001_create_backtest_runs.sql
 psql "$DATABASE_URL" -f scripts/migrations/002_create_equity_snapshots.sql
 psql "$DATABASE_URL" -f scripts/migrations/003_add_backtest_metadata_and_live_runtime_sessions.sql
 psql "$DATABASE_URL" -f scripts/migrations/004_add_order_audit_records.sql
+psql "$DATABASE_URL" -f scripts/migrations/005_add_live_runtime_event_archive.sql
 ```
 
 If `psql` is unavailable, use the **Supabase dashboard SQL Editor**:
@@ -91,6 +92,7 @@ If `psql` is unavailable, use the **Supabase dashboard SQL Editor**:
 3. Repeat for `002_create_equity_snapshots.sql`.
 4. Repeat for `003_add_backtest_metadata_and_live_runtime_sessions.sql`.
 5. Repeat for `004_add_order_audit_records.sql`.
+6. Repeat for `005_add_live_runtime_event_archive.sql`.
 
 ### 1-4. Verify table creation
 
@@ -99,6 +101,7 @@ In the Supabase dashboard → **Table Editor**, confirm these tables exist:
 - `equity_snapshots`
 - `live_runtime_sessions`
 - `order_audit_records`
+- `live_runtime_events`
 
 Or verify via SQL Editor:
 ```sql
@@ -106,7 +109,7 @@ SELECT table_name FROM information_schema.tables
 WHERE table_schema = 'public';
 ```
 
-**Exit criteria**: `backtest_runs`, `equity_snapshots`, `live_runtime_sessions`, and `order_audit_records` tables exist.
+**Exit criteria**: `backtest_runs`, `equity_snapshots`, `live_runtime_sessions`, `order_audit_records`, and `live_runtime_events` tables exist.
 `idx_equity_snapshots_session_ts` index is present on `equity_snapshots`.
 
 ---

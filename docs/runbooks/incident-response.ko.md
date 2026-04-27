@@ -11,6 +11,7 @@
 2. 민감정보(`api_key`, `token`, `password`, `secret`)가 로그에 마스킹(`***`)되었는지 확인한다.
 3. 외부 I/O 경계(`data` 공급자, `execution` 브로커 어댑터)의 재시도/타임아웃/서킷브레이커 상태를 확인한다.
 4. 대시보드가 연결된 환경이면 `/api/v1/dashboard/status`, `/api/v1/dashboard/events` 결과와 로그 이벤트를 함께 대조한다.
+5. 종료된 session은 `/dashboard/sessions` 또는 `/api/v1/live/runtime/sessions/<session_id>/evidence`에서 archived runtime incident, equity point count, live-session order audit record를 함께 대조한다.
 
 ## 시나리오 A: 데이터 끊김(data disconnect)
 

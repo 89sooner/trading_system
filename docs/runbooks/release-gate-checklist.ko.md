@@ -35,6 +35,7 @@ KIS 실주문 경로는 구현되어 있지만 `TRADING_SYSTEM_ENABLE_LIVE_ORDER
 - [ ] 리스크 거절/비상 정지 시나리오 점검(incident-response 시나리오 B)
 - [ ] 주문 실패/브로커 오류 시나리오 점검(incident-response 시나리오 C)
 - [ ] 브로커 스냅샷 사용 환경이면 대사 불일치 시나리오 점검(incident-response 시나리오 D)
+- [ ] `/api/v1/live/runtime/sessions/<session_id>/evidence`와 `/dashboard/sessions` route로 historical live session review 검증
 
 ## Gate 5: Sign-off
 

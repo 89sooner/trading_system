@@ -26,9 +26,9 @@ Suggested flow:
 Current implementation note:
 
 - The repository orchestrates both deterministic backtests and continuous live trading loops through a unified execution core (`execute_trading_step`).
-- HTTP APIs expose backtests, pattern/strategy management, analytics, admin key management, `/health`, dashboard control, and live runtime session history on top of the same runtime services.
+- HTTP APIs expose backtests, pattern/strategy management, analytics, admin key management, `/health`, dashboard control, and searchable/exportable live runtime session history with session evidence on top of the same runtime services.
 - Live trading is managed by `LiveTradingLoop` with state control (`AppRunnerState`), heartbeat logging, and graceful shutdown.
-- Portfolio state persists locally via `book.json`, while backtest runs, run metadata, dashboard equity history, and live runtime session history persist through file-based storage or Supabase-backed PostgreSQL depending on `DATABASE_URL`.
+- Portfolio state persists locally via `book.json`, while backtest runs, run metadata, dashboard equity history, live runtime session history, and incident-relevant runtime event archives persist through file-based storage or Supabase-backed PostgreSQL depending on `DATABASE_URL`.
 - Backtest runs carry operator metadata such as provider, broker, strategy profile, pattern set, source, and optional notes.
 - Backtest execution is owned by an API dispatcher with `queued`/`running`/terminal states, and dispatcher status plus queue depth are queryable through the API.
 - Order creation, fills, rejections, and risk rejections can be stored, queried, and exported as durable order audit records owned by a backtest run or live session. Broker order ids are preserved when available.

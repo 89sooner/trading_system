@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from trading_system.app.live_runtime_controller import LiveRuntimeController
+from trading_system.app.live_runtime_events import LiveRuntimeEventRecord
 from trading_system.app.live_runtime_history import LiveRuntimeSessionRecord
 from trading_system.app.services import PreflightCheckResult
 from trading_system.app.settings import (
@@ -16,12 +17,27 @@ from trading_system.app.settings import (
     RiskSettings,
 )
 from trading_system.app.state import AppRunnerState
+from trading_system.core.ops import EventRecord
+
+
+class _FakeLogger:
+    def __init__(self) -> None:
+        self.subscribers = []
+
+    def emit(self, *args, **kwargs) -> None:
+        return None
+
+    def subscribe(self, callback) -> None:
+        self.subscribers.append(callback)
+
+    def unsubscribe(self, callback) -> None:
+        self.subscribers = [item for item in self.subscribers if item is not callback]
 
 
 class _FakeLoop:
     def __init__(self) -> None:
         self.state = AppRunnerState.INIT
-        self.services = SimpleNamespace(logger=SimpleNamespace(emit=lambda *args, **kwargs: None))
+        self.services = SimpleNamespace(logger=_FakeLogger())
 
     def run(self) -> None:
         self.state = AppRunnerState.RUNNING
@@ -52,6 +68,17 @@ class _HistoryRepo:
 
     def list(self, limit: int = 20):
         return list(reversed(self.records))[:limit]
+
+
+class _EventRepo:
+    def __init__(self) -> None:
+        self.records: list[LiveRuntimeEventRecord] = []
+
+    def append(self, record: LiveRuntimeEventRecord) -> None:
+        self.records.append(record)
+
+    def list(self, query):
+        return self.records
 
 
 def _make_settings() -> AppSettings:
@@ -169,3 +196,37 @@ def test_controller_persists_session_history_with_matching_preflight() -> None:
     assert saved.preflight_summary is not None
     assert saved.preflight_summary['message'] == 'ok'
     assert saved.last_state == 'stopped'
+
+
+def test_controller_archives_selected_runtime_events() -> None:
+    loop = _FakeLoop()
+    events = _EventRepo()
+    controller = LiveRuntimeController(
+        services_builder=lambda settings: _FakeServices(loop),
+        attach_loop=lambda current: None,
+        event_repository=events,
+    )
+
+    session = controller.start(_make_settings())
+    deadline = time.monotonic() + 1.0
+    while time.monotonic() < deadline:
+        if loop.services.logger.subscribers:
+            break
+        time.sleep(0.01)
+    else:
+        raise AssertionError("controller did not subscribe event archive")
+
+    loop.services.logger.subscribers[0](
+        EventRecord(
+            event="system.error",
+            severity="ERROR",
+            correlation_id="cid-1",
+            timestamp="2026-04-19T00:00:00Z",
+            payload={"reason": "boom"},
+        )
+    )
+    controller.stop(timeout=1.0)
+
+    assert events.records[0].session_id == session.session_id
+    assert events.records[0].event == "system.error"
+    assert loop.services.logger.subscribers == []

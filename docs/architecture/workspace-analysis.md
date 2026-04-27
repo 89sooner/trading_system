@@ -26,10 +26,10 @@ The app layer cleanly separates CLI argument handling (`app.main`) from service 
 - `--mode backtest` executes the deterministic replay path.
 - `--mode live` defaults to preflight, can run a paper loop, and can submit live orders only behind explicit KIS-specific guards.
 - `LiveTradingLoop` manages state transitions, heartbeats, reconciliation attempts, and restart-safe portfolio persistence.
-- The dashboard API can now start and own one live loop process through `LiveRuntimeController`, while also persisting a durable session history.
+- The dashboard API can now start and own one live loop process through `LiveRuntimeController`, while also persisting durable session history and incident-relevant runtime event archives.
 
 Current limitation:
-- Recent live session history is visible in the dashboard, but long-term search, filtering, and export are not yet implemented.
+- Live session history can be searched, exported, and reviewed from `/dashboard/sessions`, but retention/prune policy for old session and event archive records is not yet implemented.
 
 ### Data
 
@@ -154,7 +154,7 @@ This gives a strong regression baseline for deterministic replay, runtime valida
 ## Remaining gaps before broader production use
 
 1. **Distributed run execution**: backtests are separated through the internal dispatcher, but there is still no external queue or multi-worker model for long-running workloads.
-2. **Session history UX**: recent live runtime sessions are visible in the dashboard, but long-term search and export are not yet implemented.
+2. **Session history retention**: live runtime sessions can be searched/exported/reviewed, but old session and event archive retention/prune policy is not yet implemented.
 3. **Config parity**: strategy profile selection is aligned across CLI/YAML/API, but there is still no UI workflow for editing a full YAML runtime config.
 4. **Exchange snapshot integration**: KIS open-order snapshots are wired as pending authority, but cancel/replace and long-running order polling workflows are still not implemented.
 5. **Operational hardening**: repository-managed API keys now track disabled/last-used state, but richer auth, alerting, audit export, and deployment guidance are still lighter than a fully managed trading platform would require.
@@ -162,6 +162,6 @@ This gives a strong regression baseline for deterministic replay, runtime valida
 ## Recommended next backlog
 
 1. Add an external queue/worker model and clearer operator visibility around long-running backtests.
-2. Add long-term search/export for live runtime session history and historical incident review.
+2. Add retention/prune policy and operator guidance for live runtime session and event archives.
 3. Evaluate cancel/replace or long-running order polling workflows on top of the KIS open-order source.
 4. Decide whether additional strategy runtime settings should become first-class YAML fields or remain API/runtime-only inputs.

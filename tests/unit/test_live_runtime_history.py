@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 from trading_system.app.live_runtime_history import (
     FileLiveRuntimeSessionRepository,
+    LiveRuntimeSessionFilter,
     LiveRuntimeSessionRecord,
     SupabaseLiveRuntimeSessionRepository,
 )
@@ -47,6 +48,39 @@ def test_file_live_runtime_session_repository_lists_latest_first(tmp_path) -> No
 
     assert len(items) == 1
     assert items[0].session_id == "live_2"
+
+
+def test_file_live_runtime_session_repository_search_filters_and_paginates(tmp_path) -> None:
+    repo = FileLiveRuntimeSessionRepository(tmp_path)
+    repo.save(_record("live_1", "2026-04-19T00:00:00Z"))
+    repo.save(_record("live_2", "2026-04-19T00:10:00Z"))
+    repo.save(
+        LiveRuntimeSessionRecord(
+            session_id="live_3",
+            started_at="2026-04-19T00:20:00Z",
+            ended_at="2026-04-19T00:25:00Z",
+            provider="mock",
+            broker="paper",
+            live_execution="paper",
+            symbols=["BTCUSDT"],
+            last_state="error",
+            last_error="boom",
+            preflight_summary=None,
+        )
+    )
+
+    result = repo.search(
+        query=LiveRuntimeSessionFilter(
+            provider="mock",
+            symbol="BTCUSDT",
+            has_error=True,
+            page=1,
+            page_size=10,
+        )
+    )
+
+    assert result.total == 1
+    assert result.records[0].session_id == "live_3"
 
 
 def test_supabase_live_runtime_session_repository_ensures_schema() -> None:

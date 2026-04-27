@@ -26,10 +26,10 @@
 - `--mode backtest`는 결정적 재생 경로를 실행합니다.
 - `--mode live`는 기본적으로 preflight이며, paper 루프를 실행할 수 있고, KIS 전용 가드 뒤에서만 라이브 주문을 제출할 수 있습니다.
 - `LiveTradingLoop`는 상태 전이, heartbeat, 대사 시도, 재시작 복구용 포트폴리오 영속화를 관리합니다.
-- 대시보드 API는 이제 `LiveRuntimeController`를 통해 단일 live loop를 직접 시작하고 소유하며, 최근 session history도 durable하게 남깁니다.
+- 대시보드 API는 이제 `LiveRuntimeController`를 통해 단일 live loop를 직접 시작하고 소유하며, session history와 incident-relevant runtime event archive를 durable하게 남깁니다.
 
 현재 한계:
-- live session history는 dashboard의 최근 세션 패널에서 탐색 가능하지만, 장기 검색/필터/내보내기 전용 화면은 아직 없습니다.
+- live session history는 `/dashboard/sessions`에서 검색/export/evidence review가 가능하지만, 장기 보존 정책과 retention/prune workflow는 아직 없습니다.
 
 ### Data
 
@@ -154,7 +154,7 @@
 ## 더 넓은 프로덕션 사용 전 남은 갭
 
 1. **분산 실행 모델**: 백테스트는 내부 dispatcher로 분리되었지만, 긴 실행을 여러 worker나 외부 queue로 분산하는 모델은 아직 없습니다.
-2. **Session history UX**: 최근 live runtime session은 dashboard에서 볼 수 있지만, 장기 검색과 export는 아직 없습니다.
+2. **Session history retention**: live runtime session은 검색/export/evidence review가 가능하지만, 오래된 session/event archive의 retention/prune 정책은 아직 없습니다.
 3. **Config parity**: 전략 프로필 선택은 CLI/YAML/API에 정렬되었지만, UI에서 YAML 전체를 편집하는 워크플로는 없습니다.
 4. **Exchange snapshot integration**: KIS open-order snapshot은 pending authority로 연결되었지만, 주문 취소/정정과 장기 order polling worker는 아직 없습니다.
 5. **Operational hardening**: 저장소 기반 API key는 disabled/last-used 추적을 지원하지만, 더 강한 auth, alerting, audit export, deployment guidance는 아직 완전 관리형 트레이딩 플랫폼 수준은 아닙니다.
@@ -162,6 +162,6 @@
 ## 권장 다음 백로그
 
 1. 외부 queue/worker 모델과 장시간 백테스트 운영 가시성을 강화합니다.
-2. 과거 live runtime session과 incident의 장기 검색/export 워크플로를 추가합니다.
+2. live runtime session/event archive의 retention/prune 정책과 운영 기준을 추가합니다.
 3. KIS open-order source를 기반으로 한 주문 취소/정정 또는 장기 order polling workflow를 검토합니다.
 4. YAML 전체를 UI에서 관리할지, 파일 기반 운영자 워크플로로 유지할지 결정합니다.

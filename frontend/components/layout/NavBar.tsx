@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 const NAV_LINKS = [
   { href: '/', label: 'New Run' },
   { href: '/dashboard', label: 'Dashboard' },
+  { href: '/dashboard/sessions', label: 'Sessions' },
   { href: '/runs', label: 'Runs' },
   { href: '/patterns', label: 'Patterns' },
   { href: '/strategies', label: 'Strategies' },
@@ -19,8 +20,8 @@ export function NavBar() {
   return (
     <nav className="flex items-center gap-1">
       {NAV_LINKS.map((link) => {
-        const isActive = link.href === '/'
-          ? pathname === '/'
+        const isActive = link.href === '/' || link.href === '/dashboard'
+          ? pathname === link.href
           : pathname.startsWith(link.href)
         return (
           <Link

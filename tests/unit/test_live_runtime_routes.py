@@ -12,6 +12,56 @@ from trading_system.api.schemas import ControlActionDTO, LiveRuntimeStartRequest
 from trading_system.app.services import PreflightCheckResult
 from trading_system.app.state import AppRunnerState
 from trading_system.core.ops import EventRecord
+from trading_system.execution.order_audit import OrderAuditRecord
+
+
+class _FakeEquityReader:
+    def read_session(self, session_id: str, limit: int = 300):
+        return [
+            {
+                'timestamp': '2026-04-17T00:00:00Z',
+                'equity': '10000',
+                'cash': '9000',
+                'positions_value': '1000',
+            }
+        ]
+
+
+class _FakeOrderAuditRepository:
+    def list(self, **kwargs):
+        return [
+            OrderAuditRecord(
+                record_id='audit-1',
+                scope='live_session',
+                owner_id=kwargs.get('owner_id') or 'session-1',
+                event='order.filled',
+                symbol='BTCUSDT',
+                side='buy',
+                requested_quantity='1',
+                filled_quantity='1',
+                price='100',
+                status='filled',
+                reason=None,
+                timestamp='2026-04-17T00:00:00Z',
+                payload={},
+                broker_order_id='broker-1',
+            )
+        ]
+
+
+class _FakeEventRepository:
+    def list(self, query):
+        return [
+            SimpleNamespace(
+                record_id='event-1',
+                session_id=query.session_id,
+                event='system.error',
+                severity='ERROR',
+                correlation_id='cid-1',
+                timestamp='2026-04-17T00:00:00Z',
+                payload={'reason': 'boom'},
+            )
+        ]
 
 
 def _make_request(controller, live_loop=None):
@@ -223,3 +273,109 @@ def test_start_live_runtime_rejects_failed_preflight(monkeypatch) -> None:
         live_runtime_routes.start_live_runtime(payload, request)
 
     assert exc.value.status_code == 409
+
+
+def test_list_live_runtime_sessions_uses_search_filters() -> None:
+    repo = MagicMock()
+    record = SimpleNamespace(
+        session_id='live_20260417_000000',
+        started_at='2026-04-17T00:00:00Z',
+        ended_at=None,
+        provider='mock',
+        broker='paper',
+        live_execution='paper',
+        symbols=['BTCUSDT'],
+        last_state='stopped',
+        last_error=None,
+        preflight_summary=None,
+    )
+    repo.search.return_value = SimpleNamespace(
+        records=[record],
+        total=1,
+        page=2,
+        page_size=5,
+    )
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(live_runtime_history_repository=repo))
+    )
+
+    response = live_runtime_routes.list_live_runtime_sessions(
+        request,
+        page=2,
+        page_size=5,
+        provider='mock',
+        symbol='btcusdt',
+    )
+
+    assert response.total == 1
+    assert response.page == 2
+    assert response.page_size == 5
+    assert response.sessions[0].session_id == 'live_20260417_000000'
+    query = repo.search.call_args.args[0]
+    assert query.provider == 'mock'
+    assert query.symbol == 'btcusdt'
+
+
+def test_export_live_runtime_sessions_returns_csv() -> None:
+    repo = MagicMock()
+    repo.search.return_value = SimpleNamespace(
+        records=[
+            SimpleNamespace(
+                session_id='live_20260417_000000',
+                started_at='2026-04-17T00:00:00Z',
+                ended_at=None,
+                provider='mock',
+                broker='paper',
+                live_execution='paper',
+                symbols=['BTCUSDT'],
+                last_state='stopped',
+                last_error=None,
+                preflight_summary=None,
+            )
+        ],
+        total=1,
+        page=1,
+        page_size=1000,
+    )
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(live_runtime_history_repository=repo))
+    )
+
+    response = live_runtime_routes.export_live_runtime_sessions(request, format='csv')
+
+    assert response.media_type == 'text/csv'
+    assert response.headers['x-live-session-record-count'] == '1'
+    assert 'live_20260417_000000' in response.body.decode()
+
+
+def test_live_runtime_session_evidence_returns_related_records() -> None:
+    history = MagicMock()
+    history.get.return_value = SimpleNamespace(
+        session_id='session-1',
+        started_at='2026-04-17T00:00:00Z',
+        ended_at=None,
+        provider='mock',
+        broker='paper',
+        live_execution='paper',
+        symbols=['BTCUSDT'],
+        last_state='stopped',
+        last_error=None,
+        preflight_summary=None,
+    )
+    request = SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(
+                live_runtime_history_repository=history,
+                order_audit_repository=_FakeOrderAuditRepository(),
+                live_runtime_event_repository=_FakeEventRepository(),
+                historical_equity_reader=_FakeEquityReader(),
+            )
+        )
+    )
+
+    response = live_runtime_routes.get_live_runtime_session_evidence('session-1', request)
+
+    assert response.order_audit_count == 1
+    assert response.equity_point_count == 1
+    assert response.archived_event_count == 1
+    assert response.recent_order_audit_records[0].broker_order_id == 'broker-1'

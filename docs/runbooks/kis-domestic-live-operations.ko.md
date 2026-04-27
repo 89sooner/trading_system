@@ -124,6 +124,7 @@ TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true TRADING_SYSTEM_LIVE_BAR_SAMPLES=2 TRADING
 - [ ] `portfolio.reconciliation.*` 이벤트가 비정상적으로 `skipped`에만 고정되지 않는다
 - [ ] `portfolio.reconciliation.pending_source`가 기록되고, KIS 경로에서는 가능한 경우 `open_orders` source가 사용된다
 - [ ] `/api/v1/order-audit/export?scope=live_session&owner_id=<session_id>&format=csv`로 session 주문 감사 기록을 export할 수 있다
+- [ ] `/dashboard/sessions` 또는 `/api/v1/live/runtime/sessions/<session_id>/evidence`로 종료 session evidence를 검토할 수 있다
 - [ ] `pause`가 실제로 상태를 `paused`로 바꾼다
 - [ ] `resume`이 실제로 상태를 다시 `running`으로 바꾼다
 - [ ] `stop` 후 dashboard가 clean disconnected/stopped 상태로 돌아간다

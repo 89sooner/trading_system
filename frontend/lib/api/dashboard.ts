@@ -11,6 +11,9 @@ import type {
   LiveRuntimeStartResponseDTO,
   LiveRuntimeSessionList,
   LiveRuntimeSessionRecord,
+  LiveRuntimeSessionEvidence,
+  LiveRuntimeSessionExportParams,
+  LiveRuntimeSessionSearchParams,
   OrderAuditExportParams,
 } from './types'
 
@@ -47,13 +50,54 @@ export const postLiveRuntimeStart = (payload: LiveRuntimeStartRequestDTO) =>
     body: JSON.stringify({ mode: 'live', ...payload }),
   })
 
-export const listLiveRuntimeSessions = (limit = 20) =>
-  requestJson<LiveRuntimeSessionList>(`/live/runtime/sessions?limit=${limit}`)
+function sessionSearchQuery(params?: LiveRuntimeSessionSearchParams) {
+  const qs = new URLSearchParams()
+  if (params?.limit != null) qs.set('limit', String(params.limit))
+  if (params?.page != null) qs.set('page', String(params.page))
+  if (params?.page_size != null) qs.set('page_size', String(params.page_size))
+  if (params?.start) qs.set('start', params.start)
+  if (params?.end) qs.set('end', params.end)
+  if (params?.provider) qs.set('provider', params.provider)
+  if (params?.broker) qs.set('broker', params.broker)
+  if (params?.live_execution) qs.set('live_execution', params.live_execution)
+  if (params?.state) qs.set('state', params.state)
+  if (params?.symbol) qs.set('symbol', params.symbol)
+  if (params?.has_error != null) qs.set('has_error', String(params.has_error))
+  if (params?.sort) qs.set('sort', params.sort)
+  return qs.toString()
+}
+
+export const listLiveRuntimeSessions = (
+  params: number | LiveRuntimeSessionSearchParams = 20,
+) => {
+  const query = typeof params === 'number'
+    ? sessionSearchQuery({ limit: params })
+    : sessionSearchQuery(params)
+  return requestJson<LiveRuntimeSessionList>(
+    `/live/runtime/sessions${query ? `?${query}` : ''}`,
+  )
+}
 
 export const getLiveRuntimeSession = (sessionId: string) =>
   requestJson<LiveRuntimeSessionRecord>(
     `/live/runtime/sessions/${encodeURIComponent(sessionId)}`,
   )
+
+export const getLiveRuntimeSessionEquity = (sessionId: string, limit = 300) =>
+  requestJson<EquityTimeseriesResponse>(
+    `/live/runtime/sessions/${encodeURIComponent(sessionId)}/equity?limit=${limit}`,
+  )
+
+export const getLiveRuntimeSessionEvidence = (sessionId: string, limit = 20) =>
+  requestJson<LiveRuntimeSessionEvidence>(
+    `/live/runtime/sessions/${encodeURIComponent(sessionId)}/evidence?limit=${limit}`,
+  )
+
+export const exportLiveRuntimeSessions = (params: LiveRuntimeSessionExportParams = {}) => {
+  const qs = new URLSearchParams(sessionSearchQuery(params))
+  qs.set('format', params.format ?? 'csv')
+  return requestText(`/live/runtime/sessions/export?${qs.toString()}`)
+}
 
 export const exportLiveSessionOrderAudit = (params: Omit<OrderAuditExportParams, 'scope'>) => {
   const qs = new URLSearchParams()

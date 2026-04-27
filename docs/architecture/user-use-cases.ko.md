@@ -41,7 +41,9 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
 | `/api/v1/order-audit` | backtest run 또는 live session 기준 주문 감사 record 조회 | 운영자, 리서처 |
 | `/api/v1/order-audit/export` | owner/time/status/broker id 기준 주문 감사 CSV/JSONL export | 운영자, 통합 담당자 |
 | `/api/v1/live/preflight` | 라이브 실행 전 또는 실행 모드 선택 시 런타임 경로 검증 | 운영자, 통합 담당자 |
-| `/api/v1/live/runtime/sessions` | 최근 live runtime session history 조회 | 운영자, 통합 담당자 |
+| `/api/v1/live/runtime/sessions` | live runtime session history 검색/필터/조회 | 운영자, 통합 담당자 |
+| `/api/v1/live/runtime/sessions/export` | live runtime session history CSV/JSONL export | 운영자, 통합 담당자 |
+| `/api/v1/live/runtime/sessions/{session_id}/evidence` | session id 기준 equity/order audit/incident evidence 조회 | 운영자, 통합 담당자 |
 | `/api/v1/patterns` | 패턴 세트 학습, 저장, 목록 조회, 상세 조회 | 리서처 |
 | `/api/v1/strategies` | 재사용 가능한 전략 프로필 저장 및 조회 | 리서처 |
 | `/api/v1/analytics/backtests/{run_id}/trades` | 완료된 백테스트의 거래 단위 애널리틱스 조회 | 리서처 |
@@ -56,7 +58,8 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
 | 전략 프로필 | `configs/strategies/*.json` | 패턴 라벨을 매매 액션으로 매핑하는 설정 |
 | 포트폴리오 스냅샷 | `data/portfolio/book.json` | 라이브 세션 재시작 시 복구 가능한 포트폴리오 상태 |
 | 백테스트 실행 결과 + metadata | 파일 저장소 또는 Supabase PostgreSQL | durable한 실행 조회, 운영 문맥, 애널리틱스 |
-| 라이브 runtime session history | 파일 저장소 또는 Supabase PostgreSQL | 최근 라이브 세션 조회와 사후 검토 |
+| 라이브 runtime session history | 파일 저장소 또는 Supabase PostgreSQL | 라이브 세션 검색, export, 사후 검토 |
+| 라이브 runtime event archive | 파일 저장소 또는 Supabase PostgreSQL | warning/error/risk/reconciliation/control event의 session 단위 incident review |
 | 주문 감사 record | 파일 저장소 또는 Supabase PostgreSQL | run/session owner 기준 주문 생성, 체결, 거절, 리스크 거절 조회 |
 | 프론트엔드 실행 이력 fallback | 브라우저 로컬 스토리지 | 백엔드가 내려간 경우를 위한 보조 캐시 |
 
@@ -243,7 +246,7 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
   - 최근 이벤트 스트림
   - 재시작 복구 가능한 포트폴리오 스냅샷
 - 현재 제약:
-  - `stop` 제어는 지원하지만, 과거 live session을 전용으로 탐색하는 프런트엔드 화면은 아직 없다
+  - 과거 live session은 `/dashboard/sessions`에서 검색과 evidence review가 가능하지만, 오래된 session retention/prune 정책은 아직 없다
   - 페이퍼 실행은 라이브와 같은 루프 메커니즘을 공유하며, API 프로세스는 한 번에 하나의 active runtime session만 소유한다
   - 라이브 대시보드는 활성 루프가 `app.state.live_loop`에 연결된 상태로 API 서버가 실행될 때만 동작한다
 

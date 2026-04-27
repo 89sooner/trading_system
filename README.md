@@ -257,6 +257,8 @@ Live runtime orchestration is API-owned:
 
 - `GET /api/v1/dashboard/status` returns controller state even when no loop is active.
 - `POST /api/v1/live/runtime/start` launches one live session after re-running preflight on the server and returns the exact structured preflight snapshot used for that start attempt.
+- `GET /api/v1/live/runtime/sessions` supports historical session filters (`start`, `end`, `provider`, `broker`, `live_execution`, `state`, `symbol`, `has_error`) plus pagination, and `/api/v1/live/runtime/sessions/export` returns bounded CSV/JSONL exports.
+- `GET /api/v1/live/runtime/sessions/<session_id>/evidence` combines session metadata, order-audit summary, archived runtime incidents, and equity point count for post-run review.
 - `POST /api/v1/dashboard/control` now supports `pause`, `resume`, `reset`, and `stop`.
 - Only one live session may be active per API process at a time.
 
@@ -346,6 +348,8 @@ curl -X POST http://127.0.0.1:8000/api/v1/live/preflight \
 
 - `GET /api/v1/dashboard/status`는 active loop가 없어도 controller 상태를 반환합니다.
 - `POST /api/v1/live/runtime/start`는 서버에서 preflight를 다시 수행한 뒤 단일 live session을 시작합니다.
+- `GET /api/v1/live/runtime/sessions`는 `start`, `end`, `provider`, `broker`, `live_execution`, `state`, `symbol`, `has_error` 필터와 pagination을 지원하며, `/api/v1/live/runtime/sessions/export`는 bounded CSV/JSONL export를 반환합니다.
+- `GET /api/v1/live/runtime/sessions/<session_id>/evidence`는 session metadata, order audit 요약, archived runtime incident, equity point count를 session id 기준으로 묶어 반환합니다.
 - `POST /api/v1/dashboard/control`은 이제 `pause`, `resume`, `reset`, `stop`을 지원합니다.
 - 한 API 프로세스 안에서 동시에 하나의 live session만 허용됩니다.
 
@@ -742,7 +746,7 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_PORTFOLIO_DIR` (optional): Directory where the portfolio book JSON is persisted (default: `data/portfolio`)
 - `TRADING_SYSTEM_RUNS_DIR` (optional): Directory for file-based backtest run persistence when `DATABASE_URL` is unset (default: `data/runs`)
 - `TRADING_SYSTEM_EQUITY_DIR` (optional): Directory for file-based live equity snapshots when `DATABASE_URL` is unset (default: `data/equity`)
-- `DATABASE_URL` (optional): PostgreSQL connection string for Supabase-backed run/equity persistence. When set, apply `scripts/migrations/001_create_backtest_runs.sql` and `scripts/migrations/002_create_equity_snapshots.sql` before starting the API or live paper mode.
+- `DATABASE_URL` (optional): PostgreSQL connection string for Supabase-backed run/equity/session persistence. When set, apply `scripts/migrations/001_create_backtest_runs.sql` through `scripts/migrations/005_add_live_runtime_event_archive.sql` before starting the API or live paper mode.
 - `TRADING_SYSTEM_LIVE_POLL_INTERVAL` (optional): Seconds to wait between live ticks (default: `10`)
 - `TRADING_SYSTEM_HEARTBEAT_INTERVAL` (optional): Seconds between heartbeat logs (default: `60`)
 - `TRADING_SYSTEM_RECONCILIATION_INTERVAL` (optional): Seconds between broker balance reconciliation attempts in the live loop (default: `300`)
@@ -771,7 +775,7 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_PORTFOLIO_DIR` (선택): 포트폴리오 상태(JSON)가 영속화되는 디렉터리 (기본값: `data/portfolio`)
 - `TRADING_SYSTEM_RUNS_DIR` (선택): `DATABASE_URL`이 없을 때 백테스트 런 메타데이터를 저장하는 디렉터리 (기본값: `data/runs`)
 - `TRADING_SYSTEM_EQUITY_DIR` (선택): `DATABASE_URL`이 없을 때 라이브 equity 스냅샷(JSONL)을 저장하는 디렉터리 (기본값: `data/equity`)
-- `DATABASE_URL` (선택): Supabase 기반 run/equity 영속화용 PostgreSQL 연결 문자열. 값을 설정했다면 API 또는 라이브 페이퍼 모드 시작 전에 `scripts/migrations/001_create_backtest_runs.sql`, `scripts/migrations/002_create_equity_snapshots.sql`를 먼저 적용해야 합니다.
+- `DATABASE_URL` (선택): Supabase 기반 run/equity/session 영속화용 PostgreSQL 연결 문자열. 값을 설정했다면 API 또는 라이브 페이퍼 모드 시작 전에 `scripts/migrations/001_create_backtest_runs.sql`부터 `scripts/migrations/005_add_live_runtime_event_archive.sql`까지 먼저 적용해야 합니다.
 - `TRADING_SYSTEM_LIVE_POLL_INTERVAL` (선택): 라이브 루프에서 시세를 받아오는 간격 초 단위 (기본값: `10`)
 - `TRADING_SYSTEM_HEARTBEAT_INTERVAL` (선택): 하트비트 로그 기록 간격 (기본값: `60`)
 - `TRADING_SYSTEM_RECONCILIATION_INTERVAL` (선택): 라이브 루프의 브로커 잔고 대사 시도 간격 초 단위 (기본값: `300`)
@@ -977,6 +981,9 @@ This guide covers deploying the backend to Railway, the frontend to Vercel, and 
    ```bash
    psql $DATABASE_URL -f scripts/migrations/001_create_backtest_runs.sql
    psql $DATABASE_URL -f scripts/migrations/002_create_equity_snapshots.sql
+   psql $DATABASE_URL -f scripts/migrations/003_add_backtest_metadata_and_live_runtime_sessions.sql
+   psql $DATABASE_URL -f scripts/migrations/004_add_order_audit_records.sql
+   psql $DATABASE_URL -f scripts/migrations/005_add_live_runtime_event_archive.sql
    ```
 3. Store the connection string as `DATABASE_URL` for the next step.
 
@@ -1030,6 +1037,9 @@ Push or open a PR to trigger `.github/workflows/ci.yml`. Two jobs run automatica
    ```bash
    psql $DATABASE_URL -f scripts/migrations/001_create_backtest_runs.sql
    psql $DATABASE_URL -f scripts/migrations/002_create_equity_snapshots.sql
+   psql $DATABASE_URL -f scripts/migrations/003_add_backtest_metadata_and_live_runtime_sessions.sql
+   psql $DATABASE_URL -f scripts/migrations/004_add_order_audit_records.sql
+   psql $DATABASE_URL -f scripts/migrations/005_add_live_runtime_event_archive.sql
    ```
 3. 연결 문자열을 다음 단계를 위해 `DATABASE_URL`로 보관합니다.
 

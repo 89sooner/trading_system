@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import logging
 import threading
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Callable
 
+from trading_system.app.live_runtime_events import (
+    LiveRuntimeEventRepository,
+    runtime_event_from_log,
+    should_archive_runtime_event,
+)
 from trading_system.app.live_runtime_history import (
     LiveRuntimeSessionRecord,
     LiveRuntimeSessionRepository,
@@ -16,6 +22,8 @@ from trading_system.core.compat import UTC
 
 if TYPE_CHECKING:
     from trading_system.app.services import AppServices, PreflightCheckResult
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
@@ -64,10 +72,12 @@ class LiveRuntimeController:
         services_builder: Callable[[AppSettings], 'AppServices'],
         attach_loop: Callable[[LiveTradingLoop | None], None],
         history_repository: LiveRuntimeSessionRepository | None = None,
+        event_repository: LiveRuntimeEventRepository | None = None,
     ) -> None:
         self._services_builder = services_builder
         self._attach_loop = attach_loop
         self._history_repository = history_repository
+        self._event_repository = event_repository
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
         self._active_loop: LiveTradingLoop | None = None
@@ -209,11 +219,35 @@ class LiveRuntimeController:
     ) -> None:
         final_state = 'stopped'
         last_error: str | None = None
+        event_callback = None
+        event_logger = None
         try:
             services = self._services_builder(settings)
             if settings.live_execution.value == 'live':
                 services.validate_live_execution_guards()
             loop = services.build_live_loop(session_id=session.session_id)
+            if self._event_repository is not None:
+                event_logger = loop.services.logger
+
+                def archive_event(record) -> None:
+                    if not should_archive_runtime_event(record):
+                        return
+                    try:
+                        self._event_repository.append(
+                            runtime_event_from_log(
+                                session_id=session.session_id,
+                                record=record,
+                            )
+                        )
+                    except Exception:
+                        _log.warning(
+                            "Failed to archive live runtime event for session %s",
+                            session.session_id,
+                            exc_info=True,
+                        )
+
+                event_callback = archive_event
+                event_logger.subscribe(event_callback)
             with self._lock:
                 self._active_loop = loop
             self._attach_loop(loop)
@@ -227,6 +261,8 @@ class LiveRuntimeController:
             last_error = str(exc)
             started.set()
         finally:
+            if event_logger is not None and event_callback is not None:
+                event_logger.unsubscribe(event_callback)
             self._attach_loop(None)
             self._persist_session(
                 session,

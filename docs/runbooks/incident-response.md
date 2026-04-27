@@ -11,6 +11,7 @@ All logs are expected to use a structured format (JSON or key-value) and include
 2. Confirm that sensitive fields (`api_key`, `token`, `password`, `secret`) are masked as `***`.
 3. Check retry, timeout, and circuit-breaker status for external I/O boundaries such as data providers and broker adapters.
 4. If a dashboard is attached, compare `/api/v1/dashboard/status` and `/api/v1/dashboard/events` output against the log stream.
+5. For completed sessions, open `/dashboard/sessions` or fetch `/api/v1/live/runtime/sessions/<session_id>/evidence` to compare archived runtime incidents, equity point count, and live-session order audit records.
 
 ## Scenario A: data disconnect
 

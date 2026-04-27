@@ -124,6 +124,7 @@ Run at least one full paper session before enabling real order submission.
 - [ ] Confirm reconciliation events are reasonable and not permanently stuck on `portfolio.reconciliation.skipped`
 - [ ] Confirm `portfolio.reconciliation.pending_source` is emitted and uses `open_orders` when KIS provides that source
 - [ ] Export session order audit records through `/api/v1/order-audit/export?scope=live_session&owner_id=<session_id>&format=csv`
+- [ ] Review completed session evidence through `/dashboard/sessions` or `/api/v1/live/runtime/sessions/<session_id>/evidence`
 - [ ] Confirm `pause` changes state to `paused`
 - [ ] Confirm `resume` changes state back to `running`
 - [ ] Confirm `stop` returns the dashboard to a clean disconnected/stopped state

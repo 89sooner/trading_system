@@ -84,3 +84,35 @@ def _normalize_timestamp(value: object) -> str:
     if isinstance(value, datetime):
         return value.isoformat()
     return str(value)
+
+
+class SupabaseHistoricalEquityReader:
+    def __init__(self, database_url: str) -> None:
+        self._database_url = database_url
+        self._conn: psycopg.Connection | None = None
+
+    def read_session(self, session_id: str, limit: int = 300) -> list[dict]:
+        with self._get_conn().cursor() as cur:
+            cur.execute(
+                "SELECT timestamp, equity, cash, positions_value"
+                " FROM equity_snapshots"
+                " WHERE session_id = %s"
+                " ORDER BY timestamp DESC"
+                " LIMIT %s",
+                (session_id, max(1, min(limit, 5000))),
+            )
+            rows = cur.fetchall()
+        return [
+            {
+                "timestamp": _normalize_timestamp(r[0]),
+                "equity": str(r[1]) if r[1] is not None else "",
+                "cash": str(r[2]) if r[2] is not None else "",
+                "positions_value": str(r[3]) if r[3] is not None else "",
+            }
+            for r in reversed(rows)
+        ]
+
+    def _get_conn(self) -> psycopg.Connection:
+        if self._conn is None or self._conn.closed:
+            self._conn = psycopg.connect(self._database_url, autocommit=True)
+        return self._conn

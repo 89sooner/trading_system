@@ -146,6 +146,46 @@ export interface LiveRuntimeSessionRecord {
 export interface LiveRuntimeSessionList {
   sessions: LiveRuntimeSessionRecord[]
   total: number
+  page: number
+  page_size: number
+}
+
+export interface LiveRuntimeEventRecord {
+  record_id: string
+  session_id: string
+  event: string
+  severity: string
+  correlation_id: string
+  timestamp: string
+  payload: Record<string, unknown>
+}
+
+export interface LiveRuntimeSessionEvidence {
+  session: LiveRuntimeSessionRecord
+  order_audit_count: number
+  recent_order_audit_records: OrderAuditRecordDTO[]
+  equity_point_count: number
+  archived_event_count: number
+  recent_archived_events: LiveRuntimeEventRecord[]
+}
+
+export interface LiveRuntimeSessionSearchParams {
+  page?: number
+  page_size?: number
+  limit?: number
+  start?: string
+  end?: string
+  provider?: string
+  broker?: string
+  live_execution?: string
+  state?: string
+  symbol?: string
+  has_error?: boolean
+  sort?: 'asc' | 'desc'
+}
+
+export interface LiveRuntimeSessionExportParams extends LiveRuntimeSessionSearchParams {
+  format?: 'csv' | 'jsonl'
 }
 
 // Backtests

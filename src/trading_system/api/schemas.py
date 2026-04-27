@@ -216,6 +216,27 @@ class LiveRuntimeSessionRecordDTO(BaseModel):
 class LiveRuntimeSessionListDTO(BaseModel):
     sessions: list[LiveRuntimeSessionRecordDTO]
     total: int
+    page: int = 1
+    page_size: int = 20
+
+
+class LiveRuntimeEventRecordDTO(BaseModel):
+    record_id: str
+    session_id: str
+    event: str
+    severity: str
+    correlation_id: str
+    timestamp: str
+    payload: dict
+
+
+class LiveRuntimeSessionEvidenceDTO(BaseModel):
+    session: LiveRuntimeSessionRecordDTO
+    order_audit_count: int
+    recent_order_audit_records: list["OrderAuditRecordDTO"] = Field(default_factory=list)
+    equity_point_count: int
+    archived_event_count: int
+    recent_archived_events: list[LiveRuntimeEventRecordDTO] = Field(default_factory=list)
 
 
 class OrderAuditRecordDTO(BaseModel):
@@ -465,3 +486,4 @@ class EquityTimeseriesDTO(BaseModel):
 
 
 LivePreflightResponseDTO.model_rebuild()
+LiveRuntimeSessionEvidenceDTO.model_rebuild()

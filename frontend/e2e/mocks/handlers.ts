@@ -8,6 +8,7 @@ import type {
   StrategyProfileDTO,
   LiveRuntimeSessionList,
   EquityTimeseriesResponse,
+  LiveRuntimeSessionEvidence,
 } from '../../lib/api/types'
 
 // ── Fixture data ──
@@ -77,6 +78,44 @@ export const liveRuntimeSessions: LiveRuntimeSessionList = {
     },
   ],
   total: 1,
+  page: 1,
+  page_size: 25,
+}
+
+export const liveRuntimeSessionEvidence: LiveRuntimeSessionEvidence = {
+  session: liveRuntimeSessions.sessions[0],
+  order_audit_count: 1,
+  recent_order_audit_records: [
+    {
+      record_id: 'audit-001',
+      scope: 'live_session',
+      owner_id: 'live-test-001',
+      event: 'order.filled',
+      symbol: '005930',
+      side: 'buy',
+      requested_quantity: '1',
+      filled_quantity: '1',
+      price: '70000',
+      status: 'filled',
+      reason: null,
+      timestamp: '2026-04-07T10:10:00Z',
+      payload: {},
+      broker_order_id: 'broker-001',
+    },
+  ],
+  equity_point_count: 2,
+  archived_event_count: 1,
+  recent_archived_events: [
+    {
+      record_id: 'event-001',
+      session_id: 'live-test-001',
+      event: 'system.error',
+      severity: 'ERROR',
+      correlation_id: 'cid-001',
+      timestamp: '2026-04-07T10:20:00Z',
+      payload: { reason: 'simulated warning' },
+    },
+  ],
 }
 
 export const MOCK_RUN_ID = 'run-test-001'
@@ -164,7 +203,42 @@ export async function setupMockRoutes(page: Page) {
     route.fulfill({ json: dashboardEquity }),
   )
 
-  await page.route('**/api/v1/live/runtime/sessions**', (route) =>
+  await page.route('**/api/v1/live/runtime/sessions/*/evidence**', (route) =>
+    route.fulfill({ json: liveRuntimeSessionEvidence }),
+  )
+
+  await page.route('**/api/v1/live/runtime/sessions/*/equity**', (route) =>
+    route.fulfill({
+      json: {
+        session_id: 'live-test-001',
+        points: [
+          {
+            timestamp: '2026-04-07T10:00:00Z',
+            equity: '1000000',
+            cash: '950000',
+            positions_value: '50000',
+          },
+          {
+            timestamp: '2026-04-07T11:00:00Z',
+            equity: '1005000',
+            cash: '950000',
+            positions_value: '55000',
+          },
+        ],
+        total: 2,
+      },
+    }),
+  )
+
+  await page.route('**/api/v1/live/runtime/sessions/export**', (route) =>
+    route.fulfill({ body: 'session_id\nlive-test-001\n' }),
+  )
+
+  await page.route('**/api/v1/order-audit/export**', (route) =>
+    route.fulfill({ body: 'record_id\naudit-001\n' }),
+  )
+
+  await page.route(/\/api\/v1\/live\/runtime\/sessions(\?.*)?$/, (route) =>
     route.fulfill({ json: liveRuntimeSessions }),
   )
 

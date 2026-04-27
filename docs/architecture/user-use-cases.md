@@ -41,7 +41,9 @@ The integrator connects the workspace to infrastructure, configures API keys/COR
 | `/api/v1/order-audit` | Query order audit records by backtest run or live session | Operator, researcher |
 | `/api/v1/order-audit/export` | Export order audit records by owner/time/status/broker id as CSV or JSONL | Operator, integrator |
 | `/api/v1/live/preflight` | Validate live runtime path before or during execution mode selection | Operator, integrator |
-| `/api/v1/live/runtime/sessions` | Inspect recent live runtime session history | Operator, integrator |
+| `/api/v1/live/runtime/sessions` | Search, filter, and inspect live runtime session history | Operator, integrator |
+| `/api/v1/live/runtime/sessions/export` | Export live runtime session history as CSV or JSONL | Operator, integrator |
+| `/api/v1/live/runtime/sessions/{session_id}/evidence` | Inspect session-scoped equity/order-audit/incident evidence | Operator, integrator |
 | `/api/v1/patterns` | Train, save, list, and inspect pattern sets | Researcher |
 | `/api/v1/strategies` | Save and retrieve reusable strategy profiles | Researcher |
 | `/api/v1/analytics/backtests/{run_id}/trades` | Inspect trade-level analytics for a completed run | Researcher |
@@ -56,7 +58,8 @@ The integrator connects the workspace to infrastructure, configures API keys/COR
 | Strategy profile | `configs/strategies/*.json` | Reusable mapping from pattern labels to actions |
 | Portfolio snapshot | `data/portfolio/book.json` | Restart-safe live portfolio state |
 | Backtest run result + metadata | File repository or Supabase-backed PostgreSQL | Durable run lookup, review context, and analytics |
-| Live runtime session history | File repository or Supabase-backed PostgreSQL | Recent live session lookup and post-run review |
+| Live runtime session history | File repository or Supabase-backed PostgreSQL | Live session search, export, and post-run review |
+| Live runtime event archive | File repository or Supabase-backed PostgreSQL | Session-scoped incident review for warning/error/risk/reconciliation/control events |
 | Order audit records | File repository or Supabase-backed PostgreSQL | Query order creation, fills, rejections, and risk rejections by run/session owner |
 | Frontend run history fallback | Browser local storage | Fallback cache when the backend is unavailable |
 
@@ -243,7 +246,7 @@ The intended high-value workflow today is:
   - recent event stream
   - restart-safe saved portfolio snapshot
 - Current constraints:
-  - `stop` is now supported, but there is still no dedicated frontend history screen for browsing past live sessions
+  - past live sessions can be searched and reviewed from `/dashboard/sessions`, but old session retention/prune policy is not yet implemented
   - paper execution shares the same loop mechanics as live, while the API process now owns one active runtime session at a time
   - live dashboard access still depends on the active loop being attached to `app.state.live_loop`
 

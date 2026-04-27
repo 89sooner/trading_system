@@ -36,6 +36,7 @@ The KIS live-order path exists, but it is explicitly gated behind `TRADING_SYSTE
 - [ ] If the environment uses broker snapshots, reconciliation mismatch scenario reviewed (incident-response scenario D)
 - [ ] Live order audit is verified without relying on `TestClient(create_app())` lifespan startup (`pytest tests/integration/test_order_audit_integration.py -q`)
 - [ ] KIS open-order pending authority is covered by parser and reconciliation tests
+- [ ] Historical live session review is verified through `/api/v1/live/runtime/sessions/<session_id>/evidence` and the `/dashboard/sessions` route
 
 ## Gate 5: Sign-off
 

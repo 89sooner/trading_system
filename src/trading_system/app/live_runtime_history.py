@@ -5,8 +5,11 @@ import os
 import threading
 import uuid
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
+
+from trading_system.core.compat import UTC
 
 
 @dataclass(slots=True, frozen=True)
@@ -23,6 +26,29 @@ class LiveRuntimeSessionRecord:
     preflight_summary: dict[str, Any] | None = None
 
 
+@dataclass(slots=True, frozen=True)
+class LiveRuntimeSessionFilter:
+    start: str | None = None
+    end: str | None = None
+    provider: str | None = None
+    broker: str | None = None
+    live_execution: str | None = None
+    state: str | None = None
+    symbol: str | None = None
+    has_error: bool | None = None
+    sort: str = "desc"
+    page: int = 1
+    page_size: int = 20
+
+
+@dataclass(slots=True, frozen=True)
+class LiveRuntimeSessionListResult:
+    records: list[LiveRuntimeSessionRecord]
+    total: int
+    page: int
+    page_size: int
+
+
 class LiveRuntimeSessionRepository(Protocol):
     def save(self, record: LiveRuntimeSessionRecord) -> None:
         ...
@@ -31,6 +57,12 @@ class LiveRuntimeSessionRepository(Protocol):
         ...
 
     def list(self, limit: int = 20) -> list[LiveRuntimeSessionRecord]:
+        ...
+
+    def search(
+        self,
+        query: LiveRuntimeSessionFilter | None = None,
+    ) -> LiveRuntimeSessionListResult:
         ...
 
 
@@ -69,29 +101,32 @@ class FileLiveRuntimeSessionRepository:
         return _deserialize_session(json.loads(path.read_text(encoding="utf-8")))
 
     def list(self, limit: int = 20) -> list[LiveRuntimeSessionRecord]:
+        return self.search(
+            LiveRuntimeSessionFilter(page=1, page_size=max(limit, 1))
+        ).records
+
+    def search(
+        self,
+        query: LiveRuntimeSessionFilter | None = None,
+    ) -> LiveRuntimeSessionListResult:
+        resolved = _normalize_query(query)
         with self._lock:
             index = self._read_index()
+        sessions = _filter_session_entries(index.get("sessions", []), resolved)
         sessions = sorted(
-            index.get("sessions", []),
+            sessions,
             key=lambda item: item.get("started_at", ""),
-            reverse=True,
+            reverse=_normalize_sort(resolved.sort) == "desc",
         )
-        selected = sessions[: max(limit, 1)]
-        return [
-            LiveRuntimeSessionRecord(
-                session_id=item["session_id"],
-                started_at=item["started_at"],
-                ended_at=item.get("ended_at"),
-                provider=item["provider"],
-                broker=item["broker"],
-                live_execution=item["live_execution"],
-                symbols=item.get("symbols", []),
-                last_state=item.get("last_state", "unknown"),
-                last_error=item.get("last_error"),
-                preflight_summary=item.get("preflight_summary"),
-            )
-            for item in selected
-        ]
+        total = len(sessions)
+        start = (resolved.page - 1) * resolved.page_size
+        selected = sessions[start : start + resolved.page_size]
+        return LiveRuntimeSessionListResult(
+            records=[_deserialize_session(item) for item in selected],
+            total=total,
+            page=resolved.page,
+            page_size=resolved.page_size,
+        )
 
     def _index_path(self) -> Path:
         return self._base_dir / "_index.json"
@@ -213,9 +248,51 @@ class SupabaseLiveRuntimeSessionRepository:
         return _deserialize_db_row(row)
 
     def list(self, limit: int = 20) -> list[LiveRuntimeSessionRecord]:
+        return self.search(
+            LiveRuntimeSessionFilter(page=1, page_size=max(limit, 1))
+        ).records
+
+    def search(
+        self,
+        query: LiveRuntimeSessionFilter | None = None,
+    ) -> LiveRuntimeSessionListResult:
+        resolved = _normalize_query(query)
+        conditions: list[str] = []
+        params: list[object] = []
+        if resolved.start is not None:
+            conditions.append("started_at >= %s")
+            params.append(resolved.start)
+        if resolved.end is not None:
+            conditions.append("started_at <= %s")
+            params.append(resolved.end)
+        if resolved.provider is not None:
+            conditions.append("provider = %s")
+            params.append(resolved.provider)
+        if resolved.broker is not None:
+            conditions.append("broker = %s")
+            params.append(resolved.broker)
+        if resolved.live_execution is not None:
+            conditions.append("live_execution = %s")
+            params.append(resolved.live_execution)
+        if resolved.state is not None:
+            conditions.append("last_state = %s")
+            params.append(resolved.state)
+        if resolved.symbol is not None:
+            conditions.append("%s = ANY(symbols)")
+            params.append(resolved.symbol)
+        if resolved.has_error is True:
+            conditions.append("last_error IS NOT NULL")
+        elif resolved.has_error is False:
+            conditions.append("last_error IS NULL")
+
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        direction = "ASC" if _normalize_sort(resolved.sort) == "asc" else "DESC"
+        offset = (resolved.page - 1) * resolved.page_size
         with self._get_conn().cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM live_runtime_sessions {where}", params)
+            total: int = cur.fetchone()[0]
             cur.execute(
-                """
+                f"""
                 SELECT
                     session_id,
                     started_at,
@@ -228,13 +305,20 @@ class SupabaseLiveRuntimeSessionRepository:
                     last_error,
                     preflight_summary
                 FROM live_runtime_sessions
-                ORDER BY started_at DESC NULLS LAST
+                {where}
+                ORDER BY started_at {direction} NULLS LAST
                 LIMIT %s
+                OFFSET %s
                 """,
-                (max(limit, 1),),
+                [*params, resolved.page_size, offset],
             )
             rows = cur.fetchall()
-        return [_deserialize_db_row(row) for row in rows]
+        return LiveRuntimeSessionListResult(
+            records=[_deserialize_db_row(row) for row in rows],
+            total=total,
+            page=resolved.page,
+            page_size=resolved.page_size,
+        )
 
     def _get_conn(self):
         if self._conn is None or self._conn.closed:
@@ -330,3 +414,76 @@ def _deserialize_db_row(row: tuple[Any, ...]) -> LiveRuntimeSessionRecord:
 
 def _serialize_timestamp(value: Any) -> str:
     return value.isoformat().replace("+00:00", "Z") if hasattr(value, "isoformat") else str(value)
+
+
+def _normalize_query(
+    query: LiveRuntimeSessionFilter | None,
+) -> LiveRuntimeSessionFilter:
+    if query is None:
+        return LiveRuntimeSessionFilter()
+    return LiveRuntimeSessionFilter(
+        start=query.start,
+        end=query.end,
+        provider=_blank_to_none(query.provider),
+        broker=_blank_to_none(query.broker),
+        live_execution=_blank_to_none(query.live_execution),
+        state=_blank_to_none(query.state),
+        symbol=_blank_to_none(query.symbol.upper() if query.symbol else None),
+        has_error=query.has_error,
+        sort=_normalize_sort(query.sort),
+        page=max(query.page, 1),
+        page_size=max(1, min(query.page_size, 5000)),
+    )
+
+
+def _blank_to_none(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def _normalize_sort(sort: str) -> str:
+    return "asc" if sort == "asc" else "desc"
+
+
+def _filter_session_entries(
+    entries: list[dict[str, Any]],
+    query: LiveRuntimeSessionFilter,
+) -> list[dict[str, Any]]:
+    start_dt = _parse_optional_datetime(query.start)
+    end_dt = _parse_optional_datetime(query.end)
+    filtered: list[dict[str, Any]] = []
+    for entry in entries:
+        started_at = _parse_optional_datetime(entry.get("started_at"))
+        if start_dt is not None and (started_at is None or started_at < start_dt):
+            continue
+        if end_dt is not None and (started_at is None or started_at > end_dt):
+            continue
+        if query.provider is not None and entry.get("provider") != query.provider:
+            continue
+        if query.broker is not None and entry.get("broker") != query.broker:
+            continue
+        if (
+            query.live_execution is not None
+            and entry.get("live_execution") != query.live_execution
+        ):
+            continue
+        if query.state is not None and entry.get("last_state") != query.state:
+            continue
+        if query.symbol is not None and query.symbol not in entry.get("symbols", []):
+            continue
+        has_error = bool(entry.get("last_error"))
+        if query.has_error is not None and has_error is not query.has_error:
+            continue
+        filtered.append(entry)
+    return filtered
+
+
+def _parse_optional_datetime(value: str | None) -> datetime | None:
+    if value is None or not str(value).strip():
+        return None
+    parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
