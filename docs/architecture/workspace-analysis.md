@@ -14,7 +14,7 @@ Implemented behavior today:
 - `backtest.engine.run_backtest` orchestrates deterministic replay, event capture, equity tracking, and multi-symbol processing.
 - `api.server` exposes backtests, dispatcher status, retention preview/prune, order audit, live preflight, live runtime session history, patterns, strategies, analytics, admin key management, `/health`, and dashboard routes behind API key, CORS, and rate-limit middleware.
 - `frontend/app/*` provides browser workflows for backtest submission, pattern management, strategy profiles, run review, API key administration, live dashboard monitoring, and recent live session browsing, now with server-sourced run metadata shown in the review surface.
-- `execution.reconciliation.reconcile` can align a local `PortfolioBook` with broker snapshots when the broker supports balance snapshots.
+- `execution.reconciliation.reconcile` can align a local `PortfolioBook` with broker snapshots when the broker supports balance snapshots, and the live loop uses KIS open-order snapshots as the preferred pending-order authority.
 - `notifications.webhook` provides bounded fire-and-forget delivery for selected runtime events through `httpx`.
 
 ## Layer analysis
@@ -51,7 +51,7 @@ The strategy layer now supports both example and repository-backed flows:
 - `strategy.factory` resolves inline strategy settings or saved strategy profiles backed by `configs/strategies`
 
 Current limitation:
-- There is still no general strategy plugin registry or direct CLI flag set for selecting saved strategy profiles.
+- There is still no general strategy plugin registry, but saved strategy profiles can now be selected through the API/UI, CLI `--strategy-profile-id`, or YAML `strategy.profile_id`.
 
 ### Risk
 
@@ -75,7 +75,7 @@ Execution now has explicit, reusable boundaries:
 - reconciliation helper for broker balance snapshots
 
 Current limitation:
-- Order creation, fill, rejection, and risk-rejection events can be stored as durable order audit records, but KIS reconciliation still depends on balance-snapshot pending-order signals rather than a dedicated unresolved-order API.
+- Order creation, fill, rejection, and risk-rejection events can be stored and exported as durable order audit records. KIS reconciliation now prefers dedicated open-order snapshots and skips fail-closed when that source is unavailable or malformed.
 
 ### Portfolio
 
@@ -139,7 +139,7 @@ Examples and operator artifacts include:
 
 Notes:
 
-- `configs/base.yaml` and `examples/sample_live_kis.yaml` now contain active typed examples for `portfolio_risk` and `app.reconciliation_interval`.
+- `configs/base.yaml` and `examples/sample_live_kis.yaml` now contain active typed examples for `portfolio_risk`, `app.reconciliation_interval`, and `strategy.profile_id`.
 - Strategy/profile and pattern-set storage is file backed, not database backed.
 
 ## Test coverage snapshot
@@ -155,13 +155,13 @@ This gives a strong regression baseline for deterministic replay, runtime valida
 
 1. **Distributed run execution**: backtests are separated through the internal dispatcher, but there is still no external queue or multi-worker model for long-running workloads.
 2. **Session history UX**: recent live runtime sessions are visible in the dashboard, but long-term search and export are not yet implemented.
-3. **Config parity**: strategy selection and some runtime-only fields are still not fully represented in the typed YAML loader.
-4. **Exchange snapshot integration**: generic reconciliation exists and KIS balance snapshots are wired, but pending-order authority still depends on balance-snapshot signals rather than a dedicated unresolved-order API.
+3. **Config parity**: strategy profile selection is aligned across CLI/YAML/API, but there is still no UI workflow for editing a full YAML runtime config.
+4. **Exchange snapshot integration**: KIS open-order snapshots are wired as pending authority, but cancel/replace and long-running order polling workflows are still not implemented.
 5. **Operational hardening**: repository-managed API keys now track disabled/last-used state, but richer auth, alerting, audit export, and deployment guidance are still lighter than a fully managed trading platform would require.
 
 ## Recommended next backlog
 
 1. Add an external queue/worker model and clearer operator visibility around long-running backtests.
 2. Add long-term search/export for live runtime session history and historical incident review.
-3. Improve broker integrations, especially KIS, to expose a stronger unresolved/open-order source for reconciliation.
+3. Evaluate cancel/replace or long-running order polling workflows on top of the KIS open-order source.
 4. Decide whether additional strategy runtime settings should become first-class YAML fields or remain API/runtime-only inputs.

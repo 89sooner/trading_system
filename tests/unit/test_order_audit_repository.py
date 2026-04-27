@@ -54,6 +54,39 @@ def test_file_order_audit_repository_appends_and_filters(tmp_path):
     assert records[0].payload["status"] == "filled"
 
 
+def test_file_order_audit_repository_applies_extended_filters(tmp_path):
+    repo = FileOrderAuditRepository(tmp_path)
+    repo.append(
+        _record(
+            record_id="oa_1",
+            timestamp="2024-01-01T00:00:00Z",
+            status="filled",
+            side="buy",
+            broker_order_id="broker-1",
+        )
+    )
+    repo.append(
+        _record(
+            record_id="oa_2",
+            timestamp="2024-01-02T00:00:00Z",
+            status="rejected",
+            side="sell",
+            broker_order_id="broker-2",
+        )
+    )
+
+    records = repo.list(
+        status="filled",
+        side="buy",
+        broker_order_id="broker-1",
+        start="2024-01-01T00:00:00Z",
+        end="2024-01-01T23:59:59Z",
+        sort="asc",
+    )
+
+    assert [record.record_id for record in records] == ["oa_1"]
+
+
 def test_supabase_order_audit_repository_creates_schema_on_append():
     repo, cursor = _make_supabase_repo()
 
@@ -90,3 +123,29 @@ def test_supabase_order_audit_repository_list_deserializes_rows():
     assert len(records) == 1
     assert records[0].record_id == "oa_1"
     assert records[0].symbol == "BTCUSDT"
+
+
+def test_supabase_order_audit_repository_list_applies_extended_filters():
+    repo, cursor = _make_supabase_repo()
+    cursor.fetchall.return_value = []
+
+    repo.list(
+        scope="backtest",
+        owner_id="run-1",
+        status="filled",
+        side="buy",
+        broker_order_id="broker-1",
+        start="2024-01-01T00:00:00Z",
+        end="2024-01-02T00:00:00Z",
+        sort="asc",
+    )
+
+    select_call = cursor.execute.call_args_list[-1]
+    sql = select_call.args[0]
+    params = select_call.args[1]
+    assert "status = %s" in sql
+    assert "side = %s" in sql
+    assert "broker_order_id = %s" in sql
+    assert "timestamp >= %s" in sql
+    assert "ORDER BY timestamp ASC" in sql
+    assert "broker-1" in params

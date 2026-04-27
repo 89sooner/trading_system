@@ -122,6 +122,8 @@ Run at least one full paper session before enabling real order submission.
 - [ ] Confirm `last_heartbeat` advances without long gaps
 - [ ] Confirm `positions`, `events`, and `equity` endpoints return live data while the session is active
 - [ ] Confirm reconciliation events are reasonable and not permanently stuck on `portfolio.reconciliation.skipped`
+- [ ] Confirm `portfolio.reconciliation.pending_source` is emitted and uses `open_orders` when KIS provides that source
+- [ ] Export session order audit records through `/api/v1/order-audit/export?scope=live_session&owner_id=<session_id>&format=csv`
 - [ ] Confirm `pause` changes state to `paused`
 - [ ] Confirm `resume` changes state back to `running`
 - [ ] Confirm `stop` returns the dashboard to a clean disconnected/stopped state
@@ -156,6 +158,7 @@ The live loop reconciles the local `PortfolioBook` with KIS broker balance every
 - `portfolio.reconciliation.symbol_skipped` — symbol skipped due to pending order
 - `portfolio.reconciliation.cash_frozen` — cash frozen due to pending symbols
 - `portfolio.reconciliation.skipped` — entire reconciliation skipped (snapshot unavailable)
+- `portfolio.reconciliation.pending_source` — pending-order authority used for the reconciliation attempt (`open_orders`, `balance_snapshot`, `unavailable`)
 
 ## Monitoring via Dashboard
 

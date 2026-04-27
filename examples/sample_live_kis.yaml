@@ -25,6 +25,9 @@ backtest:
   starting_cash: 10000000
   fee_bps: 5
   trade_quantity: 1
+strategy:
+  type: pattern_signal
+  profile_id: sample_bullish_profile
 
 portfolio_risk:
   max_daily_drawdown_pct: 0.05

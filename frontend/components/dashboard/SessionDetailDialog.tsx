@@ -1,6 +1,7 @@
 'use client'
 
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -8,7 +9,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { exportLiveSessionOrderAudit } from '@/lib/api/dashboard'
 import { formatUtcTimestamp } from '@/lib/formatters'
+import { Download } from 'lucide-react'
 import type { LiveRuntimeSessionRecord } from '@/lib/api/types'
 
 interface SessionDetailDialogProps {
@@ -23,15 +26,40 @@ export function SessionDetailDialog({
   onOpenChange,
 }: SessionDetailDialogProps) {
   const preflight = session?.preflight_summary
+  const handleExportAudit = async () => {
+    if (!session) return
+    const body = await exportLiveSessionOrderAudit({
+      owner_id: session.session_id,
+      format: 'csv',
+      limit: 5000,
+    })
+    const blob = new Blob([body], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `${session.session_id}-order-audit.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Session detail</DialogTitle>
-          <DialogDescription>
-            {session ? session.session_id : 'No session selected.'}
-          </DialogDescription>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <DialogTitle>Session detail</DialogTitle>
+              <DialogDescription>
+                {session ? session.session_id : 'No session selected.'}
+              </DialogDescription>
+            </div>
+            {session ? (
+              <Button variant="outline" size="sm" onClick={handleExportAudit}>
+                <Download aria-hidden="true" />
+                Export audit CSV
+              </Button>
+            ) : null}
+          </div>
         </DialogHeader>
 
         {session ? (

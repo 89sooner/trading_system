@@ -63,7 +63,8 @@
 1. 현재 브로커가 계좌 스냅샷을 제공하는 경로인지 먼저 확인한다.
 2. `cash_frozen` 또는 `symbol_skipped`가 발생하면 `pending_symbols`에 기록된 심볼의 체결 중 상태를 우선 확인한다.
 3. 포지션 차이가 설명되지 않으면 루프를 `pause`한 뒤 로컬 `PortfolioBook`과 브로커 상태를 수동 대조한다.
-4. 현재 KIS 어댑터는 계좌 잔고 스냅샷을 제공한다. KIS 환경에서 자동 동기화가 건너뛰어졌다면, 우선 pending-order 신호가 누락되었거나 불완전한지부터 확인한다.
+4. 현재 KIS 어댑터는 미체결/open-order snapshot을 먼저 조회하고, 잔고 스냅샷을 이어서 조회한다. `pending_source=open_orders` 상태에서 건너뛰었다면 broker order id 기준으로 `/api/v1/order-audit/export` 결과와 KIS 주문 내역을 대조한다.
+5. open-order 조회 실패로 `portfolio.reconciliation.skipped`가 발생하면 포트폴리오를 자동 보정하지 않는다. KIS 응답 필드, TR ID, 네트워크 상태를 먼저 확인한다.
 
 ## 시크릿 운영 원칙
 

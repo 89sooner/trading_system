@@ -732,6 +732,7 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_KIS_BASE_URL` (optional): override KIS REST base URL
 - `TRADING_SYSTEM_KIS_PRICE_TR_ID` (optional): override domestic quote TR id for preflight quote checks
 - `TRADING_SYSTEM_KIS_BALANCE_TR_ID` (optional): override domestic balance inquiry TR id for reconciliation snapshots
+- `TRADING_SYSTEM_KIS_OPEN_ORDERS_TR_ID` (optional): override domestic open-order inquiry TR id for reconciliation pending-order authority
 - `TRADING_SYSTEM_KIS_MARKET_DIV` (optional): override quote market division code (`J` default for domestic stock)
 - `TRADING_SYSTEM_ALLOWED_API_KEYS`: comma-separated API keys accepted by HTTP middleware (`X-API-Key`)
 - `TRADING_SYSTEM_API_KEYS_PATH` (optional): file path for dynamic API key storage managed by `/api/v1/admin/keys` (default: `data/api_keys.json`)
@@ -760,6 +761,7 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_KIS_BASE_URL` (선택): 한국투자 REST 기본 URL 재정의
 - `TRADING_SYSTEM_KIS_PRICE_TR_ID` (선택): 프리플라이트 현재가 조회용 TR ID 재정의
 - `TRADING_SYSTEM_KIS_BALANCE_TR_ID` (선택): reconciliation용 국내주식 잔고 조회 TR ID 재정의
+- `TRADING_SYSTEM_KIS_OPEN_ORDERS_TR_ID` (선택): reconciliation pending-order 판단용 국내주식 미체결 조회 TR ID 재정의
 - `TRADING_SYSTEM_KIS_MARKET_DIV` (선택): 현재가 조회 시장 구분 코드 재정의 (기본값 `J`, 국내주식)
 - `TRADING_SYSTEM_ALLOWED_API_KEYS`: HTTP 미들웨어가 허용할 API 키 목록(쉼표 구분, `X-API-Key`)
 - `TRADING_SYSTEM_API_KEYS_PATH` (선택): `/api/v1/admin/keys`가 관리하는 동적 API key 저장 파일 경로 (기본값: `data/api_keys.json`)
@@ -797,12 +799,13 @@ Required root sections:
 - `risk`: `max_position`, `max_notional`, `max_order_size` (Decimal, > 0)
 - `portfolio_risk` (optional): `max_daily_drawdown_pct` (Decimal, > 0 and < 1), `sl_pct`/`tp_pct` (optional Decimal, > 0)
 - `backtest`: `starting_cash` (> 0), `fee_bps` (0~1000), `trade_quantity` (> 0)
+- `strategy` (optional): `type: pattern_signal` with either `profile_id` or inline `pattern_set_id`, `label_to_side`, `trade_quantity`, and `threshold_overrides`
 - `api` (optional): `cors_allow_origins` (list[str], default `[*]`)
 
 All numeric amount/quantity fields are parsed as `Decimal`.
 
 Note:
-- `load_settings()` now covers the baseline YAML schema above, including `app.reconciliation_interval` and `portfolio_risk`.
+- `load_settings()` now covers the baseline YAML schema above, including `app.reconciliation_interval`, `portfolio_risk`, and pattern strategy configuration. CLI runs can also use `--config configs/base.yaml` or select a stored profile directly with `--strategy-profile-id`.
 - The live loop still uses `TRADING_SYSTEM_RECONCILIATION_INTERVAL` as the runtime env override; YAML provides the typed config baseline.
 - Config examples in `configs/base.yaml` and `examples/sample_live_kis.yaml` are active typed fields, not reference-only comments.
 
@@ -824,12 +827,13 @@ settings = load_settings("configs/base.yaml")
 - `risk`: `max_position`, `max_notional`, `max_order_size` (Decimal, > 0)
 - `portfolio_risk` (선택): `max_daily_drawdown_pct` (Decimal, 0 초과 1 미만), `sl_pct`/`tp_pct` (선택 Decimal, > 0)
 - `backtest`: `starting_cash` (> 0), `fee_bps` (0~1000), `trade_quantity` (> 0)
+- `strategy` (선택): `type: pattern_signal`과 함께 `profile_id` 또는 inline `pattern_set_id`, `label_to_side`, `trade_quantity`, `threshold_overrides`
 - `api` (선택): `cors_allow_origins` (list[str], 기본값 `[*]`)
 
 금액/수량 계열 숫자 필드는 모두 `Decimal`로 파싱됩니다.
 
 참고:
-- `load_settings()`는 이제 위 기본 YAML 스키마에 더해 `app.reconciliation_interval`과 `portfolio_risk`까지 타입 검증합니다.
+- `load_settings()`는 이제 위 기본 YAML 스키마에 더해 `app.reconciliation_interval`, `portfolio_risk`, pattern strategy 설정까지 타입 검증합니다. CLI는 `--config configs/base.yaml` 또는 `--strategy-profile-id`로 저장된 프로필을 선택할 수 있습니다.
 - 라이브 루프 런타임에서는 `TRADING_SYSTEM_RECONCILIATION_INTERVAL` 환경변수가 여전히 우선 override 역할을 하고, YAML은 typed baseline 설정값 역할을 합니다.
 - `configs/base.yaml`과 `examples/sample_live_kis.yaml`의 관련 필드는 이제 참고용 주석이 아니라 활성 typed 설정입니다.
 
@@ -897,7 +901,7 @@ settings = load_settings("configs/base.yaml")
 4. **Determinism first**: any backtest logic change should ship with deterministic regression tests.
 5. **Dashboard controls**: the live dashboard exposes `pause`, `resume`, `reset`, and `stop`. `GET /api/v1/dashboard/status` still returns controller/preflight context even when no loop is active, while loop-specific endpoints continue to fail with `503` until a loop is attached.
 6. **Portfolio-level risk (`portfolio_risk`)**: optional drawdown protection supports `max_daily_drawdown_pct`, `sl_pct`, and `tp_pct`. YAML configs loaded through `config.settings.load_settings()` now parse the same block, so config examples and loader behavior are aligned.
-7. **Persistence and reconciliation**: the live loop persists `PortfolioBook` after processed live cycles and reloads it on restart. The KIS adapter queries broker balance snapshots (cash, positions, average costs) and reconciles them with the local portfolio. Symbols with pending/unresolved orders are skipped to prevent in-transit corruption, and cash is frozen when any pending order exists. YAML configs may now declare `app.reconciliation_interval`, while `TRADING_SYSTEM_RECONCILIATION_INTERVAL` remains the runtime env override for the live loop.
+7. **Persistence and reconciliation**: the live loop persists `PortfolioBook` after processed live cycles and reloads it on restart. The KIS adapter queries open-order snapshots first, then broker balance snapshots (cash, positions, average costs), and reconciles them with the local portfolio. Symbols with pending/unresolved orders are skipped to prevent in-transit corruption, and cash is frozen when any pending order exists. YAML configs may now declare `app.reconciliation_interval`, while `TRADING_SYSTEM_RECONCILIATION_INTERVAL` remains the runtime env override for the live loop.
 8. **KRX market hours guard**: live order submission (`--live-execution live`) is blocked outside KRX trading hours (weekdays 09:00-15:30 KST). Preflight mode reports `market_closed` as a structured reason but does not block.
 9. **Structured preflight readiness**: `/api/v1/live/preflight` returns a structured result with `ready`, `reasons`, `blocking_reasons`, `warnings`, readiness `checks`, per-symbol `symbol_checks`, `next_allowed_actions`, `quote_summary` for the primary symbol, and `quote_summaries`/`symbol_count` for multi-symbol detail instead of a plain message.
 
@@ -909,7 +913,7 @@ settings = load_settings("configs/base.yaml")
 4. **결정성 우선**: 백테스트 로직 변경 시 결정성 회귀 테스트를 함께 추가하세요.
 5. **대시보드 제어**: 라이브 대시보드는 `pause`, `resume`, `reset`, `stop`을 공식 지원합니다. `GET /api/v1/dashboard/status`는 활성 루프가 없어도 controller/preflight 문맥을 반환하고, 루프 의존 엔드포인트만 활성 루프가 없을 때 `503`을 반환합니다.
 6. **포트폴리오 레벨 리스크 (`portfolio_risk`)**: `max_daily_drawdown_pct`, `sl_pct`, `tp_pct`를 지원하며, 이제 `config.settings.load_settings()` YAML 로더도 같은 블록을 파싱하므로 설정 예시와 로더 동작이 일치합니다.
-7. **영속화와 대사(Reconciliation)**: 라이브 루프는 처리된 라이브 사이클 이후 `PortfolioBook`을 저장하고 재시작 시 다시 로드합니다. KIS 어댑터는 브로커 잔고 스냅샷(현금, 포지션, 평균단가)을 조회하여 로컬 포트폴리오와 대사합니다. 미체결 주문이 있는 심볼은 건너뛰어 인트랜짓 데이터 손상을 방지하며, 미체결 주문 존재 시 현금도 동결됩니다. YAML 설정에서는 `app.reconciliation_interval`을 선언할 수 있고, 런타임에서는 `TRADING_SYSTEM_RECONCILIATION_INTERVAL` 환경변수가 여전히 우선 override 역할을 합니다.
+7. **영속화와 대사(Reconciliation)**: 라이브 루프는 처리된 라이브 사이클 이후 `PortfolioBook`을 저장하고 재시작 시 다시 로드합니다. KIS 어댑터는 미체결 주문 스냅샷을 먼저 조회한 뒤 브로커 잔고 스냅샷(현금, 포지션, 평균단가)을 조회하여 로컬 포트폴리오와 대사합니다. 미체결 주문이 있는 심볼은 건너뛰어 인트랜짓 데이터 손상을 방지하며, 미체결 주문 존재 시 현금도 동결됩니다. YAML 설정에서는 `app.reconciliation_interval`을 선언할 수 있고, 런타임에서는 `TRADING_SYSTEM_RECONCILIATION_INTERVAL` 환경변수가 여전히 우선 override 역할을 합니다.
 8. **KRX 장시간 가드**: 라이브 실주문(`--live-execution live`)은 KRX 거래 시간(평일 09:00-15:30 KST) 외에는 차단됩니다. Preflight 모드는 `market_closed`를 구조화 사유로 보고하지만 차단하지 않습니다.
 9. **구조화된 프리플라이트 결과**: `/api/v1/live/preflight`는 단순 메시지 대신 `ready`, `reasons`, `blocking_reasons`, `warnings`, readiness `checks`, 심볼별 `symbol_checks`, `next_allowed_actions`, 대표 심볼용 `quote_summary`, 그리고 다중 심볼 세부 상태용 `quote_summaries`/`symbol_count` 필드가 포함된 구조화된 결과를 반환합니다.
 

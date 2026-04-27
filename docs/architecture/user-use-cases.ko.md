@@ -39,6 +39,7 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
 | `/api/v1/backtests/dispatcher` | 백테스트 dispatcher worker와 queue 상태 조회 | 운영자 |
 | `/api/v1/backtests/retention/*` | 오래된 run 기록 preview/prune | 운영자, 통합 담당자 |
 | `/api/v1/order-audit` | backtest run 또는 live session 기준 주문 감사 record 조회 | 운영자, 리서처 |
+| `/api/v1/order-audit/export` | owner/time/status/broker id 기준 주문 감사 CSV/JSONL export | 운영자, 통합 담당자 |
 | `/api/v1/live/preflight` | 라이브 실행 전 또는 실행 모드 선택 시 런타임 경로 검증 | 운영자, 통합 담당자 |
 | `/api/v1/live/runtime/sessions` | 최근 live runtime session history 조회 | 운영자, 통합 담당자 |
 | `/api/v1/patterns` | 패턴 세트 학습, 저장, 목록 조회, 상세 조회 | 리서처 |
@@ -174,7 +175,7 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
   - API는 내부 dispatcher로 백테스트를 실행하지만, 외부 queue 서비스나 분산 worker는 아직 없다
   - 영속화 방식은 배포 설정에 따라 달라진다: 기본은 파일 기반, `DATABASE_URL` 설정 시 Supabase 기반
   - 프론트엔드의 새 실행 화면은 단일 심볼 입력만 받지만, 내부 백테스트 엔진은 다중 심볼 처리도 가능하다
-  - 현재 CLI 경로에는 pattern profile 선택용 플래그가 노출되어 있지 않다
+  - CLI 경로는 `--strategy-profile-id`와 `--config`로 저장된 pattern strategy profile을 선택할 수 있다
 
 ### UC-05. 백테스트 결과 및 거래 애널리틱스 검토
 
@@ -349,7 +350,7 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
 - 공유 API key 검증 외의 다중 사용자 auth 모델이 없음
 - 고급 주문 수명주기 대시보드와 broker별 미체결 주문 제어가 없음
 - 전략 마켓플레이스, 승인 워크플로, 승격 파이프라인이 없음
-- 현재 order audit 조회를 넘어서는 내장 감사 리포팅/export 패키지가 없음
+- 내장 order audit export는 bounded CSV/JSONL 응답이며, 대량 비동기 export pipeline은 없음
 
 ## 9. 권장 후속 문서
 

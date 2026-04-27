@@ -49,6 +49,12 @@ class OrderAuditRepository(Protocol):
         owner_id: str | None = None,
         symbol: str | None = None,
         event: str | None = None,
+        status: str | None = None,
+        side: str | None = None,
+        broker_order_id: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
+        sort: str = "desc",
         limit: int = 100,
     ) -> list[OrderAuditRecord]:
         ...
@@ -83,6 +89,12 @@ class FileOrderAuditRepository:
         owner_id: str | None = None,
         symbol: str | None = None,
         event: str | None = None,
+        status: str | None = None,
+        side: str | None = None,
+        broker_order_id: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
+        sort: str = "desc",
         limit: int = 100,
     ) -> list[OrderAuditRecord]:
         with self._lock:
@@ -93,9 +105,18 @@ class FileOrderAuditRepository:
             owner_id=owner_id,
             symbol=symbol,
             event=event,
+            status=status,
+            side=side,
+            broker_order_id=broker_order_id,
+            start=start,
+            end=end,
         )
-        entries = sorted(entries, key=lambda item: item.get("timestamp", ""), reverse=True)
-        selected = entries[: max(1, min(limit, 500))]
+        entries = sorted(
+            entries,
+            key=lambda item: item.get("timestamp", ""),
+            reverse=_normalize_sort(sort) == "desc",
+        )
+        selected = entries[: max(1, min(limit, 5000))]
         records: list[OrderAuditRecord] = []
         for entry in selected:
             record = self._read_record(entry["record_id"])
@@ -182,6 +203,12 @@ class SupabaseOrderAuditRepository:
         owner_id: str | None = None,
         symbol: str | None = None,
         event: str | None = None,
+        status: str | None = None,
+        side: str | None = None,
+        broker_order_id: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
+        sort: str = "desc",
         limit: int = 100,
     ) -> list[OrderAuditRecord]:
         conditions: list[str] = []
@@ -198,7 +225,23 @@ class SupabaseOrderAuditRepository:
         if event is not None:
             conditions.append("event = %s")
             params.append(event)
+        if status is not None:
+            conditions.append("status = %s")
+            params.append(status)
+        if side is not None:
+            conditions.append("side = %s")
+            params.append(side)
+        if broker_order_id is not None:
+            conditions.append("broker_order_id = %s")
+            params.append(broker_order_id)
+        if start is not None:
+            conditions.append("timestamp >= %s")
+            params.append(start)
+        if end is not None:
+            conditions.append("timestamp <= %s")
+            params.append(end)
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        direction = "ASC" if _normalize_sort(sort) == "asc" else "DESC"
         with self._get_conn().cursor() as cur:
             cur.execute(
                 f"""
@@ -208,10 +251,10 @@ class SupabaseOrderAuditRepository:
                     timestamp, payload, broker_order_id
                 FROM order_audit_records
                 {where}
-                ORDER BY timestamp DESC
+                ORDER BY timestamp {direction}
                 LIMIT %s
                 """,
-                [*params, max(1, min(limit, 500))],
+                [*params, max(1, min(limit, 5000))],
             )
             rows = cur.fetchall()
         return [_deserialize_db_row(row) for row in rows]
@@ -356,6 +399,9 @@ def _index_entry(record: OrderAuditRecord) -> dict[str, Any]:
         "owner_id": record.owner_id,
         "event": record.event,
         "symbol": record.symbol,
+        "side": record.side,
+        "status": record.status,
+        "broker_order_id": record.broker_order_id,
         "timestamp": record.timestamp,
     }
 
@@ -367,6 +413,11 @@ def _filter_entries(
     owner_id: str | None,
     symbol: str | None,
     event: str | None,
+    status: str | None,
+    side: str | None,
+    broker_order_id: str | None,
+    start: str | None,
+    end: str | None,
 ) -> list[dict[str, Any]]:
     filtered = entries
     if scope is not None:
@@ -377,7 +428,21 @@ def _filter_entries(
         filtered = [item for item in filtered if item.get("symbol") == symbol]
     if event is not None:
         filtered = [item for item in filtered if item.get("event") == event]
+    if status is not None:
+        filtered = [item for item in filtered if item.get("status") == status]
+    if side is not None:
+        filtered = [item for item in filtered if item.get("side") == side]
+    if broker_order_id is not None:
+        filtered = [item for item in filtered if item.get("broker_order_id") == broker_order_id]
+    if start is not None:
+        filtered = [item for item in filtered if str(item.get("timestamp", "")) >= start]
+    if end is not None:
+        filtered = [item for item in filtered if str(item.get("timestamp", "")) <= end]
     return filtered
+
+
+def _normalize_sort(sort: str) -> str:
+    return "asc" if sort == "asc" else "desc"
 
 
 def _deserialize_record(data: dict[str, Any]) -> OrderAuditRecord:

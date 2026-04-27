@@ -31,6 +31,7 @@ Current implementation note:
 - Portfolio state persists locally via `book.json`, while backtest runs, run metadata, dashboard equity history, and live runtime session history persist through file-based storage or Supabase-backed PostgreSQL depending on `DATABASE_URL`.
 - Backtest runs carry operator metadata such as provider, broker, strategy profile, pattern set, source, and optional notes.
 - Backtest execution is owned by an API dispatcher with `queued`/`running`/terminal states, and dispatcher status plus queue depth are queryable through the API.
-- Order creation, fills, rejections, and risk rejections can be stored and queried as durable order audit records owned by a backtest run or live session.
+- Order creation, fills, rejections, and risk rejections can be stored, queried, and exported as durable order audit records owned by a backtest run or live session. Broker order ids are preserved when available.
+- KIS reconciliation uses open-order snapshots as the preferred pending-order authority and falls back to balance-snapshot pending signals only when the capability is unavailable.
 - Repository-managed API keys expose governance fields such as disabled state and last-used tracking.
 - Webhook notifications provide bounded fire-and-forget outbound delivery for selected runtime events.

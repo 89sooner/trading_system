@@ -29,10 +29,33 @@ class FillEvent:
     fill_price: Decimal
     fee: Decimal
     status: FillStatus
+    broker_order_id: str | None = None
 
     @property
     def signed_quantity(self) -> Decimal:
         return self.filled_quantity if self.side == OrderSide.BUY else -self.filled_quantity
+
+
+@dataclass(slots=True, frozen=True)
+class OpenOrder:
+    broker_order_id: str
+    symbol: str
+    side: OrderSide
+    requested_quantity: Decimal
+    remaining_quantity: Decimal
+    status: str
+    submitted_at: str | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class OpenOrderSnapshot:
+    orders: tuple[OpenOrder, ...]
+
+    @property
+    def pending_symbols(self) -> tuple[str, ...]:
+        return tuple(
+            sorted({order.symbol for order in self.orders if order.remaining_quantity > 0})
+        )
 
 
 @dataclass(slots=True, frozen=True)
@@ -104,6 +127,9 @@ class BrokerSimulator(Protocol):
     def get_account_balance(self) -> AccountBalanceSnapshot | None:
         """Return an account snapshot when the broker supports reconciliation."""
 
+    def get_open_orders(self) -> OpenOrderSnapshot | None:
+        """Return unresolved/open orders when the broker supports the capability."""
+
 
 @dataclass(slots=True)
 class PolicyBrokerSimulator:
@@ -144,6 +170,9 @@ class PolicyBrokerSimulator:
     def get_account_balance(self) -> AccountBalanceSnapshot | None:
         return None
 
+    def get_open_orders(self) -> OpenOrderSnapshot | None:
+        return None
+
 
 @dataclass(slots=True)
 class ResilientBroker:
@@ -169,6 +198,18 @@ class ResilientBroker:
         return execute_with_resilience(
             operation="broker_account_balance",
             callback=lambda: self.delegate.get_account_balance(),
+            retry=self.retry_policy,
+            timeout=self.timeout_policy,
+            circuit_breaker=self.circuit_breaker_policy,
+            circuit_state=self._circuit_state,
+        )
+
+    def get_open_orders(self) -> OpenOrderSnapshot | None:
+        if not hasattr(self.delegate, "get_open_orders"):
+            return None
+        return execute_with_resilience(
+            operation="broker_open_orders",
+            callback=lambda: self.delegate.get_open_orders(),
             retry=self.retry_policy,
             timeout=self.timeout_policy,
             circuit_breaker=self.circuit_breaker_policy,

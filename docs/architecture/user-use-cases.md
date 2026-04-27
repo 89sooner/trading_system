@@ -39,6 +39,7 @@ The integrator connects the workspace to infrastructure, configures API keys/COR
 | `/api/v1/backtests/dispatcher` | Inspect backtest dispatcher worker and queue state | Operator |
 | `/api/v1/backtests/retention/*` | Preview and prune old run records | Operator, integrator |
 | `/api/v1/order-audit` | Query order audit records by backtest run or live session | Operator, researcher |
+| `/api/v1/order-audit/export` | Export order audit records by owner/time/status/broker id as CSV or JSONL | Operator, integrator |
 | `/api/v1/live/preflight` | Validate live runtime path before or during execution mode selection | Operator, integrator |
 | `/api/v1/live/runtime/sessions` | Inspect recent live runtime session history | Operator, integrator |
 | `/api/v1/patterns` | Train, save, list, and inspect pattern sets | Researcher |
@@ -349,7 +350,7 @@ Key gaps users must account for:
 - no multi-user auth model beyond shared API key validation
 - no advanced order lifecycle dashboard or broker-specific unresolved-order controls
 - no strategy marketplace, approval workflow, or promotion pipeline
-- no built-in audit reporting/export package beyond current order-audit queries, structured logs, and analytics endpoints
+- built-in order audit export is a bounded CSV/JSONL response, not a large asynchronous export pipeline
 
 ## 9. Recommended documentation follow-ups
 

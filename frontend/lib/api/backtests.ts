@@ -1,4 +1,4 @@
-import { requestJson } from './client'
+import { requestJson, requestText } from './client'
 import type {
   BacktestRunRequestDTO,
   BacktestRunAcceptedDTO,
@@ -7,6 +7,7 @@ import type {
   BacktestDispatcherStatus,
   BacktestRetentionPreview,
   BacktestRetentionPruneResponse,
+  OrderAuditExportParams,
 } from './types'
 
 export const createBacktestRun = (payload: BacktestRunRequestDTO) =>
@@ -49,3 +50,17 @@ export const pruneBacktestRetention = (payload: {
     method: 'POST',
     body: JSON.stringify(payload),
   })
+
+export const exportOrderAudit = (params: OrderAuditExportParams) => {
+  const qs = new URLSearchParams()
+  qs.set('scope', params.scope)
+  qs.set('owner_id', params.owner_id)
+  qs.set('format', params.format ?? 'csv')
+  if (params.start) qs.set('start', params.start)
+  if (params.end) qs.set('end', params.end)
+  if (params.status) qs.set('status', params.status)
+  if (params.side) qs.set('side', params.side)
+  if (params.broker_order_id) qs.set('broker_order_id', params.broker_order_id)
+  if (params.limit != null) qs.set('limit', String(params.limit))
+  return requestText(`/order-audit/export?${qs.toString()}`)
+}

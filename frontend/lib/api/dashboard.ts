@@ -1,4 +1,4 @@
-import { requestJson } from './client'
+import { requestJson, requestText } from './client'
 import { useApiStore } from '@/store/apiStore'
 import type {
   DashboardStatus,
@@ -11,6 +11,7 @@ import type {
   LiveRuntimeStartResponseDTO,
   LiveRuntimeSessionList,
   LiveRuntimeSessionRecord,
+  OrderAuditExportParams,
 } from './types'
 
 export const getDashboardStatus = () => requestJson<DashboardStatus>('/dashboard/status')
@@ -53,3 +54,17 @@ export const getLiveRuntimeSession = (sessionId: string) =>
   requestJson<LiveRuntimeSessionRecord>(
     `/live/runtime/sessions/${encodeURIComponent(sessionId)}`,
   )
+
+export const exportLiveSessionOrderAudit = (params: Omit<OrderAuditExportParams, 'scope'>) => {
+  const qs = new URLSearchParams()
+  qs.set('scope', 'live_session')
+  qs.set('owner_id', params.owner_id)
+  qs.set('format', params.format ?? 'csv')
+  if (params.start) qs.set('start', params.start)
+  if (params.end) qs.set('end', params.end)
+  if (params.status) qs.set('status', params.status)
+  if (params.side) qs.set('side', params.side)
+  if (params.broker_order_id) qs.set('broker_order_id', params.broker_order_id)
+  if (params.limit != null) qs.set('limit', String(params.limit))
+  return requestText(`/order-audit/export?${qs.toString()}`)
+}

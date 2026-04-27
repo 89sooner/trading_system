@@ -34,6 +34,8 @@ The KIS live-order path exists, but it is explicitly gated behind `TRADING_SYSTE
 - [ ] Risk rejection / emergency scenario reviewed (incident-response scenario B)
 - [ ] Order failure / broker error scenario reviewed (incident-response scenario C)
 - [ ] If the environment uses broker snapshots, reconciliation mismatch scenario reviewed (incident-response scenario D)
+- [ ] Live order audit is verified without relying on `TestClient(create_app())` lifespan startup (`pytest tests/integration/test_order_audit_integration.py -q`)
+- [ ] KIS open-order pending authority is covered by parser and reconciliation tests
 
 ## Gate 5: Sign-off
 
@@ -44,4 +46,4 @@ The KIS live-order path exists, but it is explicitly gated behind `TRADING_SYSTE
 ## Notes
 
 - Even though the KIS live-order path exists, do not enable `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true` until all gates are complete.
-- Generic reconciliation only works when the broker exposes account balance snapshots. The current KIS adapter does expose balance snapshots, and reconciliation will skip fail-closed if the pending-order signal is incomplete.
+- Generic reconciliation works when the broker exposes account balance snapshots. The KIS adapter now prefers open-order snapshots for pending authority and skips fail-closed if that source is unavailable or malformed.

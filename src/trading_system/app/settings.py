@@ -77,6 +77,7 @@ class AppSettings:
         max_position: str,
         max_notional: str,
         max_order_size: str,
+        strategy_profile_id: str | None = None,
     ) -> "AppSettings":
         parsed_symbols = tuple(
             symbol.strip().upper()
@@ -107,7 +108,11 @@ class AppSettings:
                 fee_bps=_to_decimal(fee_bps, "fee_bps"),
                 trade_quantity=_to_decimal(trade_quantity, "trade_quantity"),
             ),
-            strategy=None,
+            strategy=(
+                PatternSignalStrategySettings(profile_id=strategy_profile_id.strip())
+                if strategy_profile_id is not None and strategy_profile_id.strip()
+                else None
+            ),
         )
 
     def validate(self) -> None:

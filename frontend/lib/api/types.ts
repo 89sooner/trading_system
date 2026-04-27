@@ -261,6 +261,40 @@ export interface BacktestRunStatusDTO {
   error?: string | null
 }
 
+export interface OrderAuditRecordDTO {
+  record_id: string
+  scope: string
+  owner_id: string
+  event: string
+  symbol?: string | null
+  side?: string | null
+  requested_quantity?: string | null
+  filled_quantity?: string | null
+  price?: string | null
+  status?: string | null
+  reason?: string | null
+  timestamp: string
+  payload: Record<string, unknown>
+  broker_order_id?: string | null
+}
+
+export interface OrderAuditListDTO {
+  records: OrderAuditRecordDTO[]
+  total: number
+}
+
+export interface OrderAuditExportParams {
+  scope: 'backtest' | 'live_session'
+  owner_id: string
+  format?: 'csv' | 'jsonl'
+  start?: string
+  end?: string
+  status?: string
+  side?: string
+  broker_order_id?: string
+  limit?: number
+}
+
 // Backtest run list (Phase 8)
 export interface BacktestRunListItem {
   run_id: string

@@ -1,7 +1,9 @@
 """Integration tests for KIS reconciliation flow."""
 
 from decimal import Decimal
+from unittest.mock import MagicMock
 
+from trading_system.app.loop import LiveTradingLoop
 from trading_system.core.ops import StructuredLogFormat, StructuredLogger
 from trading_system.execution.broker import AccountBalanceSnapshot
 from trading_system.execution.reconciliation import reconcile
@@ -75,3 +77,21 @@ def test_reconciliation_removes_liquidated_position() -> None:
     assert book.cash == Decimal("710000")
     assert "005930" not in book.positions
     assert "005930" not in book.average_costs
+
+
+def test_live_reconciliation_skips_fail_closed_when_open_order_query_fails() -> None:
+    services = MagicMock()
+    services.logger = MagicMock()
+    services.portfolio = PortfolioBook(
+        cash=Decimal("1000000"),
+        positions={"005930": Decimal("5")},
+    )
+    services.broker_simulator.get_open_orders.side_effect = RuntimeError("open orders failed")
+
+    loop = LiveTradingLoop(services=services)
+
+    loop._maybe_reconcile()
+
+    services.broker_simulator.get_account_balance.assert_not_called()
+    assert services.portfolio.cash == Decimal("1000000")
+    assert services.portfolio.positions["005930"] == Decimal("5")

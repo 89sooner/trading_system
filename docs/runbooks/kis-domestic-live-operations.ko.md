@@ -122,6 +122,8 @@ TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true TRADING_SYSTEM_LIVE_BAR_SAMPLES=2 TRADING
 - [ ] `last_heartbeat`가 장시간 멈추지 않고 갱신된다
 - [ ] session active 동안 `positions`, `events`, `equity` 응답이 정상적으로 갱신된다
 - [ ] `portfolio.reconciliation.*` 이벤트가 비정상적으로 `skipped`에만 고정되지 않는다
+- [ ] `portfolio.reconciliation.pending_source`가 기록되고, KIS 경로에서는 가능한 경우 `open_orders` source가 사용된다
+- [ ] `/api/v1/order-audit/export?scope=live_session&owner_id=<session_id>&format=csv`로 session 주문 감사 기록을 export할 수 있다
 - [ ] `pause`가 실제로 상태를 `paused`로 바꾼다
 - [ ] `resume`이 실제로 상태를 다시 `running`으로 바꾼다
 - [ ] `stop` 후 dashboard가 clean disconnected/stopped 상태로 돌아간다
@@ -156,6 +158,7 @@ paper 리허설이 안정적인 경우에만 진행한다.
 - `portfolio.reconciliation.symbol_skipped` — 미체결 주문으로 심볼 건너뜀
 - `portfolio.reconciliation.cash_frozen` — 미체결 심볼로 인한 현금 동결
 - `portfolio.reconciliation.skipped` — 전체 대사 건너뜀 (스냅샷 불가)
+- `portfolio.reconciliation.pending_source` — pending 판단 근거 (`open_orders`, `balance_snapshot`, `unavailable`)
 
 ## 대시보드 모니터링
 

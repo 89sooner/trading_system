@@ -70,3 +70,35 @@ export function userMessageForError(error: unknown): string {
   if (error.kind === 'server') return `Server error (5xx): ${error.message}`
   return `HTTP error: ${error.message}`
 }
+
+export async function requestText(path: string, options: RequestInit = {}): Promise<string> {
+  const { baseUrl, apiKey } = useApiStore.getState()
+  const url = `${baseUrl}${path}`
+
+  const headers: Record<string, string> = {}
+  if (apiKey) headers['X-API-Key'] = apiKey
+
+  let response: Response
+  try {
+    const { headers: callerHeaders, ...restOptions } = options
+    response = await fetch(url, {
+      headers: { ...headers, ...(callerHeaders as Record<string, string>) },
+      ...restOptions,
+    })
+  } catch {
+    throw new ApiError(
+      'network',
+      `Cannot reach backend API at ${url}. Check that the backend is running and the API base URL is correct.`,
+    )
+  }
+
+  const rawBody = await response.text()
+  if (response.ok) return rawBody
+  if (response.status >= 400 && response.status < 500) {
+    throw new ApiError('validation', rawBody || 'Validation error.', response.status, rawBody)
+  }
+  if (response.status >= 500) {
+    throw new ApiError('server', rawBody || 'Server error.', response.status, rawBody)
+  }
+  throw new ApiError('http', `Unexpected HTTP status: ${response.status}`, response.status, rawBody)
+}
