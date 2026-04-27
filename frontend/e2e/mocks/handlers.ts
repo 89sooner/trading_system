@@ -6,6 +6,8 @@ import type {
   BacktestRunStatusDTO,
   TradeAnalyticsResponse,
   StrategyProfileDTO,
+  LiveRuntimeSessionList,
+  EquityTimeseriesResponse,
 } from '../../lib/api/types'
 
 // ── Fixture data ──
@@ -41,6 +43,37 @@ export const dashboardEvents: EventFeed = {
       correlation_id: 'corr-001',
       timestamp: '2026-04-07T11:30:00Z',
       payload: { symbol: '005930', side: 'buy', quantity: 10 },
+    },
+  ],
+  total: 1,
+}
+
+export const dashboardEquity: EquityTimeseriesResponse = {
+  session_id: 'live-test-001',
+  points: [],
+  total: 0,
+}
+
+export const liveRuntimeSessions: LiveRuntimeSessionList = {
+  sessions: [
+    {
+      session_id: 'live-test-001',
+      started_at: '2026-04-07T10:00:00Z',
+      ended_at: '2026-04-07T11:00:00Z',
+      provider: 'kis',
+      broker: 'kis',
+      live_execution: 'paper',
+      symbols: ['005930'],
+      last_state: 'stopped',
+      last_error: null,
+      preflight_summary: {
+        checked_at: '2026-04-07T09:59:00Z',
+        ready: true,
+        message: 'Ready',
+        blocking_reasons: [],
+        warnings: [],
+        next_allowed_actions: ['paper'],
+      },
     },
   ],
   total: 1,
@@ -125,6 +158,29 @@ export async function setupMockRoutes(page: Page) {
 
   await page.route('**/api/v1/dashboard/events**', (route) =>
     route.fulfill({ json: dashboardEvents }),
+  )
+
+  await page.route('**/api/v1/dashboard/equity**', (route) =>
+    route.fulfill({ json: dashboardEquity }),
+  )
+
+  await page.route('**/api/v1/live/runtime/sessions**', (route) =>
+    route.fulfill({ json: liveRuntimeSessions }),
+  )
+
+  await page.route('**/api/v1/backtests/dispatcher', (route) =>
+    route.fulfill({ json: { running: true, queue_depth: 0, max_queue_size: 32 } }),
+  )
+
+  await page.route('**/api/v1/backtests/retention/preview**', (route) =>
+    route.fulfill({
+      json: {
+        cutoff: '2026-03-01T00:00:00Z',
+        status: 'succeeded',
+        candidate_count: 0,
+        run_ids: [],
+      },
+    }),
   )
 
   await page.route('**/api/v1/backtests/*', (route) =>

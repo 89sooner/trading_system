@@ -36,6 +36,9 @@ The integrator connects the workspace to infrastructure, configures API keys/COR
 | --- | --- | --- |
 | `trading_system.app.main` | Run backtest or live execution from CLI | Operator, developer |
 | `/api/v1/backtests` | Start deterministic backtest and fetch run result | Frontend, API client |
+| `/api/v1/backtests/dispatcher` | Inspect backtest dispatcher worker and queue state | Operator |
+| `/api/v1/backtests/retention/*` | Preview and prune old run records | Operator, integrator |
+| `/api/v1/order-audit` | Query order audit records by backtest run or live session | Operator, researcher |
 | `/api/v1/live/preflight` | Validate live runtime path before or during execution mode selection | Operator, integrator |
 | `/api/v1/live/runtime/sessions` | Inspect recent live runtime session history | Operator, integrator |
 | `/api/v1/patterns` | Train, save, list, and inspect pattern sets | Researcher |
@@ -53,6 +56,7 @@ The integrator connects the workspace to infrastructure, configures API keys/COR
 | Portfolio snapshot | `data/portfolio/book.json` | Restart-safe live portfolio state |
 | Backtest run result + metadata | File repository or Supabase-backed PostgreSQL | Durable run lookup, review context, and analytics |
 | Live runtime session history | File repository or Supabase-backed PostgreSQL | Recent live session lookup and post-run review |
+| Order audit records | File repository or Supabase-backed PostgreSQL | Query order creation, fills, rejections, and risk rejections by run/session owner |
 | Frontend run history fallback | Browser local storage | Fallback cache when the backend is unavailable |
 
 ## 5. End-to-end user journey
@@ -159,14 +163,15 @@ The intended high-value workflow today is:
   4. Each bar runs through the unified execution step:
      strategy evaluation -> signal -> order mapping -> risk check -> broker fill -> portfolio update.
   5. Equity points, orders, signals, and risk rejections are collected.
-  6. The API stores the finished run in the configured run repository and returns `succeeded`.
+  6. Order creation, fills, rejections, and risk rejections are stored as order audit records owned by the run.
+  7. The API dispatcher stores the run as `queued`, `running`, `succeeded`, or `failed`.
 - Outputs:
   - summary return metrics
   - equity curve
   - drawdown curve
   - signal, order, and rejection event streams
 - Current constraints:
-  - the API executes backtests synchronously rather than as background jobs
+  - the API executes backtests through an internal dispatcher, but there is no external queue service or distributed worker model yet
   - persistence depends on deployment configuration: file-backed by default, Supabase-backed when `DATABASE_URL` is set
   - the frontend new-run page accepts a single symbol input even though backtest internals can handle multiple symbols
   - the CLI path does not currently expose pattern-profile selection flags
@@ -340,12 +345,11 @@ The current implementation is strong for research, controlled paper trading, and
 
 Key gaps users must account for:
 
-- no asynchronous job queue for long-running backtests
+- no external queue/distributed worker model for long-running backtests
 - no multi-user auth model beyond shared API key validation
-- no advanced order lifecycle dashboard
+- no advanced order lifecycle dashboard or broker-specific unresolved-order controls
 - no strategy marketplace, approval workflow, or promotion pipeline
-- no direct frontend flow for starting live execution
-- no built-in audit/reporting package beyond current structured logs and analytics endpoints
+- no built-in audit reporting/export package beyond current order-audit queries, structured logs, and analytics endpoints
 
 ## 9. Recommended documentation follow-ups
 

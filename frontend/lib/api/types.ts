@@ -123,6 +123,31 @@ export interface LiveRuntimeStartResponseDTO {
   preflight?: LivePreflightResponseDTO | null
 }
 
+export interface LiveRuntimeSessionRecord {
+  session_id: string
+  started_at: string
+  ended_at: string | null
+  provider: string
+  broker: string
+  live_execution: string
+  symbols: string[]
+  last_state: string
+  last_error?: string | null
+  preflight_summary?: {
+    checked_at?: string
+    ready?: boolean
+    message?: string
+    blocking_reasons?: string[]
+    warnings?: string[]
+    next_allowed_actions?: string[]
+  } | null
+}
+
+export interface LiveRuntimeSessionList {
+  sessions: LiveRuntimeSessionRecord[]
+  total: number
+}
+
 // Backtests
 export interface RiskDTO {
   max_position: number
@@ -180,6 +205,24 @@ export interface BacktestRunRequestDTO {
 export interface BacktestRunAcceptedDTO {
   run_id: string
   status: BacktestRunStatus
+}
+
+export interface BacktestDispatcherStatus {
+  running: boolean
+  queue_depth: number
+  max_queue_size: number
+}
+
+export interface BacktestRetentionPreview {
+  cutoff: string
+  status?: string | null
+  candidate_count: number
+  run_ids: string[]
+}
+
+export interface BacktestRetentionPruneResponse {
+  deleted_count: number
+  run_ids: string[]
 }
 
 export interface EquityPoint {

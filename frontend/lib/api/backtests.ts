@@ -4,6 +4,9 @@ import type {
   BacktestRunAcceptedDTO,
   BacktestRunStatusDTO,
   BacktestRunListResponse,
+  BacktestDispatcherStatus,
+  BacktestRetentionPreview,
+  BacktestRetentionPruneResponse,
 } from './types'
 
 export const createBacktestRun = (payload: BacktestRunRequestDTO) =>
@@ -26,3 +29,23 @@ export const listBacktestRuns = (params?: {
   const query = qs.toString()
   return requestJson<BacktestRunListResponse>(`/backtests${query ? `?${query}` : ''}`)
 }
+
+export const getBacktestDispatcherStatus = () =>
+  requestJson<BacktestDispatcherStatus>('/backtests/dispatcher')
+
+export const previewBacktestRetention = (params: { cutoff: string; status?: string }) => {
+  const qs = new URLSearchParams()
+  qs.set('cutoff', params.cutoff)
+  if (params.status) qs.set('status', params.status)
+  return requestJson<BacktestRetentionPreview>(`/backtests/retention/preview?${qs.toString()}`)
+}
+
+export const pruneBacktestRetention = (payload: {
+  cutoff: string
+  status?: string
+  confirm: 'DELETE'
+}) =>
+  requestJson<BacktestRetentionPruneResponse>('/backtests/retention/prune', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })

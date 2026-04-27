@@ -32,6 +32,7 @@ from trading_system.execution.broker import (
     ResilientBroker,
 )
 from trading_system.execution.kis_adapter import KisBrokerAdapter
+from trading_system.execution.order_audit import OrderAuditRepository
 from trading_system.integrations.kis import KisApiClient, is_krx_market_open
 from trading_system.notifications.webhook import WebhookNotifier, build_webhook_notifier
 from trading_system.patterns.repository import PatternSetRepository
@@ -98,8 +99,9 @@ class AppServices:
     strategies: dict[str, Strategy] | None = None
     portfolio_risk: PortfolioRiskLimits | None = None
     webhook_notifier: WebhookNotifier | None = None
+    order_audit_repository: OrderAuditRepository | None = None
 
-    def run(self) -> BacktestResult:
+    def run(self, audit_owner_id: str | None = None) -> BacktestResult:
         if self.mode != AppMode.BACKTEST:
             raise RuntimeError(f"Unsupported mode '{self.mode}'.")
 
@@ -112,6 +114,9 @@ class AppServices:
             portfolio_risk=self.portfolio_risk,
             runtime_state=LiveRuntimeState(state=AppRunnerState.RUNNING),
             marks={},
+            order_audit_repository=self.order_audit_repository,
+            order_audit_scope="backtest",
+            order_audit_owner_id=audit_owner_id,
         )
         return run_backtest(
             bars=bars,
@@ -172,7 +177,11 @@ class AppServices:
 
         resolved_session_id = session_id or datetime.now(UTC).strftime("live_%Y%m%d_%H%M%S")
         equity_writer = _create_equity_writer(resolved_session_id)
-        return LiveTradingLoop(services=self, equity_writer=equity_writer)
+        return LiveTradingLoop(
+            services=self,
+            equity_writer=equity_writer,
+            audit_owner_id=resolved_session_id,
+        )
 
     def run_live_execution(self) -> None:
         if self.mode != AppMode.LIVE:
@@ -209,7 +218,11 @@ class AppServices:
         return sorted(merged, key=lambda bar: (bar.timestamp, symbol_order[bar.symbol]))
 
 
-def build_services(settings: AppSettings) -> AppServices:
+def build_services(
+    settings: AppSettings,
+    *,
+    order_audit_repository: OrderAuditRepository | None = None,
+) -> AppServices:
     ensure_logging()
     logger = StructuredLogger("trading_system", log_format=StructuredLogFormat.JSON)
     kis_client = _build_kis_client_if_needed(settings)
@@ -270,6 +283,7 @@ def build_services(settings: AppSettings) -> AppServices:
         live_preflight_check=_build_live_preflight(settings, kis_client=kis_client),
         portfolio_repository=(portfolio_repository if settings.mode == AppMode.LIVE else None),
         webhook_notifier=webhook_notifier,
+        order_audit_repository=order_audit_repository,
     )
 
 

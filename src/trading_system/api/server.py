@@ -14,6 +14,7 @@ from trading_system.api.routes.analytics import router as analytics_router
 from trading_system.api.routes.backtest import router as backtest_router
 from trading_system.api.routes.dashboard import router as dashboard_router
 from trading_system.api.routes.live_runtime import router as live_runtime_router
+from trading_system.api.routes.order_audit import router as order_audit_router
 from trading_system.api.routes.patterns import router as patterns_router
 from trading_system.api.routes.strategies import router as strategies_router
 from trading_system.api.schemas import ErrorResponseDTO
@@ -23,6 +24,7 @@ from trading_system.app.live_runtime_history import create_live_runtime_session_
 from trading_system.app.services import build_services
 from trading_system.app.settings import SettingsValidationError as AppSettingsValidationError
 from trading_system.config.settings import SettingsValidationError as ConfigSettingsValidationError
+from trading_system.execution.order_audit import create_order_audit_repository
 
 load_dotenv()
 
@@ -35,6 +37,7 @@ def create_app(live_loop=None) -> FastAPI:
     app.include_router(analytics_router)
     app.include_router(backtest_router)
     app.include_router(live_runtime_router)
+    app.include_router(order_audit_router)
     app.include_router(patterns_router)
     app.include_router(strategies_router)
     app.include_router(dashboard_router)
@@ -42,8 +45,13 @@ def create_app(live_loop=None) -> FastAPI:
     app.state.live_loop = live_loop
     app.state.backtest_dispatcher = dispatcher
     app.state.live_runtime_history_repository = create_live_runtime_session_repository()
+    app.state.order_audit_repository = create_order_audit_repository()
+    backtest_module._ORDER_AUDIT_REPOSITORY = app.state.order_audit_repository
     app.state.live_runtime_controller = LiveRuntimeController(
-        services_builder=build_services,
+        services_builder=lambda settings: build_services(
+            settings,
+            order_audit_repository=app.state.order_audit_repository,
+        ),
         attach_loop=lambda loop: setattr(app.state, 'live_loop', loop),
         history_repository=app.state.live_runtime_history_repository,
     )

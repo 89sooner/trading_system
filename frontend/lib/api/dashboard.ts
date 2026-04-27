@@ -9,6 +9,8 @@ import type {
   LivePreflightResponseDTO,
   LiveRuntimeStartRequestDTO,
   LiveRuntimeStartResponseDTO,
+  LiveRuntimeSessionList,
+  LiveRuntimeSessionRecord,
 } from './types'
 
 export const getDashboardStatus = () => requestJson<DashboardStatus>('/dashboard/status')
@@ -43,3 +45,11 @@ export const postLiveRuntimeStart = (payload: LiveRuntimeStartRequestDTO) =>
     method: 'POST',
     body: JSON.stringify({ mode: 'live', ...payload }),
   })
+
+export const listLiveRuntimeSessions = (limit = 20) =>
+  requestJson<LiveRuntimeSessionList>(`/live/runtime/sessions?limit=${limit}`)
+
+export const getLiveRuntimeSession = (sessionId: string) =>
+  requestJson<LiveRuntimeSessionRecord>(
+    `/live/runtime/sessions/${encodeURIComponent(sessionId)}`,
+  )

@@ -8,7 +8,11 @@ from fastapi import APIRouter, HTTPException, Request, status
 
 from trading_system.api.errors import RequestValidationError
 from trading_system.api.schemas import (
+    BacktestDispatcherStatusDTO,
     BacktestResultDTO,
+    BacktestRetentionPreviewDTO,
+    BacktestRetentionPruneRequestDTO,
+    BacktestRetentionPruneResponseDTO,
     BacktestRunAcceptedDTO,
     BacktestRunListItemDTO,
     BacktestRunListResponseDTO,
@@ -43,6 +47,10 @@ from trading_system.backtest.engine import BacktestResult
 from trading_system.backtest.file_repository import FileBacktestRunRepository
 from trading_system.backtest.repository import BacktestRunRepository
 from trading_system.core.compat import UTC
+from trading_system.execution.order_audit import (
+    OrderAuditRepository,
+    create_order_audit_repository,
+)
 from trading_system.strategy.base import SignalSide
 
 router = APIRouter(prefix="/api/v1", tags=["runtime"])
@@ -59,6 +67,7 @@ def _create_run_repository() -> BacktestRunRepository:
 
 
 _RUN_REPOSITORY = _create_run_repository()
+_ORDER_AUDIT_REPOSITORY: OrderAuditRepository | None = create_order_audit_repository()
 _MAX_FEE_BPS = Decimal("1000")
 
 
@@ -286,8 +295,11 @@ def _execute_backtest_run(item: QueuedBacktestRun) -> BacktestRunDTO:
     finished_at = datetime.now(UTC)
     try:
         assert isinstance(item.payload, AppSettings)
-        services = build_services(item.payload)
-        result = services.run()
+        services = build_services(
+            item.payload,
+            order_audit_repository=_ORDER_AUDIT_REPOSITORY,
+        )
+        result = services.run(audit_owner_id=item.run_id)
         return BacktestRunDTO.succeeded(
             run_id=item.run_id,
             started_at=item.started_at,
@@ -340,6 +352,53 @@ def list_backtest_runs(
     return BacktestRunListResponseDTO(runs=items, total=total, page=page, page_size=page_size)
 
 
+@router.get("/backtests/dispatcher", response_model=BacktestDispatcherStatusDTO)
+def get_backtest_dispatcher_status(request: Request) -> BacktestDispatcherStatusDTO:
+    dispatcher = getattr(request.app.state, "backtest_dispatcher", None)
+    if dispatcher is None:
+        return BacktestDispatcherStatusDTO(running=False, queue_depth=0, max_queue_size=0)
+    snapshot = dispatcher.snapshot()
+    return BacktestDispatcherStatusDTO(
+        running=snapshot.running,
+        queue_depth=snapshot.queue_depth,
+        max_queue_size=snapshot.max_queue_size,
+    )
+
+
+@router.get("/backtests/retention/preview", response_model=BacktestRetentionPreviewDTO)
+def preview_backtest_retention(
+    cutoff: str,
+    status: str | None = None,
+) -> BacktestRetentionPreviewDTO:
+    candidate_ids = _retention_candidate_ids(cutoff=cutoff, status=status)
+    return BacktestRetentionPreviewDTO(
+        cutoff=cutoff,
+        status=status,
+        candidate_count=len(candidate_ids),
+        run_ids=candidate_ids,
+    )
+
+
+@router.post("/backtests/retention/prune", response_model=BacktestRetentionPruneResponseDTO)
+def prune_backtest_retention(
+    payload: BacktestRetentionPruneRequestDTO,
+) -> BacktestRetentionPruneResponseDTO:
+    if payload.confirm != "DELETE":
+        raise RequestValidationError(
+            error_code="retention_confirmation_required",
+            message="confirm must be DELETE before pruning backtest runs.",
+        )
+    candidate_ids = _retention_candidate_ids(cutoff=payload.cutoff, status=payload.status)
+    deleted_ids: list[str] = []
+    for run_id in candidate_ids:
+        if _RUN_REPOSITORY.delete(run_id):
+            deleted_ids.append(run_id)
+    return BacktestRetentionPruneResponseDTO(
+        deleted_count=len(deleted_ids),
+        run_ids=deleted_ids,
+    )
+
+
 def create_backtest_run(
     payload: BacktestRunRequestDTO,
     request: Request | None = None,
@@ -373,6 +432,38 @@ def create_backtest_run(
 
     dispatcher.submit(item)
     return BacktestRunAcceptedDTO(run_id=run_id, status="queued")
+
+
+def _retention_candidate_ids(*, cutoff: str, status: str | None) -> list[str]:
+    cutoff_dt = _parse_cutoff(cutoff)
+    candidates: list[str] = []
+    page = 1
+    while True:
+        runs, total = _RUN_REPOSITORY.list(page=page, page_size=100, status=status)
+        if not runs:
+            break
+        for run in runs:
+            run_dt = _parse_cutoff(run.started_at)
+            if run_dt < cutoff_dt:
+                candidates.append(run.run_id)
+        if page * 100 >= total:
+            break
+        page += 1
+    return candidates
+
+
+def _parse_cutoff(value: str) -> datetime:
+    try:
+        normalized = value.replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise RequestValidationError(
+            error_code="invalid_cutoff",
+            message="cutoff must be an ISO 8601 datetime.",
+        ) from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 @router.post(

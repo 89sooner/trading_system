@@ -14,6 +14,7 @@ from trading_system.execution.broker import (
     FixedRatioFillPolicy,
     PolicyBrokerSimulator,
 )
+from trading_system.execution.order_audit import OrderAuditRecord
 from trading_system.portfolio.book import PortfolioBook
 from trading_system.risk.limits import RiskLimits
 from trading_system.strategy.base import SignalSide, StrategySignal
@@ -29,6 +30,17 @@ class StubStrategy:
         signal = self.signals[self._index]
         self._index += 1
         return signal
+
+
+class RecordingAuditRepository:
+    def __init__(self) -> None:
+        self.records: list[OrderAuditRecord] = []
+
+    def append(self, record: OrderAuditRecord) -> None:
+        self.records.append(record)
+
+    def list(self, **kwargs):
+        return self.records
 
 
 def test_run_backtest_executes_buy_at_close_and_records_return() -> None:
@@ -219,6 +231,29 @@ def test_run_backtest_emits_structured_events_for_fill_and_risk_rejection(caplog
     assert "order.created" in events
     assert "order.filled" in events
     assert "risk.rejected" in events
+
+
+def test_run_backtest_appends_order_audit_records() -> None:
+    audit_repo = RecordingAuditRepository()
+    context = BacktestContext(
+        portfolio=PortfolioBook(cash=Decimal("1000")),
+        risk_limits=_limits(),
+        broker=_broker(),
+        order_audit_repository=audit_repo,
+        order_audit_scope="backtest",
+        order_audit_owner_id="run-1",
+    )
+
+    run_backtest(
+        _bars([Decimal("100")]),
+        StubStrategy(
+            [StrategySignal(side=SignalSide.BUY, quantity=Decimal("1"), reason="entry")]
+        ),
+        context,
+    )
+
+    assert [record.event for record in audit_repo.records] == ["order.created", "order.filled"]
+    assert {record.owner_id for record in audit_repo.records} == {"run-1"}
 
 def _limits() -> RiskLimits:
     return RiskLimits(

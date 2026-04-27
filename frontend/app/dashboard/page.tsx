@@ -3,6 +3,7 @@
 import { Activity, ShieldCheck, Siren, TimerReset } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { RuntimeLaunchForm } from '@/components/dashboard/RuntimeLaunchForm'
+import { SessionHistoryPanel } from '@/components/dashboard/SessionHistoryPanel'
 import { DashboardMetrics } from '@/components/dashboard/DashboardMetrics'
 import { DashboardPanel } from '@/components/dashboard/DashboardPanel'
 import { ControlButtons } from '@/components/dashboard/ControlButtons'
@@ -72,6 +73,7 @@ export default function DashboardPage() {
       />
 
       {!hasActiveRuntime ? <RuntimeLaunchForm /> : null}
+      <SessionHistoryPanel />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)]">
         <div className="space-y-4">
