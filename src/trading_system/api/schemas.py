@@ -106,6 +106,30 @@ class BacktestRunAcceptedDTO(BaseModel):
     status: Literal["queued", "succeeded", "failed"]
 
 
+class BacktestDispatcherStatusDTO(BaseModel):
+    running: bool
+    queue_depth: int
+    max_queue_size: int
+
+
+class BacktestRetentionPreviewDTO(BaseModel):
+    cutoff: str
+    status: str | None = None
+    candidate_count: int
+    run_ids: list[str]
+
+
+class BacktestRetentionPruneRequestDTO(BaseModel):
+    cutoff: str
+    status: str | None = None
+    confirm: str | None = None
+
+
+class BacktestRetentionPruneResponseDTO(BaseModel):
+    deleted_count: int
+    run_ids: list[str]
+
+
 class BacktestRunStatusDTO(BaseModel):
     run_id: str
     status: Literal["queued", "running", "succeeded", "failed"]
@@ -191,6 +215,28 @@ class LiveRuntimeSessionRecordDTO(BaseModel):
 
 class LiveRuntimeSessionListDTO(BaseModel):
     sessions: list[LiveRuntimeSessionRecordDTO]
+    total: int
+
+
+class OrderAuditRecordDTO(BaseModel):
+    record_id: str
+    scope: Literal["backtest", "live_session"] | str
+    owner_id: str
+    event: str
+    symbol: str | None = None
+    side: str | None = None
+    requested_quantity: str | None = None
+    filled_quantity: str | None = None
+    price: str | None = None
+    status: str | None = None
+    reason: str | None = None
+    timestamp: str
+    payload: dict
+    broker_order_id: str | None = None
+
+
+class OrderAuditListDTO(BaseModel):
+    records: list[OrderAuditRecordDTO]
     total: int
 
 

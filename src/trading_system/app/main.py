@@ -9,10 +9,12 @@ from trading_system.app.settings import (
     LiveExecutionMode,
     SettingsValidationError,
 )
+from trading_system.config.settings import load_app_settings
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Trading system application entrypoint")
+    parser.add_argument("--config", default=None, help="YAML config path")
     parser.add_argument("--mode", default="backtest", help="Runtime mode (backtest|live)")
     parser.add_argument("--symbols", default="BTCUSDT", help="Comma-separated symbols")
     parser.add_argument("--provider", default="mock", help="Market data provider")
@@ -28,6 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-position", default="1.0", help="Risk max position")
     parser.add_argument("--max-notional", default="100000", help="Risk max notional")
     parser.add_argument("--max-order-size", default="0.25", help="Risk max order size")
+    parser.add_argument("--strategy-profile-id", default=None, help="Stored strategy profile id")
     return parser
 
 
@@ -36,18 +39,23 @@ def run(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        settings = AppSettings.from_cli(
-            mode=args.mode,
-            symbols=args.symbols,
-            provider=args.provider,
-            broker=args.broker,
-            live_execution=args.live_execution,
-            starting_cash=args.starting_cash,
-            fee_bps=args.fee_bps,
-            trade_quantity=args.trade_quantity,
-            max_position=args.max_position,
-            max_notional=args.max_notional,
-            max_order_size=args.max_order_size,
+        settings = (
+            load_app_settings(args.config)
+            if args.config is not None
+            else AppSettings.from_cli(
+                mode=args.mode,
+                symbols=args.symbols,
+                provider=args.provider,
+                broker=args.broker,
+                live_execution=args.live_execution,
+                starting_cash=args.starting_cash,
+                fee_bps=args.fee_bps,
+                trade_quantity=args.trade_quantity,
+                max_position=args.max_position,
+                max_notional=args.max_notional,
+                max_order_size=args.max_order_size,
+                strategy_profile_id=args.strategy_profile_id,
+            )
         )
         settings.validate()
 

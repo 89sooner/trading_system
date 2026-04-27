@@ -36,6 +36,10 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
 | --- | --- | --- |
 | `trading_system.app.main` | CLI에서 백테스트 또는 라이브 실행 | 운영자, 개발자 |
 | `/api/v1/backtests` | 결정적 백테스트를 시작하고 실행 결과 조회 | 프론트엔드, API 클라이언트 |
+| `/api/v1/backtests/dispatcher` | 백테스트 dispatcher worker와 queue 상태 조회 | 운영자 |
+| `/api/v1/backtests/retention/*` | 오래된 run 기록 preview/prune | 운영자, 통합 담당자 |
+| `/api/v1/order-audit` | backtest run 또는 live session 기준 주문 감사 record 조회 | 운영자, 리서처 |
+| `/api/v1/order-audit/export` | owner/time/status/broker id 기준 주문 감사 CSV/JSONL export | 운영자, 통합 담당자 |
 | `/api/v1/live/preflight` | 라이브 실행 전 또는 실행 모드 선택 시 런타임 경로 검증 | 운영자, 통합 담당자 |
 | `/api/v1/live/runtime/sessions` | 최근 live runtime session history 조회 | 운영자, 통합 담당자 |
 | `/api/v1/patterns` | 패턴 세트 학습, 저장, 목록 조회, 상세 조회 | 리서처 |
@@ -53,6 +57,7 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
 | 포트폴리오 스냅샷 | `data/portfolio/book.json` | 라이브 세션 재시작 시 복구 가능한 포트폴리오 상태 |
 | 백테스트 실행 결과 + metadata | 파일 저장소 또는 Supabase PostgreSQL | durable한 실행 조회, 운영 문맥, 애널리틱스 |
 | 라이브 runtime session history | 파일 저장소 또는 Supabase PostgreSQL | 최근 라이브 세션 조회와 사후 검토 |
+| 주문 감사 record | 파일 저장소 또는 Supabase PostgreSQL | run/session owner 기준 주문 생성, 체결, 거절, 리스크 거절 조회 |
 | 프론트엔드 실행 이력 fallback | 브라우저 로컬 스토리지 | 백엔드가 내려간 경우를 위한 보조 캐시 |
 
 ## 5. 엔드 투 엔드 사용자 여정
@@ -159,17 +164,18 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
   4. 각 bar는 통합 실행 스텝을 통과한다.
      strategy evaluation -> signal -> order mapping -> risk check -> broker fill -> portfolio update
   5. equity point, order, signal, risk rejection 이벤트를 수집한다.
-  6. API는 완료된 실행 결과를 현재 설정된 run repository에 저장하고 `succeeded`를 반환한다.
+  6. 주문 생성/체결/거절/리스크 거절은 run owner 기준 order audit record로 저장된다.
+  7. API dispatcher는 실행 상태를 `queued`, `running`, `succeeded` 또는 `failed`로 저장한다.
 - 산출물:
   - 수익률 요약 지표
   - equity curve
   - drawdown curve
   - signal, order, rejection 이벤트 스트림
 - 현재 제약:
-  - API는 백테스트를 백그라운드 작업이 아니라 동기 방식으로 실행한다
+  - API는 내부 dispatcher로 백테스트를 실행하지만, 외부 queue 서비스나 분산 worker는 아직 없다
   - 영속화 방식은 배포 설정에 따라 달라진다: 기본은 파일 기반, `DATABASE_URL` 설정 시 Supabase 기반
   - 프론트엔드의 새 실행 화면은 단일 심볼 입력만 받지만, 내부 백테스트 엔진은 다중 심볼 처리도 가능하다
-  - 현재 CLI 경로에는 pattern profile 선택용 플래그가 노출되어 있지 않다
+  - CLI 경로는 `--strategy-profile-id`와 `--config`로 저장된 pattern strategy profile을 선택할 수 있다
 
 ### UC-05. 백테스트 결과 및 거래 애널리틱스 검토
 
@@ -340,12 +346,11 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
 
 사용자가 감안해야 할 주요 갭은 다음과 같습니다.
 
-- 장시간 백테스트를 위한 비동기 job queue가 없음
+- 장시간 백테스트를 위한 외부 queue/분산 worker 모델이 없음
 - 공유 API key 검증 외의 다중 사용자 auth 모델이 없음
-- 고급 주문 수명주기 대시보드가 없음
+- 고급 주문 수명주기 대시보드와 broker별 미체결 주문 제어가 없음
 - 전략 마켓플레이스, 승인 워크플로, 승격 파이프라인이 없음
-- 프론트엔드에서 라이브 실행을 직접 시작하는 흐름이 없음
-- 현재 structured log와 analytics endpoint를 넘어서는 내장 감사/리포팅 패키지가 없음
+- 내장 order audit export는 bounded CSV/JSONL 응답이며, 대량 비동기 export pipeline은 없음
 
 ## 9. 권장 후속 문서
 

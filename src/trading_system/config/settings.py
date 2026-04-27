@@ -55,6 +55,16 @@ class BacktestSettings:
 
 
 @dataclass(slots=True)
+class StrategySettings:
+    type: str = "pattern_signal"
+    profile_id: str | None = None
+    pattern_set_id: str | None = None
+    label_to_side: dict[str, str] | None = None
+    trade_quantity: Decimal | None = None
+    threshold_overrides: dict[str, float] | None = None
+
+
+@dataclass(slots=True)
 class ExecutionSettings:
     broker: str
 
@@ -72,6 +82,7 @@ class Settings:
     risk: RiskSettings
     portfolio_risk: PortfolioRiskSettings | None
     backtest: BacktestSettings
+    strategy: StrategySettings | None
     api: ApiSettings
 
 
@@ -101,6 +112,7 @@ def load_settings(path: str | Path) -> Settings:
     backtest_section = _as_dict(payload["backtest"], "backtest")
     api_section = _as_dict(payload.get("api", {}), "api")
     portfolio_risk_section = _as_optional_dict(payload.get("portfolio_risk"), "portfolio_risk")
+    strategy_section = _as_optional_dict(payload.get("strategy"), "strategy")
 
     settings = Settings(
         app=AppSettings(
@@ -199,6 +211,7 @@ def load_settings(path: str | Path) -> Settings:
                 minimum=Decimal("0"),
             ),
         ),
+        strategy=_parse_strategy_settings(strategy_section),
         api=ApiSettings(
             cors_allow_origins=_as_non_empty_str_list(
                 api_section.get("cors_allow_origins", ["*"]),
@@ -220,6 +233,72 @@ def load_settings(path: str | Path) -> Settings:
             )
 
     return settings
+
+
+def load_app_settings(path: str | Path):
+    settings = load_settings(path)
+    from trading_system.app.settings import (
+        AppMode as RuntimeAppMode,
+    )
+    from trading_system.app.settings import (
+        AppSettings as RuntimeAppSettings,
+    )
+    from trading_system.app.settings import (
+        BacktestSettings as RuntimeBacktestSettings,
+    )
+    from trading_system.app.settings import (
+        LiveExecutionMode,
+        PatternSignalStrategySettings,
+    )
+    from trading_system.app.settings import (
+        PortfolioRiskSettings as RuntimePortfolioRiskSettings,
+    )
+    from trading_system.app.settings import (
+        RiskSettings as RuntimeRiskSettings,
+    )
+    from trading_system.strategy.base import SignalSide
+
+    strategy = None
+    if settings.strategy is not None:
+        strategy = PatternSignalStrategySettings(
+            type=settings.strategy.type,
+            profile_id=settings.strategy.profile_id,
+            pattern_set_id=settings.strategy.pattern_set_id,
+            label_to_side={
+                label: SignalSide(side)
+                for label, side in (settings.strategy.label_to_side or {}).items()
+            },
+            trade_quantity=settings.strategy.trade_quantity,
+            threshold_overrides=settings.strategy.threshold_overrides or {},
+        )
+
+    return RuntimeAppSettings(
+        mode=RuntimeAppMode(settings.app.mode.value),
+        symbols=settings.market_data.symbols,
+        provider=settings.market_data.provider,
+        broker=settings.execution.broker,
+        live_execution=LiveExecutionMode.PREFLIGHT,
+        risk=RuntimeRiskSettings(
+            max_position=settings.risk.max_position,
+            max_notional=settings.risk.max_notional,
+            max_order_size=settings.risk.max_order_size,
+        ),
+        backtest=RuntimeBacktestSettings(
+            starting_cash=settings.backtest.starting_cash,
+            fee_bps=settings.backtest.fee_bps,
+            trade_quantity=settings.backtest.trade_quantity,
+        ),
+        strategy=strategy,
+        portfolio_risk=(
+            RuntimePortfolioRiskSettings(
+                max_daily_drawdown_pct=settings.portfolio_risk.max_daily_drawdown_pct,
+                sl_pct=settings.portfolio_risk.sl_pct,
+                tp_pct=settings.portfolio_risk.tp_pct,
+            )
+            if settings.portfolio_risk is not None
+            else None
+        ),
+    )
 
 
 def _require_key(payload: dict[str, Any], key: str, path: str) -> Any:
@@ -300,6 +379,83 @@ def _as_non_empty_str_list(value: Any, path: str) -> tuple[str, ...]:
         raise SettingsValidationError(f"Invalid value for '{path}': at least one item is required.")
 
     return tuple(normalized_values)
+
+
+def _parse_strategy_settings(section: dict[str, Any] | None) -> StrategySettings | None:
+    if section is None:
+        return None
+    strategy_type = _as_non_empty_str(section.get("type", "pattern_signal"), "strategy.type")
+    if strategy_type != "pattern_signal":
+        raise SettingsValidationError("Invalid value for 'strategy.type': expected pattern_signal.")
+    profile_id = _as_optional_non_empty_str(section.get("profile_id"), "strategy.profile_id")
+    pattern_set_id = _as_optional_non_empty_str(
+        section.get("pattern_set_id"),
+        "strategy.pattern_set_id",
+    )
+    label_to_side = _as_optional_label_to_side(section.get("label_to_side"))
+    trade_quantity = _as_optional_decimal(
+        section.get("trade_quantity"),
+        "strategy.trade_quantity",
+        minimum=Decimal("0"),
+    )
+    threshold_overrides = _as_optional_threshold_overrides(section.get("threshold_overrides"))
+    return StrategySettings(
+        type=strategy_type,
+        profile_id=profile_id,
+        pattern_set_id=pattern_set_id,
+        label_to_side=label_to_side,
+        trade_quantity=trade_quantity,
+        threshold_overrides=threshold_overrides,
+    )
+
+
+def _as_optional_non_empty_str(value: Any, path: str) -> str | None:
+    if value is None:
+        return None
+    return _as_non_empty_str(value, path)
+
+
+def _as_optional_label_to_side(value: Any) -> dict[str, str] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise SettingsValidationError(
+            "Invalid type for 'strategy.label_to_side': expected mapping."
+        )
+    parsed: dict[str, str] = {}
+    for label, side in value.items():
+        normalized_label = _as_non_empty_str(label, "strategy.label_to_side key")
+        normalized_side = _as_non_empty_str(side, f"strategy.label_to_side.{normalized_label}")
+        if normalized_side not in {"buy", "sell", "hold"}:
+            raise SettingsValidationError(
+                "Invalid value for 'strategy.label_to_side': expected buy, sell, or hold."
+            )
+        parsed[normalized_label] = normalized_side
+    return parsed
+
+
+def _as_optional_threshold_overrides(value: Any) -> dict[str, float] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise SettingsValidationError(
+            "Invalid type for 'strategy.threshold_overrides': expected mapping."
+        )
+    parsed: dict[str, float] = {}
+    for label, threshold in value.items():
+        normalized_label = _as_non_empty_str(label, "strategy.threshold_overrides key")
+        try:
+            parsed_threshold = float(threshold)
+        except (TypeError, ValueError) as exc:
+            raise SettingsValidationError(
+                "Invalid type for 'strategy.threshold_overrides': expected numeric values."
+            ) from exc
+        if parsed_threshold < 0 or parsed_threshold > 1:
+            raise SettingsValidationError(
+                "Invalid value for 'strategy.threshold_overrides': expected values between 0 and 1."
+            )
+        parsed[normalized_label] = parsed_threshold
+    return parsed
 
 
 def _as_decimal(

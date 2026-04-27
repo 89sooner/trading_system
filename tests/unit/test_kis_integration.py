@@ -93,6 +93,7 @@ def test_kis_broker_adapter_maps_successful_order_to_fill_event() -> None:
     assert fill.filled_quantity == Decimal("3")
     assert fill.fill_price == Decimal("70100")
     assert fill.status.value == "filled"
+    assert fill.broker_order_id == "12345"
 
 
 def test_kis_broker_adapter_maps_partial_fill_status() -> None:
@@ -222,6 +223,42 @@ def test_kis_broker_adapter_returns_none_when_pending_signal_is_unavailable() ->
     adapter = KisBrokerAdapter(client=client)
 
     assert adapter.get_account_balance() is None
+
+
+def test_kis_api_client_inquire_open_orders_returns_snapshot() -> None:
+    client = KisApiClient.from_env(
+        secret_provider=_StubSecretProvider(),
+        transport=_OpenOrdersTransport(),
+    )
+
+    snapshot = client.inquire_open_orders(access_token="kis-access-token")
+
+    assert snapshot.pending_symbols == ("005930",)
+    assert snapshot.orders[0].broker_order_id == "90001"
+    assert snapshot.orders[0].side == OrderSide.BUY
+    assert snapshot.orders[0].remaining_quantity == Decimal("2")
+
+
+def test_kis_api_client_inquire_open_orders_ignores_fully_filled_orders() -> None:
+    client = KisApiClient.from_env(
+        secret_provider=_StubSecretProvider(),
+        transport=_NoOpenOrdersTransport(),
+    )
+
+    snapshot = client.inquire_open_orders(access_token="kis-access-token")
+
+    assert snapshot.orders == ()
+    assert snapshot.pending_symbols == ()
+
+
+def test_kis_api_client_inquire_open_orders_requires_order_id() -> None:
+    client = KisApiClient.from_env(
+        secret_provider=_StubSecretProvider(),
+        transport=_MalformedOpenOrdersTransport(),
+    )
+
+    with pytest.raises(KisResponseError, match="order id"):
+        client.inquire_open_orders(access_token="kis-access-token")
 
 
 def test_is_krx_market_open_during_trading_hours() -> None:
@@ -399,6 +436,68 @@ class _MissingPendingSignalBalanceTransport:
                     },
                 ],
                 "output2": [{"dnca_tot_amt": "5000000"}],
+            },
+        )
+
+
+class _OpenOrdersTransport:
+    def request(self, method: str, url: str, *, headers: dict[str, str], body=None) -> HttpResponse:
+        del headers, body
+        assert method == "GET"
+        assert "/inquire-psbl-rvsecncl" in url
+        return HttpResponse(
+            status_code=200,
+            body={
+                "rt_cd": "0",
+                "output": [
+                    {
+                        "odno": "90001",
+                        "pdno": "005930",
+                        "sll_buy_dvsn_cd": "02",
+                        "ord_qty": "5",
+                        "tot_ccld_qty": "3",
+                        "ord_stat_name": "open",
+                        "ord_tmd": "093000",
+                    }
+                ],
+            },
+        )
+
+
+class _NoOpenOrdersTransport:
+    def request(self, method: str, url: str, *, headers: dict[str, str], body=None) -> HttpResponse:
+        del method, url, headers, body
+        return HttpResponse(
+            status_code=200,
+            body={
+                "rt_cd": "0",
+                "output": [
+                    {
+                        "odno": "90002",
+                        "pdno": "005930",
+                        "sll_buy_dvsn_cd": "02",
+                        "ord_qty": "5",
+                        "tot_ccld_qty": "5",
+                    }
+                ],
+            },
+        )
+
+
+class _MalformedOpenOrdersTransport:
+    def request(self, method: str, url: str, *, headers: dict[str, str], body=None) -> HttpResponse:
+        del method, url, headers, body
+        return HttpResponse(
+            status_code=200,
+            body={
+                "rt_cd": "0",
+                "output": [
+                    {
+                        "pdno": "005930",
+                        "sll_buy_dvsn_cd": "02",
+                        "ord_qty": "5",
+                    }
+                ],
             },
         )
 

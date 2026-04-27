@@ -1,13 +1,15 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import { Download } from 'lucide-react'
 import { use, useEffect } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { SurfacePanel } from '@/components/layout/SurfacePanel'
 import { StatusBadge } from '@/components/domain/StatusBadge'
 import { ErrorBanner } from '@/components/domain/ErrorBanner'
 import { RunDetailTabs } from '@/components/runs/RunDetailTabs'
-import { getBacktestRun } from '@/lib/api/backtests'
+import { Button } from '@/components/ui/button'
+import { exportOrderAudit, getBacktestRun } from '@/lib/api/backtests'
 import { getBacktestTradeAnalytics } from '@/lib/api/analytics'
 import { useRunsStore } from '@/store/runsStore'
 
@@ -55,13 +57,36 @@ export default function RunDetailPage({
   if (runQuery.error) return <ErrorBanner error={runQuery.error} />
 
   const run = runQuery.data!
+  const handleExportAudit = async () => {
+    const body = await exportOrderAudit({
+      scope: 'backtest',
+      owner_id: runId,
+      format: 'csv',
+      limit: 5000,
+    })
+    const blob = new Blob([body], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `${runId}-order-audit.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Run Detail"
         description={runId}
-        actions={<StatusBadge state={run.status} />}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleExportAudit}>
+              <Download aria-hidden="true" />
+              Export audit CSV
+            </Button>
+            <StatusBadge state={run.status} />
+          </div>
+        }
       />
 
       {run.metadata ? (

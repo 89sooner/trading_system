@@ -2,7 +2,12 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from trading_system.core.types import MarketBar
-from trading_system.execution.broker import AccountBalanceSnapshot, FillEvent, FillStatus
+from trading_system.execution.broker import (
+    AccountBalanceSnapshot,
+    FillEvent,
+    FillStatus,
+    OpenOrderSnapshot,
+)
 from trading_system.execution.orders import OrderRequest
 from trading_system.integrations.kis import KisApiClient, KisApiError, KisOrderResult
 
@@ -33,6 +38,10 @@ class KisBrokerAdapter:
         except (KisApiError, KeyError, Exception):
             return None
 
+    def get_open_orders(self) -> OpenOrderSnapshot:
+        access_token = self.client.issue_access_token()
+        return self.client.inquire_open_orders(access_token=access_token)
+
 
 def _to_fill_event(
     *,
@@ -51,6 +60,7 @@ def _to_fill_event(
         fill_price=fill_price,
         fee=result.fee,
         status=status,
+        broker_order_id=result.order_id,
     )
 
 

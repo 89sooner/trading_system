@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 from trading_system.app.equity_writer import EquityWriterProtocol
 from trading_system.app.state import AppRunnerState, LiveRuntimeState
 from trading_system.core.compat import UTC
+from trading_system.execution.broker import AccountBalanceSnapshot
+from trading_system.execution.order_audit import append_step_order_audit_events
 from trading_system.execution.reconciliation import reconcile
 from trading_system.execution.step import TradingContext, execute_trading_step
 
@@ -37,6 +39,7 @@ class LiveTradingLoop:
         default_factory=lambda: _resolve_env_int("TRADING_SYSTEM_RECONCILIATION_INTERVAL", 300)
     )
     equity_writer: EquityWriterProtocol | None = field(default=None)
+    audit_owner_id: str | None = field(default=None)
     runtime: LiveRuntimeState = field(default_factory=LiveRuntimeState, init=False)
     _last_processed_timestamps: dict[str, datetime] = field(default_factory=dict, init=False)
     _last_reconciliation: datetime | None = field(default=None, init=False)
@@ -92,6 +95,9 @@ class LiveTradingLoop:
             portfolio_risk=self.services.portfolio_risk,
             runtime_state=self.runtime,
             marks=self.runtime.last_marks,
+            order_audit_repository=self.services.order_audit_repository,
+            order_audit_scope="live_session",
+            order_audit_owner_id=self.audit_owner_id,
         )
 
         while self.state != AppRunnerState.STOPPED:
@@ -128,7 +134,15 @@ class LiveTradingLoop:
                             "traceback": traceback.format_exc(),
                         }
                     )
-                time.sleep(self.poll_interval)
+                try:
+                    time.sleep(self.poll_interval)
+                except KeyboardInterrupt:
+                    self.state = AppRunnerState.STOPPED
+                    self.services.logger.emit(
+                        "system.shutdown",
+                        severity=20,
+                        payload={"reason": "keyboard_interrupt"},
+                    )
 
     def _check_heartbeat(self) -> None:
         now = datetime.now(UTC)
@@ -175,10 +189,16 @@ class LiveTradingLoop:
                 if last_ts is not None and bar.timestamp <= last_ts:
                     continue
 
-                execute_trading_step(
+                events = execute_trading_step(
                     bar=bar,
                     strategy=self.services.strategy_for(symbol),
                     context=context,
+                )
+                append_step_order_audit_events(
+                    repository=context.order_audit_repository,
+                    scope=context.order_audit_scope,
+                    owner_id=context.order_audit_owner_id,
+                    events=events,
                 )
                 self._last_processed_timestamps[symbol] = bar.timestamp
                 last_ts = bar.timestamp
@@ -207,6 +227,23 @@ class LiveTradingLoop:
             and (now - self._last_reconciliation).total_seconds() < self.reconciliation_interval
         ):
             return
+        try:
+            open_orders = self.services.broker_simulator.get_open_orders()
+        except Exception as exc:
+            self._last_reconciliation = now
+            self.runtime.last_reconciliation_at = now
+            self.runtime.last_reconciliation_status = "skipped"
+            self.services.logger.emit(
+                "portfolio.reconciliation.skipped",
+                severity=40,
+                payload={
+                    "reason": "open_orders_unavailable",
+                    "error": str(exc),
+                    "pending_source": "open_orders",
+                },
+            )
+            return
+
         snapshot = self.services.broker_simulator.get_account_balance()
         if snapshot is None:
             self._last_reconciliation = now
@@ -214,10 +251,27 @@ class LiveTradingLoop:
             self.runtime.last_reconciliation_status = "skipped"
             self.services.logger.emit(
                 "portfolio.reconciliation.skipped",
-                severity=30,
-                payload={"reason": "snapshot_unavailable"},
+                    severity=30,
+                payload={"reason": "snapshot_unavailable", "pending_source": "unavailable"},
             )
             return
+        pending_source = "balance_snapshot"
+        if open_orders is not None:
+            pending_source = "open_orders"
+            snapshot = AccountBalanceSnapshot(
+                cash=snapshot.cash,
+                positions=snapshot.positions,
+                average_costs=snapshot.average_costs,
+                pending_symbols=open_orders.pending_symbols,
+            )
+        self.services.logger.emit(
+            "portfolio.reconciliation.pending_source",
+            severity=20,
+            payload={
+                "pending_source": pending_source,
+                "pending_symbol_count": len(snapshot.pending_symbols),
+            },
+        )
         reconcile(
             book=self.services.portfolio,
             snapshot=snapshot,

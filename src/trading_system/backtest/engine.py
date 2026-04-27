@@ -6,6 +6,7 @@ from typing import Any
 
 from trading_system.analytics.metrics import cumulative_return
 from trading_system.core.types import MarketBar
+from trading_system.execution.order_audit import append_step_order_audit_events
 from trading_system.execution.step import TradingContext as BacktestContext
 from trading_system.execution.step import execute_trading_step
 from trading_system.portfolio.book import PortfolioBook
@@ -54,6 +55,12 @@ def run_backtest(
             else strategy
         )
         events = execute_trading_step(bar, active_strategy, context)
+        append_step_order_audit_events(
+            repository=context.order_audit_repository,
+            scope=context.order_audit_scope,
+            owner_id=context.order_audit_owner_id,
+            events=events,
+        )
         
         if events.signal:
             _record_event(signal_events, "strategy.signal", events.signal)

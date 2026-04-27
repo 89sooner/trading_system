@@ -12,9 +12,9 @@
 - `app.services`는 전략 저장소, 패턴 저장소, 데이터 provider, 브로커 어댑터, 리스크 제어, 포트폴리오 영속화, 라이브 preflight 검사를 조립합니다.
 - `execution.step.execute_trading_step`은 백테스트와 라이브 런타임이 공통으로 사용하는 실행 코어입니다.
 - `backtest.engine.run_backtest`는 결정적 재생, 이벤트 수집, equity 추적, 다중 심볼 처리를 오케스트레이션합니다.
-- `api.server`는 API key, CORS, rate-limit 미들웨어 뒤에 백테스트, 라이브 preflight, live runtime session history, 패턴, 전략, 애널리틱스, admin 키 관리, `/health`, 대시보드 라우트를 노출합니다.
-- `frontend/app/*`는 백테스트 실행, 패턴 관리, 전략 프로필, 실행 결과 검토, API key 관리, 라이브 대시보드 모니터링을 위한 브라우저 워크플로를 제공하며, run review 화면은 이제 서버 저장 metadata를 함께 표시합니다.
-- `execution.reconciliation.reconcile`은 브로커가 잔고 스냅샷을 제공하는 경우 로컬 `PortfolioBook`을 브로커 상태와 맞출 수 있습니다.
+- `api.server`는 API key, CORS, rate-limit 미들웨어 뒤에 백테스트, dispatcher 상태, retention preview/prune, order audit, 라이브 preflight, live runtime session history, 패턴, 전략, 애널리틱스, admin 키 관리, `/health`, 대시보드 라우트를 노출합니다.
+- `frontend/app/*`는 백테스트 실행, 패턴 관리, 전략 프로필, 실행 결과 검토, API key 관리, 라이브 대시보드 모니터링, 최근 live session 탐색을 위한 브라우저 워크플로를 제공하며, run review 화면은 이제 서버 저장 metadata를 함께 표시합니다.
+- `execution.reconciliation.reconcile`은 브로커가 잔고 스냅샷을 제공하는 경우 로컬 `PortfolioBook`을 브로커 상태와 맞출 수 있으며, live loop는 KIS open-order snapshot을 pending 판단의 우선 근거로 사용합니다.
 - `notifications.webhook`은 선택된 런타임 이벤트를 `httpx` 기반 bounded worker로 외부 webhook에 전달합니다.
 
 ## 레이어 분석
@@ -29,7 +29,7 @@
 - 대시보드 API는 이제 `LiveRuntimeController`를 통해 단일 live loop를 직접 시작하고 소유하며, 최근 session history도 durable하게 남깁니다.
 
 현재 한계:
-- live session history는 durable하고 API로 조회 가능하지만, 과거 세션을 전용으로 탐색하는 프런트엔드 화면은 아직 없습니다.
+- live session history는 dashboard의 최근 세션 패널에서 탐색 가능하지만, 장기 검색/필터/내보내기 전용 화면은 아직 없습니다.
 
 ### Data
 
@@ -51,7 +51,7 @@
 - `strategy.factory`는 inline 전략 설정이나 `configs/strategies`에 저장된 전략 프로필을 해석합니다.
 
 현재 한계:
-- 일반화된 전략 플러그인 레지스트리와 저장된 전략 프로필을 선택하는 직접적인 CLI 플래그는 아직 없습니다.
+- 일반화된 전략 플러그인 레지스트리는 아직 없지만, 저장된 전략 프로필은 API/UI뿐 아니라 CLI `--strategy-profile-id`와 YAML `strategy.profile_id`로 선택할 수 있습니다.
 
 ### Risk
 
@@ -75,7 +75,7 @@
 - 브로커 잔고 스냅샷 기반 reconciliation helper
 
 현재 한계:
-- durable order lifecycle store가 없고, KIS reconciliation은 아직 전용 unresolved-order API가 아니라 잔고 스냅샷의 pending-order 신호에 의존합니다.
+- 주문 생성/체결/거절/리스크 거절은 durable order audit record로 저장하고 CSV/JSONL로 export할 수 있습니다. KIS reconciliation은 전용 open-order snapshot을 우선 사용하지만, broker 응답 품질이 불충분하면 fail-closed로 대사를 건너뜁니다.
 
 ### Portfolio
 
@@ -99,7 +99,7 @@
 - API는 완료된 실행 결과를 provider/broker/strategy/source 같은 metadata와 함께 저장해 이후 조회 및 애널리틱스 검토에 사용합니다.
 
 현재 한계:
-- 백테스트는 여전히 요청 경로에서 동기 방식으로 실행되며, 결과와 metadata 영속화는 가능하지만 비동기 큐/잡 실행 모델은 아직 없습니다.
+- 백테스트는 API-owned dispatcher로 `queued`/`running` 상태를 거쳐 실행되며 결과와 metadata가 영속화됩니다. 다만 외부 queue 서비스나 분산 worker 모델은 아직 없습니다.
 
 ### Analytics
 
@@ -139,7 +139,7 @@
 
 참고:
 
-- `configs/base.yaml`과 `examples/sample_live_kis.yaml`은 이제 `portfolio_risk`와 `app.reconciliation_interval`에 대한 활성 typed 예시를 포함합니다.
+- `configs/base.yaml`과 `examples/sample_live_kis.yaml`은 이제 `portfolio_risk`, `app.reconciliation_interval`, `strategy.profile_id`에 대한 활성 typed 예시를 포함합니다.
 - 전략 프로필과 패턴 세트 저장은 데이터베이스가 아니라 파일 기반입니다.
 
 ## 테스트 커버리지 스냅샷
@@ -153,15 +153,15 @@
 
 ## 더 넓은 프로덕션 사용 전 남은 갭
 
-1. **비동기 실행 모델**: 백테스트 결과와 metadata 영속화는 가능해졌지만, 긴 실행은 여전히 요청 경로에서 동기적으로 수행됩니다.
-2. **Session history UX**: live runtime session history는 durable하고 API로 조회 가능하지만, 과거 세션을 전용으로 탐색하는 브라우저 워크플로는 아직 없습니다.
-3. **Config parity**: 전략 선택과 일부 런타임 전용 필드는 아직 typed YAML loader에 완전히 반영되지 않았습니다.
-4. **Exchange snapshot integration**: 일반 reconciliation 경로와 KIS balance snapshot은 연결되었지만, pending-order authority는 아직 전용 unresolved-order API가 아니라 잔고 스냅샷 신호에 의존합니다.
+1. **분산 실행 모델**: 백테스트는 내부 dispatcher로 분리되었지만, 긴 실행을 여러 worker나 외부 queue로 분산하는 모델은 아직 없습니다.
+2. **Session history UX**: 최근 live runtime session은 dashboard에서 볼 수 있지만, 장기 검색과 export는 아직 없습니다.
+3. **Config parity**: 전략 프로필 선택은 CLI/YAML/API에 정렬되었지만, UI에서 YAML 전체를 편집하는 워크플로는 없습니다.
+4. **Exchange snapshot integration**: KIS open-order snapshot은 pending authority로 연결되었지만, 주문 취소/정정과 장기 order polling worker는 아직 없습니다.
 5. **Operational hardening**: 저장소 기반 API key는 disabled/last-used 추적을 지원하지만, 더 강한 auth, alerting, audit export, deployment guidance는 아직 완전 관리형 트레이딩 플랫폼 수준은 아닙니다.
 
 ## 권장 다음 백로그
 
-1. 비동기 실행 모델, 보존(retention) 제어, 장시간 백테스트에 대한 운영 가시성을 강화합니다.
-2. 과거 live runtime session과 incident를 탐색하는 전용 브라우저 워크플로를 추가합니다.
-3. 특히 KIS를 포함한 브로커 연동에서 reconciliation용 unresolved/open-order source를 더 강하게 만듭니다.
-4. 추가 전략 런타임 설정을 YAML의 1급 필드로 만들지, API/runtime 전용으로 유지할지 결정합니다.
+1. 외부 queue/worker 모델과 장시간 백테스트 운영 가시성을 강화합니다.
+2. 과거 live runtime session과 incident의 장기 검색/export 워크플로를 추가합니다.
+3. KIS open-order source를 기반으로 한 주문 취소/정정 또는 장기 order polling workflow를 검토합니다.
+4. YAML 전체를 UI에서 관리할지, 파일 기반 운영자 워크플로로 유지할지 결정합니다.

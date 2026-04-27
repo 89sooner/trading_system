@@ -30,5 +30,8 @@
 - 라이브 트레이딩은 상태 제어(`AppRunnerState`), heartbeat 로깅, 정상 종료를 포함한 `LiveTradingLoop`로 관리된다.
 - 포트폴리오 상태는 라이브 세션 재시작 복구를 위해 `book.json`에 저장되며, 백테스트 런, run metadata, 대시보드 equity 이력, live runtime session history는 `DATABASE_URL` 유무에 따라 파일 기반 또는 Supabase PostgreSQL 기반으로 영속화된다.
 - 백테스트 런은 provider, broker, strategy profile, pattern set, source, notes 같은 운영 메타데이터를 함께 저장한다.
+- 백테스트 실행은 API-owned dispatcher를 통해 `queued`/`running`/terminal 상태로 관리되며, dispatcher 상태와 queue depth를 API에서 조회할 수 있다.
+- 주문 생성, 체결, 거절, 리스크 거절은 backtest run 또는 live session owner 기준의 durable order audit record로 저장하고 조회/export할 수 있으며, broker order id가 있으면 감사 record에 보존된다.
+- KIS reconciliation은 미체결/open-order snapshot을 pending authority로 우선 사용하고, 해당 capability가 없을 때만 잔고 스냅샷의 pending signal로 fallback한다.
 - 저장소 기반 API key는 disabled 상태와 last-used 추적 같은 기본 거버넌스 필드를 가진다.
 - 선택된 런타임 이벤트는 bounded worker 기반 webhook 알림으로 외부에 전달할 수 있다.

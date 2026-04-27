@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from trading_system.config.settings import SettingsValidationError, load_settings
+from trading_system.config.settings import SettingsValidationError, load_app_settings, load_settings
 
 
 def test_load_settings_parses_base_schema(tmp_path) -> None:
@@ -40,6 +40,88 @@ backtest:
     assert settings.backtest.fee_bps == Decimal("5.0")
     assert settings.app.reconciliation_interval is None
     assert settings.portfolio_risk is None
+    assert settings.strategy is None
+
+
+def test_load_settings_parses_strategy_profile_section(tmp_path) -> None:
+    config_path = tmp_path / "settings.yaml"
+    config_path.write_text(
+        """
+app:
+  environment: local
+  timezone: Asia/Seoul
+  mode: backtest
+market_data:
+  provider: mock
+  symbols:
+    - BTCUSDT
+execution:
+  broker: paper
+risk:
+  max_position: 1
+  max_notional: 100000
+  max_order_size: 0.25
+backtest:
+  starting_cash: 10000
+  fee_bps: 5
+  trade_quantity: 0.1
+strategy:
+  type: pattern_signal
+  profile_id: sample_bullish_profile
+""".strip(),
+        encoding="utf-8",
+    )
+
+    settings = load_settings(config_path)
+    app_settings = load_app_settings(config_path)
+
+    assert settings.strategy is not None
+    assert settings.strategy.profile_id == "sample_bullish_profile"
+    assert app_settings.strategy is not None
+    assert app_settings.strategy.profile_id == "sample_bullish_profile"
+
+
+def test_load_settings_parses_inline_strategy_section(tmp_path) -> None:
+    config_path = tmp_path / "settings.yaml"
+    config_path.write_text(
+        """
+app:
+  environment: local
+  timezone: Asia/Seoul
+  mode: backtest
+market_data:
+  provider: mock
+  symbols:
+    - BTCUSDT
+execution:
+  broker: paper
+risk:
+  max_position: 1
+  max_notional: 100000
+  max_order_size: 0.25
+backtest:
+  starting_cash: 10000
+  fee_bps: 5
+  trade_quantity: 0.1
+strategy:
+  type: pattern_signal
+  pattern_set_id: bullish
+  label_to_side:
+    bullish: buy
+  trade_quantity: 2
+  threshold_overrides:
+    bullish: 0.9
+""".strip(),
+        encoding="utf-8",
+    )
+
+    app_settings = load_app_settings(config_path)
+
+    assert app_settings.strategy is not None
+    assert app_settings.strategy.pattern_set_id == "bullish"
+    assert app_settings.strategy.label_to_side["bullish"].value == "buy"
+    assert app_settings.strategy.trade_quantity == Decimal("2")
+    assert app_settings.strategy.threshold_overrides == {"bullish": 0.9}
 
 
 def test_load_settings_parses_reconciliation_interval_and_portfolio_risk(tmp_path) -> None:

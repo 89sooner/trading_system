@@ -13,6 +13,7 @@ from urllib.request import Request, urlopen
 
 from trading_system.core.compat import UTC
 from trading_system.core.ops import EnvSecretProvider, SecretProvider
+from trading_system.execution.broker import OpenOrder, OpenOrderSnapshot
 from trading_system.execution.orders import OrderRequest, OrderSide
 
 KST = timezone(timedelta(hours=9))
@@ -123,6 +124,7 @@ class KisApiClient:
     _PRICE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price"
     _ORDER_PATH = "/uapi/domestic-stock/v1/trading/order-cash"
     _BALANCE_PATH = "/uapi/domestic-stock/v1/trading/inquire-balance"
+    _OPEN_ORDERS_PATH = "/uapi/domestic-stock/v1/trading/inquire-psbl-rvsecncl"
     _DEFAULT_MARKET_DIV = "J"
     _SYMBOL_PATTERN = re.compile(r"^\d{6}$")
 
@@ -319,9 +321,57 @@ class KisApiClient:
             "pending_symbols": tuple(sorted(pending_symbols)),
         }
 
+    def inquire_open_orders(self, *, access_token: str) -> OpenOrderSnapshot:
+        params = urlencode(
+            {
+                "CANO": self._credentials.account_number,
+                "ACNT_PRDT_CD": self._credentials.product_code,
+                "CTX_AREA_FK100": "",
+                "CTX_AREA_NK100": "",
+                "INQR_DVSN_1": "0",
+                "INQR_DVSN_2": "0",
+            }
+        )
+        response = self._transport.request(
+            "GET",
+            f"{self._base_url}{self._OPEN_ORDERS_PATH}?{params}",
+            headers={
+                "authorization": f"Bearer {access_token}",
+                "appkey": self._credentials.app_key,
+                "appsecret": self._credentials.app_secret,
+                "tr_id": self._open_orders_tr_id(),
+            },
+        )
+        result_code = str(response.body.get("rt_cd", "0"))
+        if response.status_code >= 400 or result_code not in {"", "0"}:
+            raise KisResponseError(
+                "KIS open-order query failed "
+                f"(status={response.status_code}, rt_cd={result_code}, "
+                f"msg1={response.body.get('msg1', '')})."
+            )
+
+        output = response.body.get("output")
+        if output is None:
+            output = response.body.get("output1")
+        if output is None:
+            output = []
+        if not isinstance(output, list):
+            raise KisResponseError("KIS open-order response output was missing or invalid.")
+
+        orders = tuple(
+            order
+            for item in output
+            if (order := _parse_open_order(item)) is not None
+        )
+        return OpenOrderSnapshot(orders=orders)
+
     def _balance_tr_id(self) -> str:
         configured = os.getenv("TRADING_SYSTEM_KIS_BALANCE_TR_ID", "TTTC8434R")
         return configured.strip() or "TTTC8434R"
+
+    def _open_orders_tr_id(self) -> str:
+        configured = os.getenv("TRADING_SYSTEM_KIS_OPEN_ORDERS_TR_ID", "TTTC8036R")
+        return configured.strip() or "TTTC8036R"
 
     def _parse_order_response(
         self, *, order: OrderRequest, response: HttpResponse
@@ -376,6 +426,80 @@ def _has_pending_balance_signal(
 
     available_qty = _as_decimal(raw_available_qty, "ord_psbl_qty")
     return available_qty < holding_qty
+
+
+def _parse_open_order(item: Any) -> OpenOrder | None:
+    if not isinstance(item, dict):
+        raise KisResponseError("KIS open-order item was not a mapping.")
+
+    symbol = str(item.get("pdno") or item.get("PDNO") or "").strip()
+    if not symbol:
+        raise KisResponseError("KIS open-order item missing symbol field 'pdno'.")
+    _validate_domestic_symbol(symbol)
+
+    broker_order_id = str(item.get("odno") or item.get("ODNO") or "").strip()
+    if not broker_order_id:
+        raise KisResponseError("KIS open-order item missing order id field 'odno'.")
+
+    requested_quantity = _as_decimal(
+        item.get("ord_qty") or item.get("ORD_QTY"),
+        "ord_qty",
+        default=Decimal("0"),
+    )
+    filled_quantity = _as_decimal(
+        item.get("tot_ccld_qty") or item.get("ccld_qty") or item.get("CCLD_QTY"),
+        "tot_ccld_qty",
+        default=Decimal("0"),
+    )
+    remaining_raw = item.get("rmn_qty") or item.get("ord_rmn_qty") or item.get("ORD_RMN_QTY")
+    remaining_quantity = (
+        _as_decimal(remaining_raw, "rmn_qty")
+        if remaining_raw not in (None, "")
+        else max(requested_quantity - filled_quantity, Decimal("0"))
+    )
+    if remaining_quantity <= 0:
+        return None
+
+    side = _parse_open_order_side(item)
+    status = str(
+        item.get("ord_stat_name")
+        or item.get("ord_stat")
+        or item.get("ORD_STAT")
+        or "open"
+    )
+    submitted_at = _optional_clean_str(
+        item.get("ord_tmd") or item.get("ord_dt") or item.get("ORD_TMD")
+    )
+    return OpenOrder(
+        broker_order_id=broker_order_id,
+        symbol=symbol,
+        side=side,
+        requested_quantity=requested_quantity,
+        remaining_quantity=remaining_quantity,
+        status=status,
+        submitted_at=submitted_at,
+    )
+
+
+def _parse_open_order_side(item: dict[str, Any]) -> OrderSide:
+    value = str(
+        item.get("sll_buy_dvsn_cd")
+        or item.get("sll_buy_dvsn_name")
+        or item.get("SLL_BUY_DVSN_CD")
+        or ""
+    ).strip().lower()
+    if value in {"01", "sell", "매도"}:
+        return OrderSide.SELL
+    if value in {"02", "buy", "매수"}:
+        return OrderSide.BUY
+    raise KisResponseError("KIS open-order item missing or invalid side field.")
+
+
+def _optional_clean_str(value: Any) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
 
 
 def _as_dict(value: Any, field_name: str) -> dict[str, Any]:

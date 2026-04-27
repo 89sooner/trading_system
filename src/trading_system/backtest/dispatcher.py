@@ -26,6 +26,13 @@ class QueuedBacktestRun:
     metadata: object | None = None
 
 
+@dataclass(slots=True, frozen=True)
+class BacktestDispatcherSnapshot:
+    running: bool
+    queue_depth: int
+    max_queue_size: int
+
+
 class BacktestRunDispatcher:
     def __init__(
         self,
@@ -37,6 +44,7 @@ class BacktestRunDispatcher:
         self._repo_factory = repo_factory
         self._executor = executor
         self._queue: queue.Queue[QueuedBacktestRun | object] = queue.Queue(maxsize=max_queue_size)
+        self._max_queue_size = max_queue_size
         self._worker: threading.Thread | None = None
         self._stop_requested = threading.Event()
 
@@ -53,6 +61,13 @@ class BacktestRunDispatcher:
 
     def is_running(self) -> bool:
         return self._worker is not None and self._worker.is_alive()
+
+    def snapshot(self) -> BacktestDispatcherSnapshot:
+        return BacktestDispatcherSnapshot(
+            running=self.is_running(),
+            queue_depth=self._queue.qsize(),
+            max_queue_size=self._max_queue_size,
+        )
 
     def submit(self, item: QueuedBacktestRun) -> None:
         if self._worker is None or not self._worker.is_alive():

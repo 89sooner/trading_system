@@ -73,6 +73,56 @@ def test_cli_multi_symbol_backtest_runs_successfully(capsys) -> None:
     assert exit_code == 0
 
 
+def test_cli_accepts_strategy_profile_id(capsys) -> None:
+    exit_code = run(
+        [
+            "--mode",
+            "backtest",
+            "--symbols",
+            "BTCUSDT",
+            "--strategy-profile-id",
+            "sample_bullish_profile",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Smoke backtest result" in captured.out
+
+
+def test_cli_accepts_yaml_config(capsys, tmp_path) -> None:
+    config_path = tmp_path / "settings.yaml"
+    config_path.write_text(
+        """
+app:
+  environment: local
+  timezone: Asia/Seoul
+  mode: backtest
+market_data:
+  provider: mock
+  symbols:
+    - BTCUSDT
+execution:
+  broker: paper
+risk:
+  max_position: 1
+  max_notional: 100000
+  max_order_size: 0.25
+backtest:
+  starting_cash: 10000
+  fee_bps: 5
+  trade_quantity: 0.1
+""".strip(),
+        encoding="utf-8",
+    )
+
+    exit_code = run(["--config", str(config_path)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Smoke backtest result" in captured.out
+
+
 def test_cli_returns_validation_error_for_unsupported_provider(capsys) -> None:
     exit_code = run(["--mode", "backtest", "--provider", "unknown"])
 

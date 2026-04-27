@@ -16,8 +16,8 @@ test('home page loads with navigation links', async ({ page }) => {
 
 test('dashboard page loads with MetricCard containers', async ({ page }) => {
   await page.goto('/dashboard')
-  await expect(page.getByText('Live Dashboard')).toBeVisible()
-  await expect(page.locator('[data-slot="card"]').first()).toBeVisible()
+  await expect(page.getByText('Operations Console')).toBeVisible()
+  await expect(page.getByText('Recent sessions')).toBeVisible()
 })
 
 test('run detail page loads with run content', async ({ page }) => {

@@ -22,6 +22,11 @@ backtest:
   fee_bps: 5.0
   trade_quantity: 0.1
 
+# Optional strategy configuration. Use either profile_id or inline pattern_signal fields.
+strategy:
+  type: pattern_signal
+  profile_id: sample_bullish_profile
+
 # Portfolio-level risk controls (optional).
 # When set, the runtime enforces drawdown protection and optional SL/TP exits.
 #

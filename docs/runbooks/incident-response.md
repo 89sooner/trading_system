@@ -71,7 +71,8 @@ Response:
 1. First confirm that the active broker path actually provides account balance snapshots.
 2. If `cash_frozen` or `symbol_skipped` appears, inspect the `pending_symbols` list for in-flight orders.
 3. If a position difference cannot be explained, `pause` the loop and compare the local `PortfolioBook` against broker state manually.
-4. The current KIS adapter does expose account balance snapshots. If automatic sync is skipped in a KIS environment, treat missing or incomplete pending-order signal data as the first thing to verify.
+4. The KIS adapter queries open-order snapshots before balance snapshots. If `pending_source=open_orders` is present, compare broker order ids from `/api/v1/order-audit/export` with KIS order history.
+5. If open-order lookup fails and `portfolio.reconciliation.skipped` is emitted, the portfolio is not adjusted. Check KIS response fields, TR id overrides, and network availability first.
 
 ## Secret-handling rules
 

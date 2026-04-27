@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from trading_system.app.state import AppRunnerState, LiveRuntimeState
 from trading_system.core.ops import (
@@ -21,6 +21,9 @@ from trading_system.risk.limits import RiskLimits
 from trading_system.risk.portfolio_limits import PortfolioRiskLimits
 from trading_system.strategy.base import Strategy
 
+if TYPE_CHECKING:
+    from trading_system.execution.order_audit import OrderAuditRepository
+
 
 @dataclass(slots=True)
 class TradingContext:
@@ -31,6 +34,9 @@ class TradingContext:
     portfolio_risk: PortfolioRiskLimits | None = None
     runtime_state: LiveRuntimeState | None = None
     marks: dict[str, Decimal] | None = None
+    order_audit_repository: "OrderAuditRepository | None" = None
+    order_audit_scope: str | None = None
+    order_audit_owner_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -128,6 +134,8 @@ def execute_trading_step(bar: MarketBar, strategy: Strategy, context: TradingCon
                     timestamp=_bar_timestamp(bar.timestamp),
                 )
             )
+            if fill.broker_order_id is not None:
+                events.order_filled["broker_order_id"] = fill.broker_order_id
             _emit_event(context.logger, "order.filled", events.order_filled)
         else:
             events.order_rejected = event_payload(
@@ -189,21 +197,24 @@ def _check_sl_tp(bar: MarketBar, context: TradingContext) -> None:
             context.portfolio.apply_fill(
                 fill.symbol, fill.signed_quantity, fill.fill_price, fee=fill.fee
             )
+            payload = event_payload(
+                OrderFilledEvent(
+                    symbol=fill.symbol,
+                    side=fill.side.value,
+                    requested_quantity=fill.requested_quantity,
+                    filled_quantity=fill.filled_quantity,
+                    fill_price=fill.fill_price,
+                    fee=fill.fee,
+                    status=fill.status.value,
+                    timestamp=_bar_timestamp(bar.timestamp),
+                )
+            )
+            if fill.broker_order_id is not None:
+                payload["broker_order_id"] = fill.broker_order_id
             _emit_event(
                 context.logger,
                 "order.filled",
-                event_payload(
-                    OrderFilledEvent(
-                        symbol=fill.symbol,
-                        side=fill.side.value,
-                        requested_quantity=fill.requested_quantity,
-                        filled_quantity=fill.filled_quantity,
-                        fill_price=fill.fill_price,
-                        fee=fill.fee,
-                        status=fill.status.value,
-                        timestamp=_bar_timestamp(bar.timestamp),
-                    )
-                ),
+                payload,
             )
 
 
@@ -293,6 +304,8 @@ def _liquidate_current_symbol_position(
             timestamp=_bar_timestamp(bar.timestamp),
         )
     )
+    if fill.broker_order_id is not None:
+        events.order_filled["broker_order_id"] = fill.broker_order_id
     _emit_event(context.logger, "order.filled", events.order_filled, severity=30)
 
 

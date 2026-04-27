@@ -12,9 +12,9 @@ Implemented behavior today:
 - `app.services` composes strategy repositories, pattern repositories, data providers, broker adapters, risk controls, portfolio persistence, and live preflight checks.
 - `execution.step.execute_trading_step` is the shared execution core across backtest and live runtime paths.
 - `backtest.engine.run_backtest` orchestrates deterministic replay, event capture, equity tracking, and multi-symbol processing.
-- `api.server` exposes backtests, live preflight, live runtime session history, patterns, strategies, analytics, admin key management, `/health`, and dashboard routes behind API key, CORS, and rate-limit middleware.
-- `frontend/app/*` provides browser workflows for backtest submission, pattern management, strategy profiles, run review, API key administration, and live dashboard monitoring, now with server-sourced run metadata shown in the review surface.
-- `execution.reconciliation.reconcile` can align a local `PortfolioBook` with broker snapshots when the broker supports balance snapshots.
+- `api.server` exposes backtests, dispatcher status, retention preview/prune, order audit, live preflight, live runtime session history, patterns, strategies, analytics, admin key management, `/health`, and dashboard routes behind API key, CORS, and rate-limit middleware.
+- `frontend/app/*` provides browser workflows for backtest submission, pattern management, strategy profiles, run review, API key administration, live dashboard monitoring, and recent live session browsing, now with server-sourced run metadata shown in the review surface.
+- `execution.reconciliation.reconcile` can align a local `PortfolioBook` with broker snapshots when the broker supports balance snapshots, and the live loop uses KIS open-order snapshots as the preferred pending-order authority.
 - `notifications.webhook` provides bounded fire-and-forget delivery for selected runtime events through `httpx`.
 
 ## Layer analysis
@@ -29,7 +29,7 @@ The app layer cleanly separates CLI argument handling (`app.main`) from service 
 - The dashboard API can now start and own one live loop process through `LiveRuntimeController`, while also persisting a durable session history.
 
 Current limitation:
-- Live session history is now durable and queryable, but there is not yet a dedicated frontend history screen for browsing past sessions.
+- Recent live session history is visible in the dashboard, but long-term search, filtering, and export are not yet implemented.
 
 ### Data
 
@@ -51,7 +51,7 @@ The strategy layer now supports both example and repository-backed flows:
 - `strategy.factory` resolves inline strategy settings or saved strategy profiles backed by `configs/strategies`
 
 Current limitation:
-- There is still no general strategy plugin registry or direct CLI flag set for selecting saved strategy profiles.
+- There is still no general strategy plugin registry, but saved strategy profiles can now be selected through the API/UI, CLI `--strategy-profile-id`, or YAML `strategy.profile_id`.
 
 ### Risk
 
@@ -75,7 +75,7 @@ Execution now has explicit, reusable boundaries:
 - reconciliation helper for broker balance snapshots
 
 Current limitation:
-- There is no durable order lifecycle store, and KIS reconciliation still depends on balance-snapshot pending-order signals rather than a dedicated unresolved-order API.
+- Order creation, fill, rejection, and risk-rejection events can be stored and exported as durable order audit records. KIS reconciliation now prefers dedicated open-order snapshots and skips fail-closed when that source is unavailable or malformed.
 
 ### Portfolio
 
@@ -99,7 +99,7 @@ Backtest orchestration is deterministic and uses the same trading-step core as l
 - The API stores completed runs for later fetch and analytics inspection, together with provider/broker/strategy/source metadata.
 
 Current limitation:
-- Backtest runs are still executed synchronously in-request; persistence and metadata are now durable through file storage or Supabase, but there is no asynchronous queue/job runner yet.
+- Backtest runs are executed by an API-owned dispatcher with `queued` and `running` states; persistence and metadata are durable through file storage or Supabase. There is still no external queue service or distributed worker model.
 
 ### Analytics
 
@@ -139,7 +139,7 @@ Examples and operator artifacts include:
 
 Notes:
 
-- `configs/base.yaml` and `examples/sample_live_kis.yaml` now contain active typed examples for `portfolio_risk` and `app.reconciliation_interval`.
+- `configs/base.yaml` and `examples/sample_live_kis.yaml` now contain active typed examples for `portfolio_risk`, `app.reconciliation_interval`, and `strategy.profile_id`.
 - Strategy/profile and pattern-set storage is file backed, not database backed.
 
 ## Test coverage snapshot
@@ -153,15 +153,15 @@ This gives a strong regression baseline for deterministic replay, runtime valida
 
 ## Remaining gaps before broader production use
 
-1. **Asynchronous run execution**: backtest results and metadata are now persistable, but long-running backtests still execute synchronously inside the request path.
-2. **Session history UX**: live runtime session history is durable and queryable, but there is no first-class browser workflow for browsing historical sessions yet.
-3. **Config parity**: strategy selection and some runtime-only fields are still not fully represented in the typed YAML loader.
-4. **Exchange snapshot integration**: generic reconciliation exists and KIS balance snapshots are wired, but pending-order authority still depends on balance-snapshot signals rather than a dedicated unresolved-order API.
+1. **Distributed run execution**: backtests are separated through the internal dispatcher, but there is still no external queue or multi-worker model for long-running workloads.
+2. **Session history UX**: recent live runtime sessions are visible in the dashboard, but long-term search and export are not yet implemented.
+3. **Config parity**: strategy profile selection is aligned across CLI/YAML/API, but there is still no UI workflow for editing a full YAML runtime config.
+4. **Exchange snapshot integration**: KIS open-order snapshots are wired as pending authority, but cancel/replace and long-running order polling workflows are still not implemented.
 5. **Operational hardening**: repository-managed API keys now track disabled/last-used state, but richer auth, alerting, audit export, and deployment guidance are still lighter than a fully managed trading platform would require.
 
 ## Recommended next backlog
 
-1. Add an asynchronous run execution model, retention controls, and clearer operator visibility around long-running backtests.
-2. Add a dedicated browser workflow for live runtime session history and historical incident review.
-3. Improve broker integrations, especially KIS, to expose a stronger unresolved/open-order source for reconciliation.
+1. Add an external queue/worker model and clearer operator visibility around long-running backtests.
+2. Add long-term search/export for live runtime session history and historical incident review.
+3. Evaluate cancel/replace or long-running order polling workflows on top of the KIS open-order source.
 4. Decide whether additional strategy runtime settings should become first-class YAML fields or remain API/runtime-only inputs.
