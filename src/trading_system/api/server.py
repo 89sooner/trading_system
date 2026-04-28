@@ -2,7 +2,6 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from dotenv import load_dotenv
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
@@ -24,10 +23,11 @@ from trading_system.app.live_runtime_events import create_live_runtime_event_rep
 from trading_system.app.live_runtime_history import create_live_runtime_session_repository
 from trading_system.app.services import build_services
 from trading_system.app.settings import SettingsValidationError as AppSettingsValidationError
+from trading_system.config.env import load_runtime_env
 from trading_system.config.settings import SettingsValidationError as ConfigSettingsValidationError
 from trading_system.execution.order_audit import create_order_audit_repository
 
-load_dotenv()
+load_runtime_env()
 
 
 def create_app(live_loop=None) -> FastAPI:

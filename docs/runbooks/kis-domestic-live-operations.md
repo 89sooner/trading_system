@@ -12,6 +12,12 @@
 
 Use a local `.env` or shell export set equivalent to the following.
 Keep `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=false` until the final guarded-live step.
+The repository includes `.env.example`; copy it to `.env`, then replace the
+KIS values locally. `.env` is ignored by git.
+
+```bash
+cp .env.example .env
+```
 
 ```dotenv
 TRADING_SYSTEM_ENV=local
@@ -44,9 +50,11 @@ There are now two supported ways to operate KIS live trading:
 
 1. CLI path
    - `--mode live --provider kis --broker kis --live-execution preflight|paper|live`
+   - `trading_system.app.main` loads `.env` automatically before building services.
 2. API/dashboard path
    - `POST /api/v1/live/runtime/start`
    - Dashboard launch form on `/dashboard`
+   - The API server uses the same `.env` loader.
 
 The same KIS guards still apply in both paths:
 - `provider=kis`, `broker=kis`

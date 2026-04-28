@@ -45,6 +45,12 @@ export function RuntimeLaunchForm() {
   const [provider, setProvider] = useState<Provider>('kis')
   const [broker, setBroker] = useState<Broker>('kis')
   const [liveExecution, setLiveExecution] = useState<ExecutionMode>('paper')
+  const [tradeQuantity, setTradeQuantity] = useState('1')
+  const [maxPosition, setMaxPosition] = useState('1')
+  const [maxOrderSize, setMaxOrderSize] = useState('1')
+  const [maxNotional, setMaxNotional] = useState('300000')
+  const [startingCash, setStartingCash] = useState('300000')
+  const [feeBps, setFeeBps] = useState('5')
   const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null)
   const [readiness, setReadiness] = useState<LivePreflightResponseDTO | null>(null)
   const [readinessSignature, setReadinessSignature] = useState<string | null>(null)
@@ -60,8 +66,29 @@ export function RuntimeLaunchForm() {
       provider,
       broker,
       live_execution: liveExecution,
+      risk: {
+        max_position: maxPosition,
+        max_notional: maxNotional,
+        max_order_size: maxOrderSize,
+      },
+      backtest: {
+        starting_cash: startingCash,
+        fee_bps: feeBps,
+        trade_quantity: tradeQuantity,
+      },
     }),
-    [broker, liveExecution, provider, symbols],
+    [
+      broker,
+      feeBps,
+      liveExecution,
+      maxNotional,
+      maxOrderSize,
+      maxPosition,
+      provider,
+      startingCash,
+      symbols,
+      tradeQuantity,
+    ],
   )
 
   const currentSignature = JSON.stringify(payload)
@@ -69,6 +96,9 @@ export function RuntimeLaunchForm() {
   const selectedActionAllowed =
     readinessIsFresh && readiness?.next_allowed_actions.includes(liveExecution)
   const hasBlockingReasons = (readiness?.blocking_reasons.length ?? 0) > 0
+  const liveOrderGateDetails =
+    readiness?.checks.find((check) => check.name === 'live_order_gate')?.details ?? null
+  const isGuardedLive = liveExecution === 'live'
 
   function syncExecutionMode(next: ExecutionMode) {
     setLiveExecution(next)
@@ -77,6 +107,9 @@ export function RuntimeLaunchForm() {
     if (next === 'live') {
       setProvider('kis')
       setBroker('kis')
+      setTradeQuantity('1')
+      setMaxPosition('1')
+      setMaxOrderSize('1')
     }
   }
 
@@ -160,7 +193,7 @@ export function RuntimeLaunchForm() {
                 value={liveExecution}
                 onValueChange={(value) => syncExecutionMode(value as ExecutionMode)}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Execution Mode">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -176,7 +209,7 @@ export function RuntimeLaunchForm() {
                 onValueChange={(value) => setAndInvalidate(setProvider, value as Provider)}
                 disabled={liveExecution === 'live'}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Provider">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -193,7 +226,7 @@ export function RuntimeLaunchForm() {
                 onValueChange={(value) => setAndInvalidate(setBroker, value as Broker)}
                 disabled={liveExecution === 'live'}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Broker">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -201,6 +234,75 @@ export function RuntimeLaunchForm() {
                   <SelectItem value="kis">kis</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="runtime-trade-quantity">Trade Quantity</Label>
+              <Input
+                id="runtime-trade-quantity"
+                type="number"
+                min="1"
+                step="1"
+                value={tradeQuantity}
+                disabled={isGuardedLive}
+                onChange={(event) => setAndInvalidate(setTradeQuantity, event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="runtime-max-position">Max Position</Label>
+              <Input
+                id="runtime-max-position"
+                type="number"
+                min="1"
+                step="1"
+                value={maxPosition}
+                disabled={isGuardedLive}
+                onChange={(event) => setAndInvalidate(setMaxPosition, event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="runtime-max-order-size">Max Order Size</Label>
+              <Input
+                id="runtime-max-order-size"
+                type="number"
+                min="1"
+                step="1"
+                value={maxOrderSize}
+                disabled={isGuardedLive}
+                onChange={(event) => setAndInvalidate(setMaxOrderSize, event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="runtime-max-notional">Max Notional</Label>
+              <Input
+                id="runtime-max-notional"
+                type="number"
+                min="1"
+                step="10000"
+                value={maxNotional}
+                onChange={(event) => setAndInvalidate(setMaxNotional, event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="runtime-starting-cash">Starting Cash</Label>
+              <Input
+                id="runtime-starting-cash"
+                type="number"
+                min="0"
+                step="10000"
+                value={startingCash}
+                onChange={(event) => setAndInvalidate(setStartingCash, event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="runtime-fee-bps">Fee Bps</Label>
+              <Input
+                id="runtime-fee-bps"
+                type="number"
+                min="0"
+                step="0.1"
+                value={feeBps}
+                onChange={(event) => setAndInvalidate(setFeeBps, event.target.value)}
+              />
             </div>
           </div>
 
@@ -224,6 +326,12 @@ export function RuntimeLaunchForm() {
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {provider} / {broker} / {liveExecution}
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                qty {tradeQuantity} / max position {maxPosition} / max order {maxOrderSize}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                max notional {maxNotional} / starting cash {startingCash} / fee {feeBps} bps
               </p>
             </div>
           </div>
@@ -421,6 +529,22 @@ export function RuntimeLaunchForm() {
               </p>
             </div>
           </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ConfirmField label="Symbols" value={payload.symbols.join(', ') || '-'} />
+            <ConfirmField label="Route" value={`${provider} / ${broker} / ${liveExecution}`} />
+            <ConfirmField label="Trade Quantity" value={tradeQuantity} />
+            <ConfirmField label="Max Order Size" value={maxOrderSize} />
+            <ConfirmField label="Max Position" value={maxPosition} />
+            <ConfirmField label="Max Notional" value={maxNotional} />
+            <ConfirmField
+              label="KIS Environment"
+              value={liveOrderGateDetails?.kis_env ?? 'unknown'}
+            />
+            <ConfirmField
+              label="Live Orders Flag"
+              value={liveOrderGateDetails?.live_orders_enabled ?? 'unknown'}
+            />
+          </div>
           <DialogFooter>
             <DialogClose render={<Button variant="outline" size="sm" />}>
               Cancel
@@ -441,5 +565,16 @@ export function RuntimeLaunchForm() {
         </DialogContent>
       </Dialog>
     </>
+  )
+}
+
+function ConfirmField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border/80 bg-muted/20 p-3">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 break-words font-mono text-sm text-foreground">{value}</p>
+    </div>
   )
 }

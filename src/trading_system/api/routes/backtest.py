@@ -92,7 +92,34 @@ def _validate_request_payload(payload: BacktestRunRequestDTO | LivePreflightRequ
             message="fee_bps must be between 0 and 1000.",
         )
 
+    if (
+        payload.mode == "live"
+        and payload.provider == "kis"
+        and payload.broker == "kis"
+        and payload.live_execution == "live"
+    ):
+        _validate_kis_live_integer_quantity(
+            "backtest.trade_quantity",
+            payload.backtest.trade_quantity,
+        )
+        _validate_kis_live_integer_quantity(
+            "risk.max_order_size",
+            payload.risk.max_order_size,
+        )
+        _validate_kis_live_integer_quantity(
+            "risk.max_position",
+            payload.risk.max_position,
+        )
+
     _validate_strategy_payload(payload.strategy)
+
+
+def _validate_kis_live_integer_quantity(field_name: str, value: Decimal) -> None:
+    if value != value.to_integral_value():
+        raise RequestValidationError(
+            error_code="invalid_kis_live_quantity",
+            message=f"{field_name} must be an integer share quantity for KIS live orders.",
+        )
 
 
 def _validate_strategy_payload(strategy: StrategyConfigDTO | None) -> None:

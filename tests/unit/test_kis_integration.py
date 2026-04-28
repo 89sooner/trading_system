@@ -76,6 +76,20 @@ def test_kis_api_client_requires_access_token_in_response() -> None:
         client.preflight_symbol("005930")
 
 
+def test_kis_api_client_reuses_access_token_for_repeated_calls() -> None:
+    transport = _CountingTokenTransport()
+    client = KisApiClient.from_env(
+        secret_provider=_StubSecretProvider(),
+        transport=transport,
+    )
+
+    client.preflight_symbol("005930")
+    client.preflight_symbol("005930")
+
+    assert transport.token_requests == 1
+    assert transport.price_requests == 2
+
+
 def test_kis_broker_adapter_maps_successful_order_to_fill_event() -> None:
     client = KisApiClient.from_env(
         secret_provider=_StubSecretProvider(),
@@ -317,6 +331,27 @@ class _MissingTokenTransport:
     def request(self, method: str, url: str, *, headers: dict[str, str], body=None) -> HttpResponse:
         del method, url, headers, body
         return HttpResponse(status_code=200, body={})
+
+
+class _CountingTokenTransport:
+    def __init__(self) -> None:
+        self.token_requests = 0
+        self.price_requests = 0
+
+    def request(self, method: str, url: str, *, headers: dict[str, str], body=None) -> HttpResponse:
+        if method == "POST" and url.endswith("/oauth2/tokenP"):
+            self.token_requests += 1
+            return HttpResponse(
+                status_code=200,
+                body={"access_token": "kis-access-token", "expires_in": "86400"},
+            )
+
+        self.price_requests += 1
+        assert headers["authorization"] == "Bearer kis-access-token"
+        return HttpResponse(
+            status_code=200,
+            body={"output": {"stck_prpr": "70300", "acml_vol": "123456"}},
+        )
 
 
 class _OrderSuccessTransport:

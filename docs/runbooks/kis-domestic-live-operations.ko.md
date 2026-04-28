@@ -12,6 +12,12 @@
 
 로컬 `.env` 또는 현재 셸 환경에 아래와 같은 구성을 준비한다.
 실주문 직전까지는 `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=false`를 유지한다.
+저장소에는 `.env.example`이 포함되어 있으므로 이를 `.env`로 복사한 뒤
+KIS 값만 로컬에서 교체한다. `.env`는 git에서 무시된다.
+
+```bash
+cp .env.example .env
+```
 
 ```dotenv
 TRADING_SYSTEM_ENV=local
@@ -44,9 +50,11 @@ TRADING_SYSTEM_ALLOWED_API_KEYS=your-strong-api-key
 
 1. CLI 경로
    - `--mode live --provider kis --broker kis --live-execution preflight|paper|live`
+   - `trading_system.app.main`은 서비스 구성 전에 `.env`를 자동 로드한다.
 2. API/dashboard 경로
    - `POST /api/v1/live/runtime/start`
    - `/dashboard`의 launch form
+   - API 서버도 동일한 `.env` 로더를 사용한다.
 
 두 경로 모두 동일한 KIS 가드를 적용한다.
 - `provider=kis`, `broker=kis`

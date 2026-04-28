@@ -5,6 +5,7 @@ import pytest
 
 from trading_system.app.services import build_services
 from trading_system.app.settings import AppSettings
+from trading_system.execution.broker import PolicyBrokerSimulator
 from trading_system.execution.kis_adapter import KisBrokerAdapter
 from trading_system.execution.orders import OrderSide
 from trading_system.integrations.kis import KisOrderResult
@@ -248,7 +249,9 @@ def test_live_preflight_no_broker_check_multi_symbol(monkeypatch) -> None:
     assert result.message == "Live mode preflight passed (no orders were submitted)."
 
 
-def test_build_services_uses_kis_broker_adapter_when_broker_is_kis(monkeypatch) -> None:
+def test_build_services_uses_paper_broker_for_kis_route_until_live_execution(
+    monkeypatch,
+) -> None:
     monkeypatch.setattr(
         "trading_system.app.services.KisApiClient.from_env",
         lambda: _StubKisClient(),
@@ -260,6 +263,32 @@ def test_build_services_uses_kis_broker_adapter_when_broker_is_kis(monkeypatch) 
         provider="mock",
         broker="kis",
         live_execution="preflight",
+        starting_cash="1000000",
+        fee_bps="5",
+        trade_quantity="1",
+        max_position="10",
+        max_notional="100000000",
+        max_order_size="5",
+    )
+    settings.validate()
+
+    services = build_services(settings)
+
+    assert isinstance(services.broker_simulator.delegate, PolicyBrokerSimulator)
+
+
+def test_build_services_uses_kis_broker_adapter_for_live_execution(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "trading_system.app.services.KisApiClient.from_env",
+        lambda: _StubKisClient(),
+    )
+
+    settings = AppSettings.from_cli(
+        mode="live",
+        symbols="005930",
+        provider="kis",
+        broker="kis",
+        live_execution="live",
         starting_cash="1000000",
         fee_bps="5",
         trade_quantity="1",

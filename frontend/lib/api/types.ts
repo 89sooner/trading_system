@@ -77,6 +77,16 @@ export interface LiveRuntimeStartRequestDTO {
   provider?: 'mock' | 'csv' | 'kis'
   broker?: 'paper' | 'kis'
   live_execution?: 'paper' | 'live'
+  risk?: {
+    max_position: string
+    max_notional: string
+    max_order_size: string
+  }
+  backtest?: {
+    starting_cash: string
+    fee_bps: string
+    trade_quantity: string
+  }
 }
 
 export interface ReadinessCheck {

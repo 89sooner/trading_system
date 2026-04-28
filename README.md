@@ -163,6 +163,18 @@ uv run --python .venv/bin/python --no-sync -m trading_system.app.main --mode bac
 
 ### 5.5 Live preflight mode (default, no order submission) / 라이브 프리플라이트 모드 (기본값, 실주문 없음)
 
+KIS credentials can be kept in a local `.env` file. Copy the tracked template,
+then replace only the values in your untracked `.env`. `trading_system.app.main`
+and the API server load `.env` automatically without overwriting shell exports.
+
+KIS 인증정보는 로컬 `.env` 파일에 둘 수 있습니다. 추적되는 템플릿을 복사한 뒤,
+추적되지 않는 `.env` 안의 값만 교체하세요. CLI와 API 서버는 `.env`를 자동
+로드하며, 이미 셸에 export된 값은 덮어쓰지 않습니다.
+
+```bash
+cp .env.example .env
+```
+
 ```bash
 TRADING_SYSTEM_ENV=local TRADING_SYSTEM_TIMEZONE=Asia/Seoul \
 TRADING_SYSTEM_API_KEY=dummy-key \

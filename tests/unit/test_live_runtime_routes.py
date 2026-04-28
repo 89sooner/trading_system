@@ -8,6 +8,7 @@ from fastapi import HTTPException
 
 import trading_system.api.routes.dashboard as dashboard_routes
 import trading_system.api.routes.live_runtime as live_runtime_routes
+from trading_system.api.errors import RequestValidationError
 from trading_system.api.schemas import ControlActionDTO, LiveRuntimeStartRequestDTO
 from trading_system.app.services import PreflightCheckResult
 from trading_system.app.state import AppRunnerState
@@ -273,6 +274,25 @@ def test_start_live_runtime_rejects_failed_preflight(monkeypatch) -> None:
         live_runtime_routes.start_live_runtime(payload, request)
 
     assert exc.value.status_code == 409
+
+
+def test_start_live_runtime_rejects_fractional_kis_live_quantity() -> None:
+    controller = MagicMock()
+    controller.has_active_session.return_value = False
+    request = _make_request(controller, live_loop=None)
+    payload = LiveRuntimeStartRequestDTO(
+        symbols=['005930'],
+        provider='kis',
+        broker='kis',
+        live_execution='live',
+    )
+
+    with pytest.raises(RequestValidationError) as exc:
+        live_runtime_routes.start_live_runtime(payload, request)
+
+    assert exc.value.error_code == 'invalid_kis_live_quantity'
+    assert 'backtest.trade_quantity' in str(exc.value)
+    controller.start.assert_not_called()
 
 
 def test_list_live_runtime_sessions_uses_search_filters() -> None:

@@ -350,7 +350,7 @@ def _build_broker(
     *,
     kis_client: KisApiClient | None,
 ) -> BrokerSimulator:
-    if settings.broker == "kis":
+    if settings.broker == "kis" and settings.live_execution == LiveExecutionMode.LIVE:
         if kis_client is None:
             raise RuntimeError("KIS broker requires KIS API credentials.")
         return KisBrokerAdapter(client=kis_client)
@@ -452,7 +452,11 @@ def _build_live_preflight(
                 name="live_order_gate",
                 status=live_order_gate_status,
                 summary=live_order_gate_summary,
-                details={"live_execution": settings.live_execution.value},
+                details={
+                    "live_execution": settings.live_execution.value,
+                    "kis_env": os.getenv("TRADING_SYSTEM_KIS_ENV", "prod").strip() or "prod",
+                    "live_orders_enabled": "true" if _is_live_orders_enabled() else "false",
+                },
             )
         )
 

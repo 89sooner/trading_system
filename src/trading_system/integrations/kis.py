@@ -140,6 +140,8 @@ class KisApiClient:
         self._base_url = (base_url or os.getenv("TRADING_SYSTEM_KIS_BASE_URL") or "").rstrip("/")
         if not self._base_url:
             self._base_url = self._PROD_BASE_URL
+        self._access_token: str | None = None
+        self._access_token_expires_at: datetime | None = None
 
     @classmethod
     def from_env(
@@ -211,6 +213,14 @@ class KisApiClient:
         return self._parse_order_response(order=order, response=response)
 
     def issue_access_token(self) -> str:
+        now = datetime.now(tz=UTC)
+        if (
+            self._access_token is not None
+            and self._access_token_expires_at is not None
+            and now < self._access_token_expires_at
+        ):
+            return self._access_token
+
         response = self._transport.request(
             "POST",
             f"{self._base_url}/oauth2/tokenP",
@@ -224,6 +234,8 @@ class KisApiClient:
         access_token = response.body.get("access_token")
         if not isinstance(access_token, str) or not access_token.strip():
             raise KisResponseError("KIS token response did not include a usable access_token.")
+        self._access_token = access_token
+        self._access_token_expires_at = _resolve_access_token_expires_at(response.body, now=now)
         return access_token
 
     def _price_tr_id(self) -> str:
@@ -426,6 +438,22 @@ def _has_pending_balance_signal(
 
     available_qty = _as_decimal(raw_available_qty, "ord_psbl_qty")
     return available_qty < holding_qty
+
+
+def _resolve_access_token_expires_at(body: dict[str, Any], *, now: datetime) -> datetime:
+    raw_expires_in = body.get("expires_in")
+    if raw_expires_in not in (None, ""):
+        try:
+            expires_in = int(raw_expires_in)
+        except (TypeError, ValueError):
+            expires_in = 0
+        if expires_in > 0:
+            safety_margin = 60 if expires_in > 120 else 1
+            return now + timedelta(seconds=max(expires_in - safety_margin, 1))
+
+    # KIS access tokens are long-lived; use a conservative fallback when the
+    # response omits expires_in so repeated live-loop ticks do not hammer tokenP.
+    return now + timedelta(hours=23)
 
 
 def _parse_open_order(item: Any) -> OpenOrder | None:

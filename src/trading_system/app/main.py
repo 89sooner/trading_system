@@ -9,6 +9,7 @@ from trading_system.app.settings import (
     LiveExecutionMode,
     SettingsValidationError,
 )
+from trading_system.config.env import load_runtime_env
 from trading_system.config.settings import load_app_settings
 
 
@@ -35,6 +36,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run(argv: list[str] | None = None) -> int:
+    load_runtime_env()
+
     parser = build_parser()
     args = parser.parse_args(argv)
 
