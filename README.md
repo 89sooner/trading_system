@@ -277,8 +277,10 @@ Live runtime orchestration is API-owned:
 Backtest API execution is asynchronous:
 
 - `POST /api/v1/backtests` returns `202 Accepted` with `status="queued"`.
-- Poll `GET /api/v1/backtests/<run_id>` until the run reaches `succeeded` or `failed`.
-- Pending runs may report `queued` or `running` with `result=null` and `finished_at=null`.
+- Poll `GET /api/v1/backtests/<run_id>` until the run reaches `succeeded`, `failed`, or `cancelled`.
+- Pending runs may report `queued` or `running` with `result=null`, `finished_at=null`, and a `job` block containing worker lease, heartbeat, progress, and cancel state.
+- `POST /api/v1/backtests/<run_id>/cancel` requests cooperative cancellation for queued or running jobs.
+- The API-owned dispatcher uses the same durable job contract as the standalone worker. Run `python -m trading_system.app.backtest_worker --once` for a one-job worker smoke test, or omit `--once` for a polling worker process.
 - `GET /api/v1/analytics/backtests/<run_id>/trades` returns `409` until the run has succeeded.
 
 Visualization response example (fixed schema):
@@ -758,7 +760,7 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_PORTFOLIO_DIR` (optional): Directory where the portfolio book JSON is persisted (default: `data/portfolio`)
 - `TRADING_SYSTEM_RUNS_DIR` (optional): Directory for file-based backtest run persistence when `DATABASE_URL` is unset (default: `data/runs`)
 - `TRADING_SYSTEM_EQUITY_DIR` (optional): Directory for file-based live equity snapshots when `DATABASE_URL` is unset (default: `data/equity`)
-- `DATABASE_URL` (optional): PostgreSQL connection string for Supabase-backed run/equity/session persistence. When set, apply `scripts/migrations/001_create_backtest_runs.sql` through `scripts/migrations/005_add_live_runtime_event_archive.sql` before starting the API or live paper mode.
+- `DATABASE_URL` (optional): PostgreSQL connection string for Supabase-backed run/equity/session persistence. When set, apply `scripts/migrations/001_create_backtest_runs.sql` through `scripts/migrations/006_add_backtest_jobs.sql` before starting the API, backtest worker, or live paper mode.
 - `TRADING_SYSTEM_LIVE_POLL_INTERVAL` (optional): Seconds to wait between live ticks (default: `10`)
 - `TRADING_SYSTEM_HEARTBEAT_INTERVAL` (optional): Seconds between heartbeat logs (default: `60`)
 - `TRADING_SYSTEM_RECONCILIATION_INTERVAL` (optional): Seconds between broker balance reconciliation attempts in the live loop (default: `300`)
@@ -787,7 +789,7 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_PORTFOLIO_DIR` (선택): 포트폴리오 상태(JSON)가 영속화되는 디렉터리 (기본값: `data/portfolio`)
 - `TRADING_SYSTEM_RUNS_DIR` (선택): `DATABASE_URL`이 없을 때 백테스트 런 메타데이터를 저장하는 디렉터리 (기본값: `data/runs`)
 - `TRADING_SYSTEM_EQUITY_DIR` (선택): `DATABASE_URL`이 없을 때 라이브 equity 스냅샷(JSONL)을 저장하는 디렉터리 (기본값: `data/equity`)
-- `DATABASE_URL` (선택): Supabase 기반 run/equity/session 영속화용 PostgreSQL 연결 문자열. 값을 설정했다면 API 또는 라이브 페이퍼 모드 시작 전에 `scripts/migrations/001_create_backtest_runs.sql`부터 `scripts/migrations/005_add_live_runtime_event_archive.sql`까지 먼저 적용해야 합니다.
+- `DATABASE_URL` (선택): Supabase 기반 run/equity/session 영속화용 PostgreSQL 연결 문자열. 값을 설정했다면 API, 백테스트 worker, 라이브 페이퍼 모드 시작 전에 `scripts/migrations/001_create_backtest_runs.sql`부터 `scripts/migrations/006_add_backtest_jobs.sql`까지 먼저 적용해야 합니다.
 - `TRADING_SYSTEM_LIVE_POLL_INTERVAL` (선택): 라이브 루프에서 시세를 받아오는 간격 초 단위 (기본값: `10`)
 - `TRADING_SYSTEM_HEARTBEAT_INTERVAL` (선택): 하트비트 로그 기록 간격 (기본값: `60`)
 - `TRADING_SYSTEM_RECONCILIATION_INTERVAL` (선택): 라이브 루프의 브로커 잔고 대사 시도 간격 초 단위 (기본값: `300`)
@@ -996,6 +998,7 @@ This guide covers deploying the backend to Railway, the frontend to Vercel, and 
    psql $DATABASE_URL -f scripts/migrations/003_add_backtest_metadata_and_live_runtime_sessions.sql
    psql $DATABASE_URL -f scripts/migrations/004_add_order_audit_records.sql
    psql $DATABASE_URL -f scripts/migrations/005_add_live_runtime_event_archive.sql
+   psql $DATABASE_URL -f scripts/migrations/006_add_backtest_jobs.sql
    ```
 3. Store the connection string as `DATABASE_URL` for the next step.
 
@@ -1052,6 +1055,7 @@ Push or open a PR to trigger `.github/workflows/ci.yml`. Two jobs run automatica
    psql $DATABASE_URL -f scripts/migrations/003_add_backtest_metadata_and_live_runtime_sessions.sql
    psql $DATABASE_URL -f scripts/migrations/004_add_order_audit_records.sql
    psql $DATABASE_URL -f scripts/migrations/005_add_live_runtime_event_archive.sql
+   psql $DATABASE_URL -f scripts/migrations/006_add_backtest_jobs.sql
    ```
 3. 연결 문자열을 다음 단계를 위해 `DATABASE_URL`로 보관합니다.
 

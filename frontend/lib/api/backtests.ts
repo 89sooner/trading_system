@@ -16,6 +16,11 @@ export const createBacktestRun = (payload: BacktestRunRequestDTO) =>
 export const getBacktestRun = (runId: string) =>
   requestJson<BacktestRunStatusDTO>(`/backtests/${encodeURIComponent(runId)}`)
 
+export const cancelBacktestRun = (runId: string) =>
+  requestJson<BacktestRunStatusDTO>(`/backtests/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
+  })
+
 export const listBacktestRuns = (params?: {
   page?: number
   page_size?: number

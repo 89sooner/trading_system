@@ -110,6 +110,10 @@ class BacktestDispatcherStatusDTO(BaseModel):
     running: bool
     queue_depth: int
     max_queue_size: int
+    durable_queued_count: int = 0
+    durable_running_count: int = 0
+    durable_stale_count: int = 0
+    oldest_queued_age_seconds: float | None = None
 
 
 class BacktestRetentionPreviewDTO(BaseModel):
@@ -132,7 +136,7 @@ class BacktestRetentionPruneResponseDTO(BaseModel):
 
 class BacktestRunStatusDTO(BaseModel):
     run_id: str
-    status: Literal["queued", "running", "succeeded", "failed"]
+    status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
     started_at: str
     finished_at: str | None
     input_symbols: list[str]
@@ -140,6 +144,7 @@ class BacktestRunStatusDTO(BaseModel):
     metadata: RunMetadataDTO | None = None
     result: BacktestResultDTO | None = None
     error: str | None = None
+    job: "BacktestJobSummaryDTO | None" = None
 
 
 class LivePreflightResponseDTO(BaseModel):
@@ -458,6 +463,7 @@ class BacktestRunListItemDTO(BaseModel):
     input_symbols: list[str]
     mode: str
     metadata: RunMetadataDTO | None = None
+    job: "BacktestJobSummaryDTO | None" = None
 
 
 class BacktestRunListResponseDTO(BaseModel):
@@ -465,6 +471,24 @@ class BacktestRunListResponseDTO(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class BacktestJobProgressDTO(BaseModel):
+    processed_bars: int = 0
+    total_bars: int = 0
+    percent: float = 0.0
+    last_bar_timestamp: str | None = None
+    updated_at: str | None = None
+
+
+class BacktestJobSummaryDTO(BaseModel):
+    worker_id: str | None = None
+    lease_expires_at: str | None = None
+    last_heartbeat_at: str | None = None
+    attempt_count: int = 0
+    max_attempts: int = 0
+    cancel_requested: bool = False
+    progress: BacktestJobProgressDTO = Field(default_factory=BacktestJobProgressDTO)
 
 
 # ---------------------------------------------------------------------------
@@ -486,4 +510,6 @@ class EquityTimeseriesDTO(BaseModel):
 
 
 LivePreflightResponseDTO.model_rebuild()
+BacktestRunStatusDTO.model_rebuild()
+BacktestRunListItemDTO.model_rebuild()
 LiveRuntimeSessionEvidenceDTO.model_rebuild()

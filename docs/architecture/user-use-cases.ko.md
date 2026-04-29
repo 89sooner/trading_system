@@ -36,7 +36,7 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
 | --- | --- | --- |
 | `trading_system.app.main` | CLI에서 백테스트 또는 라이브 실행 | 운영자, 개발자 |
 | `/api/v1/backtests` | 결정적 백테스트를 시작하고 실행 결과 조회 | 프론트엔드, API 클라이언트 |
-| `/api/v1/backtests/dispatcher` | 백테스트 dispatcher worker와 queue 상태 조회 | 운영자 |
+| `/api/v1/backtests/dispatcher` | durable backtest queue, worker heartbeat, stale lease 상태 조회 | 운영자 |
 | `/api/v1/backtests/retention/*` | 오래된 run 기록 preview/prune | 운영자, 통합 담당자 |
 | `/api/v1/order-audit` | backtest run 또는 live session 기준 주문 감사 record 조회 | 운영자, 리서처 |
 | `/api/v1/order-audit/export` | owner/time/status/broker id 기준 주문 감사 CSV/JSONL export | 운영자, 통합 담당자 |
@@ -168,14 +168,14 @@ API/프론트엔드 사용자는 Python 모듈을 직접 다루지 않고도 HTT
      strategy evaluation -> signal -> order mapping -> risk check -> broker fill -> portfolio update
   5. equity point, order, signal, risk rejection 이벤트를 수집한다.
   6. 주문 생성/체결/거절/리스크 거절은 run owner 기준 order audit record로 저장된다.
-  7. API dispatcher는 실행 상태를 `queued`, `running`, `succeeded` 또는 `failed`로 저장한다.
+  7. API는 durable job record를 저장하고 dispatcher 또는 CLI worker가 작업을 claim해 `queued`, `running`, `succeeded`, `failed`, `cancelled` 상태로 갱신한다.
 - 산출물:
   - 수익률 요약 지표
   - equity curve
   - drawdown curve
   - signal, order, rejection 이벤트 스트림
 - 현재 제약:
-  - API는 내부 dispatcher로 백테스트를 실행하지만, 외부 queue 서비스나 분산 worker는 아직 없다
+  - API-owned dispatcher와 별도 CLI worker가 같은 durable job contract를 사용하지만, 외부 queue 서비스와 부분 결과 resume은 아직 없다
   - 영속화 방식은 배포 설정에 따라 달라진다: 기본은 파일 기반, `DATABASE_URL` 설정 시 Supabase 기반
   - 프론트엔드의 새 실행 화면은 단일 심볼 입력만 받지만, 내부 백테스트 엔진은 다중 심볼 처리도 가능하다
   - CLI 경로는 `--strategy-profile-id`와 `--config`로 저장된 pattern strategy profile을 선택할 수 있다

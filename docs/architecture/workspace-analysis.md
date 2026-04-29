@@ -99,7 +99,7 @@ Backtest orchestration is deterministic and uses the same trading-step core as l
 - The API stores completed runs for later fetch and analytics inspection, together with provider/broker/strategy/source metadata.
 
 Current limitation:
-- Backtest runs are executed by an API-owned dispatcher with `queued` and `running` states; persistence and metadata are durable through file storage or Supabase. There is still no external queue service or distributed worker model.
+- Backtest runs are stored as durable jobs and then claimed by either the API-owned dispatcher or the `trading_system.app.backtest_worker` CLI worker. Run results, metadata, worker heartbeat, progress, and cancel requests persist through file storage or Supabase. External queue services and partial-result resume are still out of scope.
 
 ### Analytics
 
@@ -153,7 +153,7 @@ This gives a strong regression baseline for deterministic replay, runtime valida
 
 ## Remaining gaps before broader production use
 
-1. **Distributed run execution**: backtests are separated through the internal dispatcher, but there is still no external queue or multi-worker model for long-running workloads.
+1. **Distributed run execution**: backtests now have a durable job/worker contract and CLI worker, but there is still no Redis/Celery/Kafka-style external queue or partial-result resume.
 2. **Session history retention**: live runtime sessions can be searched/exported/reviewed, but old session and event archive retention/prune policy is not yet implemented.
 3. **Config parity**: strategy profile selection is aligned across CLI/YAML/API, but there is still no UI workflow for editing a full YAML runtime config.
 4. **Exchange snapshot integration**: KIS open-order snapshots are wired as pending authority, but cancel/replace and long-running order polling workflows are still not implemented.
@@ -161,7 +161,7 @@ This gives a strong regression baseline for deterministic replay, runtime valida
 
 ## Recommended next backlog
 
-1. Add an external queue/worker model and clearer operator visibility around long-running backtests.
+1. Validate durable backtest workers in production-like operations, then decide whether an external queue service or partial-result resume is worth a separate phase.
 2. Add retention/prune policy and operator guidance for live runtime session and event archives.
 3. Evaluate cancel/replace or long-running order polling workflows on top of the KIS open-order source.
 4. Decide whether additional strategy runtime settings should become first-class YAML fields or remain API/runtime-only inputs.

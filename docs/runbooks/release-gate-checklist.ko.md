@@ -28,6 +28,8 @@ KIS 실주문 경로는 구현되어 있지만 `TRADING_SYSTEM_ENABLE_LIVE_ORDER
 - [ ] 잘못된 설정 입력 시 명확한 사용자 오류 메시지 반환 확인
 - [ ] 운영자가 백테스트/라이브 루프의 다중 심볼 지원 범위와 `/api/v1/live/preflight`의 하위 호환 응답 형태(`quote_summary` vs `quote_summaries`/`symbol_count`)를 이해함
 - [ ] 대시보드 사용 대상이면 API 서버가 활성 live loop와 함께 시작되는 배포 방식이 준비됨
+- [ ] durable backtest worker smoke 통과: run을 enqueue한 뒤 `python -m trading_system.app.backtest_worker --once`로 처리하고 `/api/v1/backtests/<run_id>`에서 progress/terminal 상태 확인
+- [ ] Supabase 환경은 API 또는 worker 시작 전에 `scripts/migrations/006_add_backtest_jobs.sql` 적용 완료
 
 ## Gate 4: Incident drill baseline
 

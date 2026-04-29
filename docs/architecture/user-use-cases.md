@@ -36,7 +36,7 @@ The integrator connects the workspace to infrastructure, configures API keys/COR
 | --- | --- | --- |
 | `trading_system.app.main` | Run backtest or live execution from CLI | Operator, developer |
 | `/api/v1/backtests` | Start deterministic backtest and fetch run result | Frontend, API client |
-| `/api/v1/backtests/dispatcher` | Inspect backtest dispatcher worker and queue state | Operator |
+| `/api/v1/backtests/dispatcher` | Inspect durable backtest queue, worker heartbeat, and stale lease state | Operator |
 | `/api/v1/backtests/retention/*` | Preview and prune old run records | Operator, integrator |
 | `/api/v1/order-audit` | Query order audit records by backtest run or live session | Operator, researcher |
 | `/api/v1/order-audit/export` | Export order audit records by owner/time/status/broker id as CSV or JSONL | Operator, integrator |
@@ -168,14 +168,14 @@ The intended high-value workflow today is:
      strategy evaluation -> signal -> order mapping -> risk check -> broker fill -> portfolio update.
   5. Equity points, orders, signals, and risk rejections are collected.
   6. Order creation, fills, rejections, and risk rejections are stored as order audit records owned by the run.
-  7. The API dispatcher stores the run as `queued`, `running`, `succeeded`, or `failed`.
+  7. The API stores a durable job record, and the dispatcher or CLI worker claims it and updates the run as `queued`, `running`, `succeeded`, `failed`, or `cancelled`.
 - Outputs:
   - summary return metrics
   - equity curve
   - drawdown curve
   - signal, order, and rejection event streams
 - Current constraints:
-  - the API executes backtests through an internal dispatcher, but there is no external queue service or distributed worker model yet
+  - the API-owned dispatcher and standalone CLI worker use the same durable job contract, but there is still no external queue service or partial-result resume
   - persistence depends on deployment configuration: file-backed by default, Supabase-backed when `DATABASE_URL` is set
   - the frontend new-run page accepts a single symbol input even though backtest internals can handle multiple symbols
   - the CLI path does not currently expose pattern-profile selection flags

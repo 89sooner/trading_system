@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from trading_system.backtest.dto import BacktestRunDTO, BacktestRunMetadataDTO
+from trading_system.backtest.jobs import BacktestJobProgress, BacktestJobRecord
 
 
 def _make_run(**kwargs) -> BacktestRunDTO:
@@ -171,6 +172,42 @@ class TestRebuildIndex:
         # Should not raise and should not execute any SQL.
         repo.rebuild_index()
         mock_cursor.execute.assert_not_called()
+
+
+class TestBacktestJobs:
+    def test_enqueue_upserts_backtest_job(self):
+        repo, _, mock_cursor = _make_repo()
+        repo.enqueue(
+            BacktestJobRecord.queued(
+                run_id="run-1",
+                payload={"mode": "backtest"},
+                created_at="2024-01-01T00:00:00Z",
+            )
+        )
+        calls = [call.args[0] for call in mock_cursor.execute.call_args_list]
+        assert any("CREATE TABLE IF NOT EXISTS backtest_jobs" in sql for sql in calls)
+        sql, params = mock_cursor.execute.call_args[0]
+        assert "INSERT INTO backtest_jobs" in sql
+        assert params[0] == "run-1"
+
+    def test_claim_next_uses_skip_locked(self):
+        repo, _, mock_cursor = _make_repo()
+        mock_cursor.fetchone.return_value = None
+        assert repo.claim_next(worker_id="worker-a", lease_seconds=30) is None
+        sql = mock_cursor.execute.call_args[0][0]
+        assert "FOR UPDATE SKIP LOCKED" in sql
+
+    def test_update_progress_filters_by_worker(self):
+        repo, _, mock_cursor = _make_repo()
+        mock_cursor.fetchone.return_value = None
+        repo.update_progress(
+            "run-1",
+            BacktestJobProgress(processed_bars=1, total_bars=2, percent=50),
+            worker_id="worker-a",
+        )
+        sql, params = mock_cursor.execute.call_args[0]
+        assert "worker_id = %s" in sql
+        assert params[-1] == "worker-a"
 
 
 class TestBacktestRouteRepositorySelection:

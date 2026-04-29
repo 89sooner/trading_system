@@ -204,7 +204,7 @@ async def test_create_app_defers_recovery_until_lifespan_start() -> None:
         async with app.router.lifespan_context(app):
             recovered = repo.get("queued-run")
             assert recovered is not None
-            assert recovered.status == "failed"
+            assert recovered.status == "queued"
             assert app.state.backtest_dispatcher.is_running() is True
 
         assert app.state.backtest_dispatcher.is_running() is False
