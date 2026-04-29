@@ -141,5 +141,8 @@ test('dashboard guarded live launch sends one-share full payload', async ({ page
 test('run detail page loads with run content', async ({ page }) => {
   await page.goto(`/runs/${MOCK_RUN_ID}`)
   await expect(page.getByText('Run Detail')).toBeVisible()
+  await expect(page.getByText('Execution progress')).toBeVisible()
+  await expect(page.getByText('worker-e2e')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible()
   await expect(page.getByText('Summary')).toBeVisible()
 })

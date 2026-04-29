@@ -45,6 +45,7 @@ def create_app(live_loop=None) -> FastAPI:
 
     app.state.live_loop = live_loop
     app.state.backtest_dispatcher = dispatcher
+    app.state.backtest_job_repository = backtest_module._JOB_REPOSITORY
     app.state.live_runtime_history_repository = create_live_runtime_session_repository()
     app.state.live_runtime_event_repository = create_live_runtime_event_repository()
     app.state.order_audit_repository = create_order_audit_repository()

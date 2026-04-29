@@ -32,7 +32,19 @@ function serverItemToRunRecord(item: BacktestRunListItem): RunRecord {
     createdAt: item.started_at,
     strategyProfile: item.metadata?.strategy_profile_id ?? null,
     metadata: item.metadata ?? undefined,
+    job: item.job ?? null,
   }
+}
+
+function formatProgress(row: RunRecord): string {
+  const progress = row.job?.progress
+  if (!progress || progress.total_bars === 0) return '-'
+  return `${progress.percent.toFixed(0)}% (${progress.processed_bars}/${progress.total_bars})`
+}
+
+function heartbeatLabel(row: RunRecord): string {
+  if (!row.job?.last_heartbeat_at) return '-'
+  return formatUtcTimestamp(row.job.last_heartbeat_at)
 }
 
 const columns: Column<RunRecord>[] = [
@@ -59,6 +71,25 @@ const columns: Column<RunRecord>[] = [
     key: 'status',
     header: 'Status',
     cell: (row) => <StatusBadge state={row.status} />,
+  },
+  {
+    key: 'progress',
+    header: 'Progress',
+    cell: (row) => (
+      <span className="font-mono text-xs">
+        {row.job?.cancel_requested ? 'cancel requested' : formatProgress(row)}
+      </span>
+    ),
+  },
+  {
+    key: 'worker',
+    header: 'Worker',
+    cell: (row) => (
+      <span className="text-xs text-muted-foreground">
+        {row.job?.worker_id ?? '-'}
+        {row.status === 'running' ? ` · ${heartbeatLabel(row)}` : ''}
+      </span>
+    ),
   },
   {
     key: 'createdAt',
@@ -210,18 +241,20 @@ export default function RunsPage() {
             </div>
             <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                Queue depth
+                Durable queued
               </p>
               <p className="mt-2 font-mono text-2xl font-semibold">
-                {dispatcher?.queue_depth ?? '-'}
+                {dispatcher?.durable_queued_count ?? dispatcher?.queue_depth ?? '-'}
               </p>
             </div>
             <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                Capacity
+                Running / stale
               </p>
               <p className="mt-2 font-mono text-2xl font-semibold">
-                {dispatcher?.max_queue_size ?? '-'}
+                {dispatcher
+                  ? `${dispatcher.durable_running_count ?? 0}/${dispatcher.durable_stale_count ?? 0}`
+                  : '-'}
               </p>
             </div>
           </div>

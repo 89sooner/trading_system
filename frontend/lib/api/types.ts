@@ -1,4 +1,4 @@
-export type BacktestRunStatus = 'queued' | 'running' | 'succeeded' | 'failed'
+export type BacktestRunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 
 // Dashboard
 export interface DashboardStatus {
@@ -261,6 +261,10 @@ export interface BacktestDispatcherStatus {
   running: boolean
   queue_depth: number
   max_queue_size: number
+  durable_queued_count?: number
+  durable_running_count?: number
+  durable_stale_count?: number
+  oldest_queued_age_seconds?: number | null
 }
 
 export interface BacktestRetentionPreview {
@@ -309,6 +313,7 @@ export interface BacktestRunStatusDTO {
   metadata?: RunMetadata | null
   result?: BacktestResult | null
   error?: string | null
+  job?: BacktestJobSummary | null
 }
 
 export interface OrderAuditRecordDTO {
@@ -354,6 +359,25 @@ export interface BacktestRunListItem {
   input_symbols: string[]
   mode: string
   metadata?: RunMetadata | null
+  job?: BacktestJobSummary | null
+}
+
+export interface BacktestJobProgress {
+  processed_bars: number
+  total_bars: number
+  percent: number
+  last_bar_timestamp?: string | null
+  updated_at?: string | null
+}
+
+export interface BacktestJobSummary {
+  worker_id?: string | null
+  lease_expires_at?: string | null
+  last_heartbeat_at?: string | null
+  attempt_count: number
+  max_attempts: number
+  cancel_requested: boolean
+  progress: BacktestJobProgress
 }
 
 export interface BacktestRunListResponse {

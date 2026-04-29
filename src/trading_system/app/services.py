@@ -17,6 +17,7 @@ from trading_system.core.ops import (
     StructuredLogger,
     ensure_logging,
 )
+from trading_system.core.types import MarketBar
 from trading_system.data.provider import (
     CsvMarketDataProvider,
     InMemoryMarketDataProvider,
@@ -101,7 +102,13 @@ class AppServices:
     webhook_notifier: WebhookNotifier | None = None
     order_audit_repository: OrderAuditRepository | None = None
 
-    def run(self, audit_owner_id: str | None = None) -> BacktestResult:
+    def run(
+        self,
+        audit_owner_id: str | None = None,
+        *,
+        progress_callback: Callable[[int, int, MarketBar], None] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
+    ) -> BacktestResult:
         if self.mode != AppMode.BACKTEST:
             raise RuntimeError(f"Unsupported mode '{self.mode}'.")
 
@@ -123,6 +130,8 @@ class AppServices:
             strategy=self.strategy,
             context=context,
             strategy_by_symbol=self.strategies,
+            progress_callback=progress_callback,
+            cancel_check=cancel_check,
         )
 
     def preflight_live(self) -> PreflightCheckResult:

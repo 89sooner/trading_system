@@ -9,6 +9,8 @@ from fastapi import APIRouter, HTTPException, Request, status
 from trading_system.api.errors import RequestValidationError
 from trading_system.api.schemas import (
     BacktestDispatcherStatusDTO,
+    BacktestJobProgressDTO,
+    BacktestJobSummaryDTO,
     BacktestResultDTO,
     BacktestRetentionPreviewDTO,
     BacktestRetentionPruneRequestDTO,
@@ -43,8 +45,13 @@ from trading_system.backtest.dto import (
     BacktestRunDTO,
     BacktestRunMetadataDTO,
 )
-from trading_system.backtest.engine import BacktestResult
+from trading_system.backtest.engine import BacktestCancelled, BacktestResult
 from trading_system.backtest.file_repository import FileBacktestRunRepository
+from trading_system.backtest.jobs import (
+    BacktestJobProgress,
+    BacktestJobRecord,
+    BacktestJobRepository,
+)
 from trading_system.backtest.repository import BacktestRunRepository
 from trading_system.core.compat import UTC
 from trading_system.execution.order_audit import (
@@ -66,9 +73,22 @@ def _create_run_repository() -> BacktestRunRepository:
     )
 
 
+def _create_job_repository() -> BacktestJobRepository:
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        from trading_system.backtest.supabase_repository import SupabaseBacktestRunRepository
+        return SupabaseBacktestRunRepository(database_url)
+    return FileBacktestRunRepository(
+        Path(os.getenv("TRADING_SYSTEM_RUNS_DIR", "data/runs"))
+    )
+
+
 _RUN_REPOSITORY = _create_run_repository()
+_JOB_REPOSITORY = _create_job_repository()
 _ORDER_AUDIT_REPOSITORY: OrderAuditRepository | None = create_order_audit_repository()
 _MAX_FEE_BPS = Decimal("1000")
+_PROGRESS_UPDATE_INTERVAL_SECONDS = 1.0
+_PROGRESS_UPDATE_PERCENT_STEP = 1.0
 
 
 def _validate_request_payload(payload: BacktestRunRequestDTO | LivePreflightRequestDTO) -> None:
@@ -318,6 +338,42 @@ def _repository_factory() -> BacktestRunRepository:
     return repo
 
 
+def _job_repository_factory() -> BacktestJobRepository:
+    repo = _JOB_REPOSITORY
+    if isinstance(repo, FileBacktestRunRepository):
+        return repo
+    try:
+        from trading_system.backtest.supabase_repository import SupabaseBacktestRunRepository
+    except Exception:
+        SupabaseBacktestRunRepository = None  # type: ignore[assignment]
+    if (
+        SupabaseBacktestRunRepository is not None
+        and isinstance(repo, SupabaseBacktestRunRepository)
+    ):
+        return _create_job_repository()
+    return repo
+
+
+def _to_job_summary(job: BacktestJobRecord | None) -> BacktestJobSummaryDTO | None:
+    if job is None:
+        return None
+    return BacktestJobSummaryDTO(
+        worker_id=job.worker_id,
+        lease_expires_at=job.lease_expires_at,
+        last_heartbeat_at=job.last_heartbeat_at,
+        attempt_count=job.attempt_count,
+        max_attempts=job.max_attempts,
+        cancel_requested=job.cancel_requested,
+        progress=BacktestJobProgressDTO(
+            processed_bars=job.progress.processed_bars,
+            total_bars=job.progress.total_bars,
+            percent=job.progress.percent,
+            last_bar_timestamp=job.progress.last_bar_timestamp,
+            updated_at=job.progress.updated_at,
+        ),
+    )
+
+
 def _execute_backtest_run(item: QueuedBacktestRun) -> BacktestRunDTO:
     finished_at = datetime.now(UTC)
     try:
@@ -348,10 +404,137 @@ def _execute_backtest_run(item: QueuedBacktestRun) -> BacktestRunDTO:
         )
 
 
+def execute_backtest_job(
+    job: BacktestJobRecord,
+    worker_id: str,
+    lease_seconds: int,
+) -> BacktestRunDTO:
+    run = _RUN_REPOSITORY.get(job.run_id)
+    last_progress_update_at: datetime | None = None
+    last_progress_percent = 0.0
+    try:
+        payload = BacktestRunRequestDTO.model_validate(job.payload)
+        settings = _to_app_settings(payload)
+        metadata = _to_run_metadata(payload, settings)
+        started_at = run.started_at if run is not None else job.created_at
+        _RUN_REPOSITORY.save(
+            BacktestRunDTO.running(
+                run_id=job.run_id,
+                started_at=started_at,
+                input_symbols=settings.symbols,
+                mode=settings.mode.value,
+                metadata=metadata,
+            )
+        )
+
+        def _cancel_check() -> bool:
+            current = _JOB_REPOSITORY.get_job(job.run_id)
+            return current.cancel_requested if current is not None else False
+
+        def _progress(processed: int, total: int, bar) -> None:
+            nonlocal last_progress_percent, last_progress_update_at
+            percent = (processed / total * 100.0) if total else 100.0
+            current_time = datetime.now(UTC)
+            now = current_time.isoformat().replace("+00:00", "Z")
+            should_update = (
+                processed >= total
+                or last_progress_update_at is None
+                or percent - last_progress_percent >= _PROGRESS_UPDATE_PERCENT_STEP
+                or (
+                    current_time - last_progress_update_at
+                ).total_seconds()
+                >= _PROGRESS_UPDATE_INTERVAL_SECONDS
+            )
+            if not should_update:
+                return
+            progress = BacktestJobProgress(
+                processed_bars=processed,
+                total_bars=total,
+                percent=percent,
+                last_bar_timestamp=bar.timestamp.isoformat().replace("+00:00", "Z"),
+                updated_at=now,
+            )
+            _JOB_REPOSITORY.heartbeat(
+                job.run_id,
+                worker_id=worker_id,
+                lease_seconds=lease_seconds,
+            )
+            _JOB_REPOSITORY.update_progress(job.run_id, progress, worker_id=worker_id)
+            last_progress_update_at = current_time
+            last_progress_percent = percent
+
+        services = build_services(settings, order_audit_repository=_ORDER_AUDIT_REPOSITORY)
+        result = services.run(
+            audit_owner_id=job.run_id,
+            progress_callback=_progress,
+            cancel_check=_cancel_check,
+        )
+        final_run = BacktestRunDTO.succeeded(
+            run_id=job.run_id,
+            started_at=started_at,
+            finished_at=datetime.now(UTC),
+            input_symbols=settings.symbols,
+            mode=settings.mode.value,
+            metadata=metadata,
+            result=result,
+        )
+        _RUN_REPOSITORY.save(final_run)
+        _JOB_REPOSITORY.complete(job.run_id)
+        return final_run
+    except BacktestCancelled as exc:
+        if run is None:
+            payload_symbols: list[str] = []
+            mode = "backtest"
+            metadata = None
+            started_at = job.created_at
+        else:
+            payload_symbols = run.input_symbols
+            mode = run.mode
+            metadata = run.metadata
+            started_at = run.started_at
+        final_run = BacktestRunDTO.cancelled(
+            run_id=job.run_id,
+            started_at=started_at,
+            finished_at=datetime.now(UTC),
+            input_symbols=payload_symbols,
+            mode=mode,
+            metadata=metadata,
+            error=str(exc),
+        )
+        _RUN_REPOSITORY.save(final_run)
+        _JOB_REPOSITORY.cancel(job.run_id, str(exc))
+        return final_run
+    except Exception as exc:
+        if run is None:
+            payload_symbols = []
+            mode = "backtest"
+            metadata = None
+            started_at = job.created_at
+        else:
+            payload_symbols = run.input_symbols
+            mode = run.mode
+            metadata = run.metadata
+            started_at = run.started_at
+        final_run = BacktestRunDTO.failed(
+            run_id=job.run_id,
+            started_at=started_at,
+            finished_at=datetime.now(UTC),
+            input_symbols=payload_symbols,
+            mode=mode,
+            metadata=metadata,
+            error=str(exc),
+        )
+        _RUN_REPOSITORY.save(final_run)
+        _JOB_REPOSITORY.fail(job.run_id, str(exc))
+        return final_run
+
+
 def create_backtest_dispatcher() -> BacktestRunDispatcher:
     return BacktestRunDispatcher(
         repo_factory=_repository_factory,
         executor=_execute_backtest_run,
+        job_repo_factory=_job_repository_factory,
+        job_executor=execute_backtest_job,
     )
 
 
@@ -373,6 +556,7 @@ def list_backtest_runs(
             input_symbols=r.input_symbols,
             mode=r.mode,
             metadata=_to_api_run_metadata(r.metadata),
+            job=_to_job_summary(_JOB_REPOSITORY.get_job(r.run_id)),
         )
         for r in runs
     ]
@@ -389,6 +573,10 @@ def get_backtest_dispatcher_status(request: Request) -> BacktestDispatcherStatus
         running=snapshot.running,
         queue_depth=snapshot.queue_depth,
         max_queue_size=snapshot.max_queue_size,
+        durable_queued_count=snapshot.durable_queued_count,
+        durable_running_count=snapshot.durable_running_count,
+        durable_stale_count=snapshot.durable_stale_count,
+        oldest_queued_age_seconds=snapshot.oldest_queued_age_seconds,
     )
 
 
@@ -442,22 +630,31 @@ def create_backtest_run(
         metadata=metadata,
     )
     _RUN_REPOSITORY.save(queued_run)
-
-    item = QueuedBacktestRun(
+    job = BacktestJobRecord.queued(
         run_id=run_id,
-        started_at=queued_run.started_at,
-        input_symbols=settings.symbols,
-        mode=settings.mode.value,
-        payload=settings,
-        metadata=metadata,
+        payload=payload.model_dump(mode="json"),
+        created_at=queued_run.started_at,
     )
+    _JOB_REPOSITORY.enqueue(job)
 
     if dispatcher is None:
-        final_run = _execute_backtest_run(item)
-        _RUN_REPOSITORY.save(final_run)
+        claimed = _JOB_REPOSITORY.claim_next(
+            worker_id="inline",
+            lease_seconds=30,
+        )
+        final_run = execute_backtest_job(claimed or job, "inline", 30)
         return BacktestRunAcceptedDTO(run_id=run_id, status=final_run.status)
 
-    dispatcher.submit(item)
+    dispatcher.submit(
+        QueuedBacktestRun(
+            run_id=run_id,
+            started_at=queued_run.started_at,
+            input_symbols=settings.symbols,
+            mode=settings.mode.value,
+            payload=settings,
+            metadata=metadata,
+        )
+    )
     return BacktestRunAcceptedDTO(run_id=run_id, status="queued")
 
 
@@ -521,7 +718,32 @@ def get_backtest_run(run_id: str) -> BacktestRunStatusDTO:
         metadata=_to_api_run_metadata(run.metadata),
         result=_to_api_result_dto(run.result) if run.result is not None else None,
         error=run.error,
+        job=_to_job_summary(_JOB_REPOSITORY.get_job(run.run_id)),
     )
+
+
+@router.post("/backtests/{run_id}/cancel", response_model=BacktestRunStatusDTO)
+def cancel_backtest_run(run_id: str) -> BacktestRunStatusDTO:
+    run = _RUN_REPOSITORY.get(run_id)
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backtest run not found")
+    if run.status in {"succeeded", "failed", "cancelled"}:
+        return get_backtest_run(run_id)
+    job = _JOB_REPOSITORY.request_cancel(run_id)
+    if run.status == "queued":
+        cancelled = BacktestRunDTO.cancelled(
+            run_id=run.run_id,
+            started_at=run.started_at,
+            finished_at=datetime.now(UTC),
+            input_symbols=run.input_symbols,
+            mode=run.mode,
+            metadata=run.metadata,
+        )
+        _RUN_REPOSITORY.save(cancelled)
+        _JOB_REPOSITORY.cancel(run_id, "Backtest cancelled before execution.")
+    elif job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backtest job not found")
+    return get_backtest_run(run_id)
 
 
 @router.post("/live/preflight", response_model=LivePreflightResponseDTO)

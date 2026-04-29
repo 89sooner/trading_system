@@ -1,15 +1,15 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { Download } from 'lucide-react'
-import { use, useEffect } from 'react'
+import { Download, OctagonX } from 'lucide-react'
+import { use, useEffect, useTransition } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { SurfacePanel } from '@/components/layout/SurfacePanel'
 import { StatusBadge } from '@/components/domain/StatusBadge'
 import { ErrorBanner } from '@/components/domain/ErrorBanner'
 import { RunDetailTabs } from '@/components/runs/RunDetailTabs'
 import { Button } from '@/components/ui/button'
-import { exportOrderAudit, getBacktestRun } from '@/lib/api/backtests'
+import { cancelBacktestRun, exportOrderAudit, getBacktestRun } from '@/lib/api/backtests'
 import { getBacktestTradeAnalytics } from '@/lib/api/analytics'
 import { useRunsStore } from '@/store/runsStore'
 
@@ -22,6 +22,7 @@ export default function RunDetailPage({
 }) {
   const { runId } = use(params)
   const { updateRunStatus } = useRunsStore()
+  const [isCancelling, startCancelTransition] = useTransition()
 
   const runQuery = useQuery({
     queryKey: ['run', runId],
@@ -72,6 +73,13 @@ export default function RunDetailPage({
     anchor.click()
     URL.revokeObjectURL(url)
   }
+  const canCancel = ACTIVE_STATUSES.has(run.status)
+  const handleCancel = () => {
+    startCancelTransition(async () => {
+      await cancelBacktestRun(runId)
+      await runQuery.refetch()
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -80,6 +88,15 @@ export default function RunDetailPage({
         description={runId}
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCancel}
+              disabled={!canCancel || isCancelling}
+            >
+              <OctagonX aria-hidden="true" />
+              Cancel
+            </Button>
             <Button variant="outline" size="sm" onClick={handleExportAudit}>
               <Download aria-hidden="true" />
               Export audit CSV
@@ -127,6 +144,51 @@ export default function RunDetailPage({
               <p className="mt-2 text-sm text-foreground">{run.metadata.notes}</p>
             </div>
           ) : null}
+        </SurfacePanel>
+      ) : null}
+
+      {run.job ? (
+        <SurfacePanel
+          eyebrow="Worker"
+          title="Execution progress"
+          description="Durable worker lease, heartbeat, and cooperative cancellation state for this run."
+        >
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                Progress
+              </p>
+              <p className="mt-2 font-mono text-2xl font-semibold">
+                {run.job.progress.percent.toFixed(0)}%
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {run.job.progress.processed_bars}/{run.job.progress.total_bars} bars
+              </p>
+            </div>
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                Worker
+              </p>
+              <p className="mt-2 text-sm font-medium">{run.job.worker_id ?? '-'}</p>
+            </div>
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                Heartbeat
+              </p>
+              <p className="mt-2 text-sm font-medium">{run.job.last_heartbeat_at ?? '-'}</p>
+            </div>
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                Attempts
+              </p>
+              <p className="mt-2 font-mono text-2xl font-semibold">
+                {run.job.attempt_count}/{run.job.max_attempts}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {run.job.cancel_requested ? 'cancel requested' : 'active'}
+              </p>
+            </div>
+          </div>
         </SurfacePanel>
       ) : null}
 

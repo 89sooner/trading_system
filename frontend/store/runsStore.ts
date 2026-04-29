@@ -12,6 +12,16 @@ export interface RunRecord {
     broker?: string | null
     source?: string | null
   }
+  job?: {
+    worker_id?: string | null
+    last_heartbeat_at?: string | null
+    cancel_requested?: boolean
+    progress?: {
+      processed_bars: number
+      total_bars: number
+      percent: number
+    }
+  } | null
 }
 
 interface RunsStore {

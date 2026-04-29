@@ -87,6 +87,7 @@ psql "$DATABASE_URL" -f scripts/migrations/002_create_equity_snapshots.sql
 psql "$DATABASE_URL" -f scripts/migrations/003_add_backtest_metadata_and_live_runtime_sessions.sql
 psql "$DATABASE_URL" -f scripts/migrations/004_add_order_audit_records.sql
 psql "$DATABASE_URL" -f scripts/migrations/005_add_live_runtime_event_archive.sql
+psql "$DATABASE_URL" -f scripts/migrations/006_add_backtest_jobs.sql
 ```
 
 `psql`을 사용할 수 없는 경우 **Supabase 대시보드 SQL Editor** 에서 직접 실행한다:
@@ -112,7 +113,7 @@ SELECT table_name FROM information_schema.tables
 WHERE table_schema = 'public';
 ```
 
-**Exit criteria**: `backtest_runs`, `equity_snapshots`, `live_runtime_sessions`, `order_audit_records`, `live_runtime_events` 테이블이 존재하고, `equity_snapshots`에 `idx_equity_snapshots_session_ts` 인덱스가 생성되어 있다.
+**Exit criteria**: `backtest_runs`, `backtest_jobs`, `equity_snapshots`, `live_runtime_sessions`, `order_audit_records`, `live_runtime_events` 테이블이 존재하고, `equity_snapshots`에 `idx_equity_snapshots_session_ts` 인덱스가 생성되어 있다.
 
 ---
 

@@ -22,7 +22,7 @@ def get_backtest_trade_analytics(run_id: str) -> TradeAnalyticsResponseDTO:
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Backtest run is still {run.status}.",
         )
-    if run.status == "failed":
+    if run.status in {"failed", "cancelled"}:
         detail = run.error or "Backtest run failed."
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
     if run.result is None:

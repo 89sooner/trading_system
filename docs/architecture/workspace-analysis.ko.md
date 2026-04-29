@@ -99,7 +99,7 @@
 - API는 완료된 실행 결과를 provider/broker/strategy/source 같은 metadata와 함께 저장해 이후 조회 및 애널리틱스 검토에 사용합니다.
 
 현재 한계:
-- 백테스트는 API-owned dispatcher로 `queued`/`running` 상태를 거쳐 실행되며 결과와 metadata가 영속화됩니다. 다만 외부 queue 서비스나 분산 worker 모델은 아직 없습니다.
+- 백테스트는 durable job record로 저장된 뒤 API-owned dispatcher 또는 `trading_system.app.backtest_worker` CLI worker가 claim/lease하여 실행합니다. run 결과, metadata, worker heartbeat, progress, cancel request가 파일 저장소 또는 Supabase에 영속화됩니다. 외부 queue 서비스나 부분 결과 resume은 아직 없습니다.
 
 ### Analytics
 
@@ -153,7 +153,7 @@
 
 ## 더 넓은 프로덕션 사용 전 남은 갭
 
-1. **분산 실행 모델**: 백테스트는 내부 dispatcher로 분리되었지만, 긴 실행을 여러 worker나 외부 queue로 분산하는 모델은 아직 없습니다.
+1. **분산 실행 모델**: 백테스트는 durable job/worker contract와 CLI worker를 지원하지만, Redis/Celery/Kafka 같은 외부 queue 서비스나 부분 결과 resume은 아직 없습니다.
 2. **Session history retention**: live runtime session은 검색/export/evidence review가 가능하지만, 오래된 session/event archive의 retention/prune 정책은 아직 없습니다.
 3. **Config parity**: 전략 프로필 선택은 CLI/YAML/API에 정렬되었지만, UI에서 YAML 전체를 편집하는 워크플로는 없습니다.
 4. **Exchange snapshot integration**: KIS open-order snapshot은 pending authority로 연결되었지만, 주문 취소/정정과 장기 order polling worker는 아직 없습니다.
@@ -161,7 +161,7 @@
 
 ## 권장 다음 백로그
 
-1. 외부 queue/worker 모델과 장시간 백테스트 운영 가시성을 강화합니다.
+1. durable backtest worker를 운영 환경에서 검증하고, 필요하면 외부 queue 서비스 또는 부분 결과 resume을 별도 phase로 검토합니다.
 2. live runtime session/event archive의 retention/prune 정책과 운영 기준을 추가합니다.
 3. KIS open-order source를 기반으로 한 주문 취소/정정 또는 장기 order polling workflow를 검토합니다.
 4. YAML 전체를 UI에서 관리할지, 파일 기반 운영자 워크플로로 유지할지 결정합니다.

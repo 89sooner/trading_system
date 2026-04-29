@@ -127,6 +127,21 @@ export const backtestRunDetail: BacktestRunStatusDTO = {
   finished_at: '2026-04-07T10:05:00Z',
   input_symbols: ['005930'],
   mode: 'backtest',
+  job: {
+    worker_id: 'worker-e2e',
+    lease_expires_at: '2026-04-07T10:06:00Z',
+    last_heartbeat_at: '2026-04-07T10:04:00Z',
+    attempt_count: 1,
+    max_attempts: 3,
+    cancel_requested: false,
+    progress: {
+      processed_bars: 42,
+      total_bars: 42,
+      percent: 100,
+      last_bar_timestamp: '2026-04-03T09:00:00Z',
+      updated_at: '2026-04-07T10:04:00Z',
+    },
+  },
   result: {
     summary: {
       return: '0.05',
@@ -243,7 +258,28 @@ export async function setupMockRoutes(page: Page) {
   )
 
   await page.route('**/api/v1/backtests/dispatcher', (route) =>
-    route.fulfill({ json: { running: true, queue_depth: 0, max_queue_size: 32 } }),
+    route.fulfill({
+      json: {
+        running: true,
+        queue_depth: 1,
+        max_queue_size: 32,
+        durable_queued_count: 1,
+        durable_running_count: 1,
+        durable_stale_count: 0,
+        oldest_queued_age_seconds: 12,
+      },
+    }),
+  )
+
+  await page.route(/\/api\/v1\/backtests(\?.*)?$/, (route) =>
+    route.fulfill({
+      json: {
+        runs: [backtestRunDetail],
+        total: 1,
+        page: 1,
+        page_size: 100,
+      },
+    }),
   )
 
   await page.route('**/api/v1/backtests/retention/preview**', (route) =>
@@ -255,6 +291,10 @@ export async function setupMockRoutes(page: Page) {
         run_ids: [],
       },
     }),
+  )
+
+  await page.route('**/api/v1/backtests/*/cancel', (route) =>
+    route.fulfill({ json: { ...backtestRunDetail, status: 'cancelled' } }),
   )
 
   await page.route('**/api/v1/backtests/*', (route) =>

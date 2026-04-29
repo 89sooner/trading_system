@@ -2,7 +2,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Callable
 
 from trading_system.analytics.metrics import cumulative_return
 from trading_system.core.types import MarketBar
@@ -30,13 +30,21 @@ class BacktestResult:
         return cumulative_return(self.equity_curve)
 
 
+class BacktestCancelled(RuntimeError):
+    """Raised when a cooperative backtest cancellation request is observed."""
+
+
 def run_backtest(
     bars: Iterable[MarketBar],
     strategy: Strategy,
     context: BacktestContext,
     *,
     strategy_by_symbol: dict[str, Strategy] | None = None,
+    progress_callback: Callable[[int, int, MarketBar], None] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> BacktestResult:
+    materialized_bars = list(bars)
+    total_bars = len(materialized_bars)
     equity_timestamps: list[datetime] = []
     equity_curve: list[Decimal] = []
     processed_bars = 0
@@ -47,7 +55,9 @@ def run_backtest(
     orders: list[dict[str, Any]] = []
     risk_rejections: list[dict[str, Any]] = []
 
-    for bar in bars:
+    for bar in materialized_bars:
+        if cancel_check is not None and cancel_check():
+            raise BacktestCancelled("Backtest cancelled.")
         processed_bars += 1
         active_strategy = (
             strategy_by_symbol.get(bar.symbol, strategy)
@@ -78,6 +88,8 @@ def run_backtest(
         last_prices[bar.symbol] = bar.close
         equity_timestamps.append(bar.timestamp)
         equity_curve.append(_equity_for_portfolio(context.portfolio, last_prices))
+        if progress_callback is not None:
+            progress_callback(processed_bars, total_bars, bar)
 
     return BacktestResult(
         final_portfolio=context.portfolio,

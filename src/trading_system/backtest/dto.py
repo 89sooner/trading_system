@@ -186,6 +186,29 @@ class BacktestRunDTO:
             error=error,
         )
 
+    @classmethod
+    def cancelled(
+        cls,
+        *,
+        run_id: str,
+        started_at: datetime | str,
+        finished_at: datetime | str,
+        input_symbols: tuple[str, ...] | list[str],
+        mode: str,
+        error: str = "Backtest cancelled.",
+        metadata: BacktestRunMetadataDTO | None = None,
+    ) -> "BacktestRunDTO":
+        return cls(
+            run_id=run_id,
+            status="cancelled",
+            started_at=_timestamp_to_json(started_at),
+            finished_at=_timestamp_to_json(finished_at),
+            input_symbols=list(input_symbols),
+            mode=mode,
+            metadata=metadata,
+            error=error,
+        )
+
 
 def _decimal_to_json(value: Decimal) -> str:
     return format(value, "f")
