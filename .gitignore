@@ -16,6 +16,16 @@ dist/
 .DS_Store
 data/api_keys.json
 .omc/
+live_*.jsonl
+data/equity/*.jsonl
+data/live_events/
+data/live_sessions/
+data/portfolio/
+data/runs/*.json
+!data/runs/_index.json
+data/order_audit/*.json
+!data/order_audit/_index.json
+frontend/test-results/
 
 # Frontend
 frontend/node_modules/

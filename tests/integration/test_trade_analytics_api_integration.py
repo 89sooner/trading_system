@@ -1,11 +1,13 @@
-import time
-from contextlib import contextmanager
+import asyncio
 
-from fastapi.testclient import TestClient
+import pytest
+from tests.support.asgi import AsyncASGITestClient
 
 from trading_system.api.routes import backtest as backtest_routes
 from trading_system.api.server import create_app
 from trading_system.backtest.dto import BacktestRunDTO
+
+pytestmark = pytest.mark.anyio
 
 
 def _base_payload() -> dict:
@@ -28,33 +30,35 @@ def _base_payload() -> dict:
     }
 
 
-def _wait_for_terminal_run(client: TestClient, run_id: str, timeout: float = 3.0) -> dict:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        response = client.get(f"/api/v1/backtests/{run_id}")
+async def _wait_for_terminal_run(
+    client: AsyncASGITestClient,
+    run_id: str,
+    timeout: float = 3.0,
+) -> dict:
+    deadline = asyncio.get_running_loop().time() + timeout
+    while asyncio.get_running_loop().time() < deadline:
+        response = await client.get(f"/api/v1/backtests/{run_id}")
         assert response.status_code == 200
         body = response.json()
         if body["status"] in {"succeeded", "failed"}:
             return body
-        time.sleep(0.05)
+        await asyncio.sleep(0.05)
     raise AssertionError(f"Run {run_id} did not reach terminal state within {timeout}s")
 
 
-@contextmanager
-def _client():
-    with TestClient(create_app()) as client:
-        yield client
+def _client() -> AsyncASGITestClient:
+    return AsyncASGITestClient(create_app())
 
 
-def test_trade_analytics_route_returns_stats_for_backtest_run() -> None:
+async def test_trade_analytics_route_returns_stats_for_backtest_run() -> None:
     backtest_routes._RUN_REPOSITORY.clear()
-    with _client() as client:
-        create_response = client.post("/api/v1/backtests", json=_base_payload())
+    async with _client() as client:
+        create_response = await client.post("/api/v1/backtests", json=_base_payload())
         assert create_response.status_code == 202
         run_id = create_response.json()["run_id"]
-        _wait_for_terminal_run(client, run_id)
+        await _wait_for_terminal_run(client, run_id)
 
-        analytics_response = client.get(f"/api/v1/analytics/backtests/{run_id}/trades")
+        analytics_response = await client.get(f"/api/v1/analytics/backtests/{run_id}/trades")
 
         assert analytics_response.status_code == 200
         body = analytics_response.json()
@@ -68,7 +72,7 @@ def test_trade_analytics_route_returns_stats_for_backtest_run() -> None:
         }
 
 
-def test_trade_analytics_route_returns_409_for_pending_run() -> None:
+async def test_trade_analytics_route_returns_409_for_pending_run() -> None:
     backtest_routes._RUN_REPOSITORY.clear()
     backtest_routes._RUN_REPOSITORY.save(
         BacktestRunDTO.queued(
@@ -78,8 +82,8 @@ def test_trade_analytics_route_returns_409_for_pending_run() -> None:
             mode="backtest",
         )
     )
-    with _client() as client:
-        analytics_response = client.get("/api/v1/analytics/backtests/queued-run/trades")
+    async with _client() as client:
+        analytics_response = await client.get("/api/v1/analytics/backtests/queued-run/trades")
 
         assert analytics_response.status_code == 409
         assert analytics_response.json()["detail"] == "Backtest run is still queued."

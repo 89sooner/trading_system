@@ -27,8 +27,8 @@ The KIS live-order path exists, but it is explicitly gated behind `TRADING_SYSTE
 - [ ] Invalid configuration inputs return clear user-facing errors
 - [ ] Operators understand the multi-symbol capabilities of the backtest/live loop and the backward-compatible `/api/v1/live/preflight` response shape (`quote_summary` vs `quote_summaries`/`symbol_count`)
 - [ ] If the dashboard will be used, deployment is ready to start the API server with an attached live loop
-- [ ] Durable backtest worker smoke passes: enqueue a run, process it with `python -m trading_system.app.backtest_worker --once`, and confirm progress/terminal state through `/api/v1/backtests/<run_id>`
-- [ ] Supabase environments have applied `scripts/migrations/006_add_backtest_jobs.sql` before starting API or worker processes
+- [ ] Durable backtest worker smoke passes with `python scripts/backtest_worker_smoke.py`
+- [ ] Supabase environments have applied `scripts/migrations/006_add_backtest_jobs.sql`; `python scripts/check_supabase_backtest_jobs.py` passes before starting API or worker processes
 
 ## Gate 4: Incident drill baseline
 

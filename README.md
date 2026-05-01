@@ -281,6 +281,7 @@ Backtest API execution is asynchronous:
 - Pending runs may report `queued` or `running` with `result=null`, `finished_at=null`, and a `job` block containing worker lease, heartbeat, progress, and cancel state.
 - `POST /api/v1/backtests/<run_id>/cancel` requests cooperative cancellation for queued or running jobs.
 - The API-owned dispatcher uses the same durable job contract as the standalone worker. Run `python -m trading_system.app.backtest_worker --once` for a one-job worker smoke test, or omit `--once` for a polling worker process.
+- For a repeatable local worker process check, run `python scripts/backtest_worker_smoke.py`; it creates a temporary durable job, processes it in a separate worker process, and verifies terminal `succeeded` status with 100% progress.
 - `GET /api/v1/analytics/backtests/<run_id>/trades` returns `409` until the run has succeeded.
 
 Visualization response example (fixed schema):

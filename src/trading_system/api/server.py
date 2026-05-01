@@ -127,11 +127,11 @@ def create_app(live_loop=None) -> FastAPI:
         return {'status': 'ok'}
 
     @app.get('/health', include_in_schema=False)
-    def root_health() -> dict:
+    async def root_health() -> dict:
         return _health_payload()
 
     @app.get('/api/v1/health', include_in_schema=False)
-    def api_health() -> dict:
+    async def api_health() -> dict:
         return _health_payload()
 
     return app

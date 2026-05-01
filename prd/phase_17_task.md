@@ -36,7 +36,7 @@ Exit criteria:
 - [x] `BacktestRunDispatcher`가 in-memory queue 대신 repository-backed claim loop를 사용
 - [x] startup recovery가 queued run을 failed로 바꾸지 않도록 변경
 - [x] stale running lease recovery rule 테스트 추가
-- [ ] API integration에서 queued payload 보존과 dispatcher terminal 저장 검증
+- [x] API integration에서 queued payload 보존과 dispatcher terminal 저장 검증
 
 Exit criteria:
 - API-owned dispatcher가 durable job contract로 run을 처리하고 API 재시작 시 queued payload가 보존된다.
@@ -107,14 +107,14 @@ Exit criteria:
 - [x] `pytest tests/unit/test_backtest_engine.py -q`
 - [x] `pytest tests/unit/test_file_repository.py -q`
 - [x] `pytest tests/unit/test_supabase_repository.py -q`
-- [ ] `pytest tests/unit/test_api_backtest_schema.py -q`
-- [ ] `pytest tests/unit/test_api_server.py -q`
+- [x] `pytest tests/unit/test_api_backtest_schema.py -q`
+- [x] `pytest tests/unit/test_api_server.py -q`
 
 ### Required integration tests
 
-- [ ] `pytest tests/integration/test_backtest_run_api_integration.py -q`
+- [x] `pytest tests/integration/test_backtest_run_api_integration.py -q`
 - [x] `pytest tests/integration/test_backtest_orchestration_integration.py -q`
-- [ ] `pytest tests/integration/test_trade_analytics_api_integration.py -q`
+- [x] `pytest tests/integration/test_trade_analytics_api_integration.py -q`
 
 ### Frontend validation
 
@@ -130,7 +130,7 @@ Exit criteria:
 
 ### Manual verification
 
-- [ ] API 서버와 별도 worker process를 실행해 queued run이 terminal state로 전환되는지 확인
+- [x] 별도 worker process smoke로 queued run이 terminal state로 전환되는지 확인
 - [ ] worker 중단 후 lease 만료 시간이 지난 running job이 재claim되는지 확인
 - [ ] `/api/v1/backtests/dispatcher` 또는 worker status route에서 durable queue counts 확인
 - [ ] `/runs`에서 progress와 heartbeat freshness 표시 확인
@@ -201,6 +201,9 @@ Exit criteria:
 - `ruff check src/trading_system tests --fix` -> fixed import ordering
 - `ruff check src/trading_system tests` -> passed
 - `ruff check src/trading_system/api/routes/backtest.py src/trading_system/app/backtest_worker.py tests/unit/test_backtest_worker.py` -> passed
+- `pytest tests/unit/test_api_backtest_schema.py tests/unit/test_api_server.py tests/integration/test_backtest_run_api_integration.py tests/integration/test_trade_analytics_api_integration.py tests/integration/test_api_security_and_validation_integration.py tests/integration/test_run_persistence_integration.py -q` -> `22 passed`
+- `python scripts/backtest_worker_smoke.py` -> passed
+- `python scripts/check_supabase_backtest_jobs.py` -> blocked because `DATABASE_URL` is not set in this environment
 - `cd frontend && npm run lint` -> passed
 - `cd frontend && npm run build` -> passed
 - `cd frontend && npm run test:e2e` -> `5 passed` after adding run detail progress/worker/cancel assertions
@@ -215,6 +218,6 @@ Exit criteria:
 - Direct backend smoke through `create_backtest_run(..., request=None)` produced a terminal `succeeded` run and job progress at 100%.
 
 ### Risks / follow-up
-- TestClient-based backtest API tests still hit the known app lifespan hang class noted in earlier phases; direct route/worker validation was used for this implementation pass.
+- FastAPI/Starlette TestClient hang was isolated to the AnyIO thread portal/threadpool path in this environment; API tests now use an async ASGI test client and pass.
 - Progress writes are throttled by percent/time thresholds; large production runs may still need environment-tunable thresholds after observing storage write volume.
-- Supabase concurrent claim behavior is SQL-backed but not verified against a live Supabase database in this pass.
+- Supabase concurrent claim behavior is SQL-backed but not verified against a live Supabase database in this pass because `DATABASE_URL` is not set.

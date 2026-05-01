@@ -539,7 +539,7 @@ def create_backtest_dispatcher() -> BacktestRunDispatcher:
 
 
 @router.get("/backtests", response_model=BacktestRunListResponseDTO)
-def list_backtest_runs(
+async def list_backtest_runs(
     page: int = 1,
     page_size: int = 20,
     status: str | None = None,
@@ -564,7 +564,7 @@ def list_backtest_runs(
 
 
 @router.get("/backtests/dispatcher", response_model=BacktestDispatcherStatusDTO)
-def get_backtest_dispatcher_status(request: Request) -> BacktestDispatcherStatusDTO:
+async def get_backtest_dispatcher_status(request: Request) -> BacktestDispatcherStatusDTO:
     dispatcher = getattr(request.app.state, "backtest_dispatcher", None)
     if dispatcher is None:
         return BacktestDispatcherStatusDTO(running=False, queue_depth=0, max_queue_size=0)
@@ -581,7 +581,7 @@ def get_backtest_dispatcher_status(request: Request) -> BacktestDispatcherStatus
 
 
 @router.get("/backtests/retention/preview", response_model=BacktestRetentionPreviewDTO)
-def preview_backtest_retention(
+async def preview_backtest_retention(
     cutoff: str,
     status: str | None = None,
 ) -> BacktestRetentionPreviewDTO:
@@ -595,7 +595,7 @@ def preview_backtest_retention(
 
 
 @router.post("/backtests/retention/prune", response_model=BacktestRetentionPruneResponseDTO)
-def prune_backtest_retention(
+async def prune_backtest_retention(
     payload: BacktestRetentionPruneRequestDTO,
 ) -> BacktestRetentionPruneResponseDTO:
     if payload.confirm != "DELETE":
@@ -703,7 +703,7 @@ async def create_backtest_run_endpoint(
 
 
 @router.get("/backtests/{run_id}", response_model=BacktestRunStatusDTO)
-def get_backtest_run(run_id: str) -> BacktestRunStatusDTO:
+async def get_backtest_run(run_id: str) -> BacktestRunStatusDTO:
     run = _RUN_REPOSITORY.get(run_id)
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backtest run not found")
@@ -723,12 +723,12 @@ def get_backtest_run(run_id: str) -> BacktestRunStatusDTO:
 
 
 @router.post("/backtests/{run_id}/cancel", response_model=BacktestRunStatusDTO)
-def cancel_backtest_run(run_id: str) -> BacktestRunStatusDTO:
+async def cancel_backtest_run(run_id: str) -> BacktestRunStatusDTO:
     run = _RUN_REPOSITORY.get(run_id)
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backtest run not found")
     if run.status in {"succeeded", "failed", "cancelled"}:
-        return get_backtest_run(run_id)
+        return await get_backtest_run(run_id)
     job = _JOB_REPOSITORY.request_cancel(run_id)
     if run.status == "queued":
         cancelled = BacktestRunDTO.cancelled(
@@ -743,11 +743,11 @@ def cancel_backtest_run(run_id: str) -> BacktestRunStatusDTO:
         _JOB_REPOSITORY.cancel(run_id, "Backtest cancelled before execution.")
     elif job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backtest job not found")
-    return get_backtest_run(run_id)
+    return await get_backtest_run(run_id)
 
 
 @router.post("/live/preflight", response_model=LivePreflightResponseDTO)
-def run_live_preflight(
+async def run_live_preflight(
     payload: LivePreflightRequestDTO,
     request: Request,
 ) -> LivePreflightResponseDTO:

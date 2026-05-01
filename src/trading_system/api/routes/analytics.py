@@ -6,15 +6,15 @@ from fastapi import APIRouter, HTTPException, status
 
 from trading_system.analytics.trade_stats import summarize_trades
 from trading_system.analytics.trades import extract_trades
-from trading_system.api.routes.backtest import _RUN_REPOSITORY
+from trading_system.api.routes import backtest as backtest_routes
 from trading_system.api.schemas import TradeAnalyticsResponseDTO, TradeDTO, TradeStatsDTO
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
 
 
 @router.get("/backtests/{run_id}/trades", response_model=TradeAnalyticsResponseDTO)
-def get_backtest_trade_analytics(run_id: str) -> TradeAnalyticsResponseDTO:
-    run = _RUN_REPOSITORY.get(run_id)
+async def get_backtest_trade_analytics(run_id: str) -> TradeAnalyticsResponseDTO:
+    run = backtest_routes._RUN_REPOSITORY.get(run_id)
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backtest run not found")
     if run.status in {"queued", "running"}:
