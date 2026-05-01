@@ -1,10 +1,12 @@
-import time
-from contextlib import contextmanager
+import asyncio
 
-from fastapi.testclient import TestClient
+import pytest
+from tests.support.asgi import AsyncASGITestClient
 
 from trading_system.api.routes import backtest as backtest_routes
 from trading_system.api.server import create_app
+
+pytestmark = pytest.mark.anyio
 
 
 def _base_payload() -> dict:
@@ -27,33 +29,35 @@ def _base_payload() -> dict:
     }
 
 
-def _wait_for_terminal_run(client: TestClient, run_id: str, timeout: float = 3.0) -> dict:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        response = client.get(f"/api/v1/backtests/{run_id}")
+async def _wait_for_terminal_run(
+    client: AsyncASGITestClient,
+    run_id: str,
+    timeout: float = 3.0,
+) -> dict:
+    deadline = asyncio.get_running_loop().time() + timeout
+    while asyncio.get_running_loop().time() < deadline:
+        response = await client.get(f"/api/v1/backtests/{run_id}")
         assert response.status_code == 200
         body = response.json()
         if body["status"] in {"succeeded", "failed"}:
             return body
-        time.sleep(0.05)
+        await asyncio.sleep(0.05)
     raise AssertionError(f"Run {run_id} did not reach terminal state within {timeout}s")
 
 
-@contextmanager
-def _client():
+def _client() -> AsyncASGITestClient:
     import os
 
     os.environ["DATABASE_URL"] = ""
-    with TestClient(create_app()) as client:
-        yield client
+    return AsyncASGITestClient(create_app())
 
 
-def test_backtest_result_schema_is_stable_for_visualization_clients() -> None:
+async def test_backtest_result_schema_is_stable_for_visualization_clients() -> None:
     backtest_routes._RUN_REPOSITORY.clear()
-    with _client() as client:
-        create_response = client.post("/api/v1/backtests", json=_base_payload())
+    async with _client() as client:
+        create_response = await client.post("/api/v1/backtests", json=_base_payload())
         run_id = create_response.json()["run_id"]
-        result = _wait_for_terminal_run(client, run_id)["result"]
+        result = (await _wait_for_terminal_run(client, run_id))["result"]
         assert set(result.keys()) == {
             "summary",
             "equity_curve",
@@ -73,16 +77,16 @@ def test_backtest_result_schema_is_stable_for_visualization_clients() -> None:
         assert all(set(event.keys()) == {"event", "payload"} for event in result["signals"])
 
 
-def test_backtest_result_schema_has_matching_curve_lengths() -> None:
+async def test_backtest_result_schema_has_matching_curve_lengths() -> None:
     backtest_routes._RUN_REPOSITORY.clear()
-    with _client() as client:
-        create_response = client.post("/api/v1/backtests", json=_base_payload())
+    async with _client() as client:
+        create_response = await client.post("/api/v1/backtests", json=_base_payload())
         run_id = create_response.json()["run_id"]
-        result = _wait_for_terminal_run(client, run_id)["result"]
+        result = (await _wait_for_terminal_run(client, run_id))["result"]
         assert len(result["equity_curve"]) == len(result["drawdown_curve"])
 
 
-def test_live_preflight_schema_supports_multi_symbol_details(monkeypatch) -> None:
+async def test_live_preflight_schema_supports_multi_symbol_details(monkeypatch) -> None:
     class _StubServicesKisClient:
         def preflight_symbol(self, symbol: str):
             class Quote:
@@ -97,14 +101,14 @@ def test_live_preflight_schema_supports_multi_symbol_details(monkeypatch) -> Non
         "trading_system.app.services.KisApiClient.from_env",
         lambda: _StubServicesKisClient(),
     )
-    with _client() as client:
+    async with _client() as client:
         payload = _base_payload()
         payload["mode"] = "live"
         payload["provider"] = "kis"
         payload["broker"] = "kis"
         payload["symbols"] = ["005930", "035720"]
 
-        response = client.post("/api/v1/live/preflight", json=payload)
+        response = await client.post("/api/v1/live/preflight", json=payload)
 
         assert response.status_code == 200
         body = response.json()

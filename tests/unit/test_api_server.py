@@ -1,19 +1,20 @@
-import time
-from contextlib import contextmanager
+import asyncio
 
 import pytest
-from fastapi.testclient import TestClient
+from tests.support.asgi import AsyncASGITestClient
 
 from trading_system.api.routes import backtest as backtest_routes
 from trading_system.api.server import create_app
 from trading_system.backtest.dto import BacktestRunDTO
 
+pytestmark = pytest.mark.anyio
 
-def _build_client() -> TestClient:
+
+def _build_client() -> AsyncASGITestClient:
     backtest_routes._RUN_REPOSITORY.clear()
     import os
     os.environ["DATABASE_URL"] = ""
-    return TestClient(create_app())
+    return AsyncASGITestClient(create_app())
 
 
 def _base_payload(mode: str, *, provider: str = "mock", broker: str = "paper") -> dict:
@@ -36,35 +37,37 @@ def _base_payload(mode: str, *, provider: str = "mock", broker: str = "paper") -
     }
 
 
-def _wait_for_terminal_run(client: TestClient, run_id: str, timeout: float = 3.0) -> dict:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        response = client.get(f"/api/v1/backtests/{run_id}")
+async def _wait_for_terminal_run(
+    client: AsyncASGITestClient,
+    run_id: str,
+    timeout: float = 3.0,
+) -> dict:
+    deadline = asyncio.get_running_loop().time() + timeout
+    while asyncio.get_running_loop().time() < deadline:
+        response = await client.get(f"/api/v1/backtests/{run_id}")
         assert response.status_code == 200
         body = response.json()
         if body["status"] in {"succeeded", "failed"}:
             return body
-        time.sleep(0.05)
+        await asyncio.sleep(0.05)
     raise AssertionError(f"Run {run_id} did not reach terminal state within {timeout}s")
 
 
-@contextmanager
-def _client():
+def _client() -> AsyncASGITestClient:
     backtest_routes._RUN_REPOSITORY.clear()
     import os
     os.environ["DATABASE_URL"] = ""
-    with TestClient(create_app()) as client:
-        yield client
+    return AsyncASGITestClient(create_app())
 
 
-def test_post_backtests_and_get_run_result() -> None:
-    with _client() as client:
-        response = client.post("/api/v1/backtests", json=_base_payload(mode="backtest"))
+async def test_post_backtests_and_get_run_result() -> None:
+    async with _client() as client:
+        response = await client.post("/api/v1/backtests", json=_base_payload(mode="backtest"))
 
         assert response.status_code == 202
         assert response.json()["status"] == "queued"
         run_id = response.json()["run_id"]
-        body = _wait_for_terminal_run(client, run_id)
+        body = await _wait_for_terminal_run(client, run_id)
         assert body["status"] == "succeeded"
         assert body["mode"] == "backtest"
         assert body["input_symbols"] == ["BTCUSDT"]
@@ -80,10 +83,10 @@ def test_post_backtests_and_get_run_result() -> None:
         assert len(result["equity_curve"]) > 0
 
 
-def test_live_preflight_returns_ok_message(monkeypatch) -> None:
+async def test_live_preflight_returns_ok_message(monkeypatch) -> None:
     monkeypatch.setenv("TRADING_SYSTEM_API_KEY", "dummy-key")
-    with _client() as client:
-        response = client.post("/api/v1/live/preflight", json=_base_payload(mode="live"))
+    async with _client() as client:
+        response = await client.post("/api/v1/live/preflight", json=_base_payload(mode="live"))
 
         assert response.status_code == 200
         assert response.json()["status"] == "ok"
@@ -93,12 +96,12 @@ def test_live_preflight_returns_ok_message(monkeypatch) -> None:
         assert response.json()["next_allowed_actions"] == ["paper"]
 
 
-def test_settings_validation_errors_return_422() -> None:
-    with _client() as client:
+async def test_settings_validation_errors_return_422() -> None:
+    async with _client() as client:
         payload = _base_payload(mode="backtest")
         payload["risk"]["max_order_size"] = "2"
 
-        response = client.post("/api/v1/backtests", json=payload)
+        response = await client.post("/api/v1/backtests", json=payload)
 
         assert response.status_code == 422
         body = response.json()
@@ -106,17 +109,17 @@ def test_settings_validation_errors_return_422() -> None:
         assert "--max-order-size cannot exceed --max-position." in body["message"]
 
 
-def test_backtest_accepts_multiple_symbols() -> None:
-    with _client() as client:
+async def test_backtest_accepts_multiple_symbols() -> None:
+    async with _client() as client:
         payload = _base_payload(mode="backtest")
         payload["symbols"] = ["BTCUSDT", "ETHUSDT"]
 
-        response = client.post("/api/v1/backtests", json=payload)
+        response = await client.post("/api/v1/backtests", json=payload)
 
         assert response.status_code == 202
 
 
-def test_live_preflight_returns_readiness_without_executing(monkeypatch) -> None:
+async def test_live_preflight_returns_readiness_without_executing(monkeypatch) -> None:
     class _StubServicesKisClient:
         def preflight_symbol(self, symbol: str):
             class Quote:
@@ -132,12 +135,14 @@ def test_live_preflight_returns_readiness_without_executing(monkeypatch) -> None
         lambda: _StubServicesKisClient(),
     )
     monkeypatch.setenv("TRADING_SYSTEM_ENABLE_LIVE_ORDERS", "false")
-    with _client() as client:
+    async with _client() as client:
         payload = _base_payload(mode="live", provider="kis", broker="kis")
         payload["symbols"] = ["005930"]
         payload["live_execution"] = "live"
+        payload["risk"]["max_order_size"] = "1"
+        payload["backtest"]["trade_quantity"] = "1"
 
-        response = client.post("/api/v1/live/preflight", json=payload)
+        response = await client.post("/api/v1/live/preflight", json=payload)
 
         assert response.status_code == 200
         body = response.json()
@@ -152,7 +157,7 @@ def test_live_preflight_returns_readiness_without_executing(monkeypatch) -> None
         assert body["quote_summary"]["symbol"] == "005930"
 
 
-def test_live_preflight_accepts_multiple_symbols_for_kis(monkeypatch) -> None:
+async def test_live_preflight_accepts_multiple_symbols_for_kis(monkeypatch) -> None:
     class _StubServicesKisClient:
         def preflight_symbol(self, symbol: str):
             class Quote:
@@ -167,11 +172,11 @@ def test_live_preflight_accepts_multiple_symbols_for_kis(monkeypatch) -> None:
         "trading_system.app.services.KisApiClient.from_env",
         lambda: _StubServicesKisClient(),
     )
-    with _client() as client:
+    async with _client() as client:
         payload = _base_payload(mode="live", provider="kis", broker="kis")
         payload["symbols"] = ["005930", "035720"]
 
-        response = client.post("/api/v1/live/preflight", json=payload)
+        response = await client.post("/api/v1/live/preflight", json=payload)
 
         assert response.status_code == 200
         body = response.json()

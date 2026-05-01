@@ -1,9 +1,10 @@
-from contextlib import contextmanager
-
-from fastapi.testclient import TestClient
+import pytest
+from tests.support.asgi import AsyncASGITestClient
 
 from trading_system.api.routes import backtest as backtest_routes
 from trading_system.api.server import create_app
+
+pytestmark = pytest.mark.anyio
 
 
 def _payload() -> dict:
@@ -26,22 +27,15 @@ def _payload() -> dict:
     }
 
 
-def _client() -> TestClient:
+def _client() -> AsyncASGITestClient:
     backtest_routes._RUN_REPOSITORY.clear()
-    return TestClient(create_app())
+    return AsyncASGITestClient(create_app())
 
 
-@contextmanager
-def _managed_client():
-    backtest_routes._RUN_REPOSITORY.clear()
-    with TestClient(create_app()) as client:
-        yield client
-
-
-def test_api_key_auth_failure_returns_401(monkeypatch) -> None:
+async def test_api_key_auth_failure_returns_401(monkeypatch) -> None:
     monkeypatch.setenv("TRADING_SYSTEM_ALLOWED_API_KEYS", "test-key")
-    with _managed_client() as client:
-        response = client.post("/api/v1/backtests", json=_payload())
+    async with _client() as client:
+        response = await client.post("/api/v1/backtests", json=_payload())
 
         assert response.status_code == 401
         assert response.json() == {
@@ -50,13 +44,13 @@ def test_api_key_auth_failure_returns_401(monkeypatch) -> None:
         }
 
 
-def test_request_validation_failure_returns_standardized_400(monkeypatch) -> None:
+async def test_request_validation_failure_returns_standardized_400(monkeypatch) -> None:
     monkeypatch.setenv("TRADING_SYSTEM_ALLOWED_API_KEYS", "test-key")
-    with _managed_client() as client:
+    async with _client() as client:
         payload = _payload()
         payload["backtest"]["fee_bps"] = "1001"
 
-        response = client.post(
+        response = await client.post(
             "/api/v1/backtests",
             json=payload,
             headers={"X-API-Key": "test-key"},
@@ -69,17 +63,17 @@ def test_request_validation_failure_returns_standardized_400(monkeypatch) -> Non
         }
 
 
-def test_rate_limit_returns_429(monkeypatch) -> None:
+async def test_rate_limit_returns_429(monkeypatch) -> None:
     monkeypatch.setenv("TRADING_SYSTEM_ALLOWED_API_KEYS", "test-key")
     monkeypatch.setenv("TRADING_SYSTEM_RATE_LIMIT_MAX_REQUESTS", "1")
     monkeypatch.setenv("TRADING_SYSTEM_RATE_LIMIT_WINDOW_SECONDS", "60")
-    with _managed_client() as client:
-        first_response = client.post(
+    async with _client() as client:
+        first_response = await client.post(
             "/api/v1/backtests",
             json=_payload(),
             headers={"X-API-Key": "test-key"},
         )
-        second_response = client.post(
+        second_response = await client.post(
             "/api/v1/backtests",
             json=_payload(),
             headers={"X-API-Key": "test-key"},

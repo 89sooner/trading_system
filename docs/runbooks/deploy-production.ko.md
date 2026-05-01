@@ -97,6 +97,7 @@ psql "$DATABASE_URL" -f scripts/migrations/006_add_backtest_jobs.sql
 4. 동일하게 `003_add_backtest_metadata_and_live_runtime_sessions.sql` 실행.
 5. 동일하게 `004_add_order_audit_records.sql` 실행.
 6. 동일하게 `005_add_live_runtime_event_archive.sql` 실행.
+7. 동일하게 `006_add_backtest_jobs.sql` 실행.
 
 ### 1-4. 테이블 생성 확인
 
@@ -111,6 +112,11 @@ Supabase 대시보드 → **Table Editor** 에서 다음 테이블이 보여야 
 ```sql
 SELECT table_name FROM information_schema.tables
 WHERE table_schema = 'public';
+```
+
+durable backtest job 테이블은 다음 읽기 전용 점검으로 자동 확인할 수 있다:
+```bash
+python scripts/check_supabase_backtest_jobs.py
 ```
 
 **Exit criteria**: `backtest_runs`, `backtest_jobs`, `equity_snapshots`, `live_runtime_sessions`, `order_audit_records`, `live_runtime_events` 테이블이 존재하고, `equity_snapshots`에 `idx_equity_snapshots_session_ts` 인덱스가 생성되어 있다.
@@ -287,6 +293,11 @@ curl -N --max-time 20 -H "Accept: text/event-stream" \
 
 ```bash
 psql "$DATABASE_URL" -c "SELECT run_id, status, started_at FROM backtest_runs ORDER BY created_at DESC LIMIT 5;"
+```
+
+릴리스 전 durable worker 경로도 확인한다:
+```bash
+python scripts/backtest_worker_smoke.py
 ```
 
 **Exit criteria 요약**:

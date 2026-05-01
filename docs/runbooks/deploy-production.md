@@ -94,6 +94,7 @@ If `psql` is unavailable, use the **Supabase dashboard SQL Editor**:
 4. Repeat for `003_add_backtest_metadata_and_live_runtime_sessions.sql`.
 5. Repeat for `004_add_order_audit_records.sql`.
 6. Repeat for `005_add_live_runtime_event_archive.sql`.
+7. Repeat for `006_add_backtest_jobs.sql`.
 
 ### 1-4. Verify table creation
 
@@ -108,6 +109,11 @@ Or verify via SQL Editor:
 ```sql
 SELECT table_name FROM information_schema.tables
 WHERE table_schema = 'public';
+```
+
+For an automated read-only check of the durable backtest job table, run:
+```bash
+python scripts/check_supabase_backtest_jobs.py
 ```
 
 **Exit criteria**: `backtest_runs`, `backtest_jobs`, `equity_snapshots`, `live_runtime_sessions`, `order_audit_records`, and `live_runtime_events` tables exist.
@@ -288,6 +294,11 @@ curl -N --max-time 20 -H "Accept: text/event-stream" \
 ```bash
 psql "$DATABASE_URL" \
   -c "SELECT run_id, status, started_at FROM backtest_runs ORDER BY created_at DESC LIMIT 5;"
+```
+
+Verify the durable worker path before release:
+```bash
+python scripts/backtest_worker_smoke.py
 ```
 
 **Exit criteria summary**:
