@@ -761,10 +761,12 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_PORTFOLIO_DIR` (optional): Directory where the portfolio book JSON is persisted (default: `data/portfolio`)
 - `TRADING_SYSTEM_RUNS_DIR` (optional): Directory for file-based backtest run persistence when `DATABASE_URL` is unset (default: `data/runs`)
 - `TRADING_SYSTEM_EQUITY_DIR` (optional): Directory for file-based live equity snapshots when `DATABASE_URL` is unset (default: `data/equity`)
-- `DATABASE_URL` (optional): PostgreSQL connection string for Supabase-backed run/equity/session persistence. When set, apply `scripts/migrations/001_create_backtest_runs.sql` through `scripts/migrations/006_add_backtest_jobs.sql` before starting the API, backtest worker, or live paper mode.
+- `DATABASE_URL` (optional): PostgreSQL connection string for Supabase-backed run/equity/session/order persistence. When set, apply `scripts/migrations/001_create_backtest_runs.sql` through `scripts/migrations/007_add_live_order_lifecycle.sql` before starting the API, backtest worker, or live paper mode.
 - `TRADING_SYSTEM_LIVE_POLL_INTERVAL` (optional): Seconds to wait between live ticks (default: `10`)
 - `TRADING_SYSTEM_HEARTBEAT_INTERVAL` (optional): Seconds between heartbeat logs (default: `60`)
 - `TRADING_SYSTEM_RECONCILIATION_INTERVAL` (optional): Seconds between broker balance reconciliation attempts in the live loop (default: `300`)
+- `TRADING_SYSTEM_ORDER_POLL_INTERVAL` (optional): Seconds between active live order status polling attempts (default: `30`)
+- `TRADING_SYSTEM_ORDER_STALE_AFTER_SECONDS` (optional): Seconds before an unresolved live order is marked stale (default: `120`)
 - `TRADING_SYSTEM_WEBHOOK_URL` / `TRADING_SYSTEM_WEBHOOK_EVENTS` / `TRADING_SYSTEM_WEBHOOK_TIMEOUT` (optional): outbound webhook URL, event allowlist, and timeout for fire-and-forget notifications
 
 ### KO
@@ -790,10 +792,12 @@ This makes signal→risk→execution decisions inspectable, not just final PnL n
 - `TRADING_SYSTEM_PORTFOLIO_DIR` (선택): 포트폴리오 상태(JSON)가 영속화되는 디렉터리 (기본값: `data/portfolio`)
 - `TRADING_SYSTEM_RUNS_DIR` (선택): `DATABASE_URL`이 없을 때 백테스트 런 메타데이터를 저장하는 디렉터리 (기본값: `data/runs`)
 - `TRADING_SYSTEM_EQUITY_DIR` (선택): `DATABASE_URL`이 없을 때 라이브 equity 스냅샷(JSONL)을 저장하는 디렉터리 (기본값: `data/equity`)
-- `DATABASE_URL` (선택): Supabase 기반 run/equity/session 영속화용 PostgreSQL 연결 문자열. 값을 설정했다면 API, 백테스트 worker, 라이브 페이퍼 모드 시작 전에 `scripts/migrations/001_create_backtest_runs.sql`부터 `scripts/migrations/006_add_backtest_jobs.sql`까지 먼저 적용해야 합니다.
+- `DATABASE_URL` (선택): Supabase 기반 run/equity/session/order 영속화용 PostgreSQL 연결 문자열. 값을 설정했다면 API, 백테스트 worker, 라이브 페이퍼 모드 시작 전에 `scripts/migrations/001_create_backtest_runs.sql`부터 `scripts/migrations/007_add_live_order_lifecycle.sql`까지 먼저 적용해야 합니다.
 - `TRADING_SYSTEM_LIVE_POLL_INTERVAL` (선택): 라이브 루프에서 시세를 받아오는 간격 초 단위 (기본값: `10`)
 - `TRADING_SYSTEM_HEARTBEAT_INTERVAL` (선택): 하트비트 로그 기록 간격 (기본값: `60`)
 - `TRADING_SYSTEM_RECONCILIATION_INTERVAL` (선택): 라이브 루프의 브로커 잔고 대사 시도 간격 초 단위 (기본값: `300`)
+- `TRADING_SYSTEM_ORDER_POLL_INTERVAL` (선택): active live order 상태 polling 간격 초 단위 (기본값: `30`)
+- `TRADING_SYSTEM_ORDER_STALE_AFTER_SECONDS` (선택): unresolved live order를 stale로 표시하기까지의 초 단위 시간 (기본값: `120`)
 - `TRADING_SYSTEM_WEBHOOK_URL` / `TRADING_SYSTEM_WEBHOOK_EVENTS` / `TRADING_SYSTEM_WEBHOOK_TIMEOUT` (선택): fire-and-forget webhook 알림의 URL, 이벤트 허용 목록, 타임아웃
 
 ---
@@ -920,7 +924,7 @@ settings = load_settings("configs/base.yaml")
 4. **Determinism first**: any backtest logic change should ship with deterministic regression tests.
 5. **Dashboard controls**: the live dashboard exposes `pause`, `resume`, `reset`, and `stop`. `GET /api/v1/dashboard/status` still returns controller/preflight context even when no loop is active, while loop-specific endpoints continue to fail with `503` until a loop is attached.
 6. **Portfolio-level risk (`portfolio_risk`)**: optional drawdown protection supports `max_daily_drawdown_pct`, `sl_pct`, and `tp_pct`. YAML configs loaded through `config.settings.load_settings()` now parse the same block, so config examples and loader behavior are aligned.
-7. **Persistence and reconciliation**: the live loop persists `PortfolioBook` after processed live cycles and reloads it on restart. The KIS adapter queries open-order snapshots first, then broker balance snapshots (cash, positions, average costs), and reconciles them with the local portfolio. Symbols with pending/unresolved orders are skipped to prevent in-transit corruption, and cash is frozen when any pending order exists. YAML configs may now declare `app.reconciliation_interval`, while `TRADING_SYSTEM_RECONCILIATION_INTERVAL` remains the runtime env override for the live loop.
+7. **Persistence and reconciliation**: the live loop persists `PortfolioBook` after processed live cycles and reloads it on restart. The KIS adapter queries open-order snapshots first, then broker balance snapshots (cash, positions, average costs), and reconciles them with the local portfolio. Active live orders are stored in a durable lifecycle repository, polled through the broker, exposed on the dashboard, and block new live ticks/reconciliation until resolved or reviewed. YAML configs may now declare `app.reconciliation_interval`, while `TRADING_SYSTEM_RECONCILIATION_INTERVAL` remains the runtime env override for the live loop.
 8. **KRX market hours guard**: live order submission (`--live-execution live`) is blocked outside KRX trading hours (weekdays 09:00-15:30 KST). Preflight mode reports `market_closed` as a structured reason but does not block.
 9. **Structured preflight readiness**: `/api/v1/live/preflight` returns a structured result with `ready`, `reasons`, `blocking_reasons`, `warnings`, readiness `checks`, per-symbol `symbol_checks`, `next_allowed_actions`, `quote_summary` for the primary symbol, and `quote_summaries`/`symbol_count` for multi-symbol detail instead of a plain message.
 
@@ -932,7 +936,7 @@ settings = load_settings("configs/base.yaml")
 4. **결정성 우선**: 백테스트 로직 변경 시 결정성 회귀 테스트를 함께 추가하세요.
 5. **대시보드 제어**: 라이브 대시보드는 `pause`, `resume`, `reset`, `stop`을 공식 지원합니다. `GET /api/v1/dashboard/status`는 활성 루프가 없어도 controller/preflight 문맥을 반환하고, 루프 의존 엔드포인트만 활성 루프가 없을 때 `503`을 반환합니다.
 6. **포트폴리오 레벨 리스크 (`portfolio_risk`)**: `max_daily_drawdown_pct`, `sl_pct`, `tp_pct`를 지원하며, 이제 `config.settings.load_settings()` YAML 로더도 같은 블록을 파싱하므로 설정 예시와 로더 동작이 일치합니다.
-7. **영속화와 대사(Reconciliation)**: 라이브 루프는 처리된 라이브 사이클 이후 `PortfolioBook`을 저장하고 재시작 시 다시 로드합니다. KIS 어댑터는 미체결 주문 스냅샷을 먼저 조회한 뒤 브로커 잔고 스냅샷(현금, 포지션, 평균단가)을 조회하여 로컬 포트폴리오와 대사합니다. 미체결 주문이 있는 심볼은 건너뛰어 인트랜짓 데이터 손상을 방지하며, 미체결 주문 존재 시 현금도 동결됩니다. YAML 설정에서는 `app.reconciliation_interval`을 선언할 수 있고, 런타임에서는 `TRADING_SYSTEM_RECONCILIATION_INTERVAL` 환경변수가 여전히 우선 override 역할을 합니다.
+7. **영속화와 대사(Reconciliation)**: 라이브 루프는 처리된 라이브 사이클 이후 `PortfolioBook`을 저장하고 재시작 시 다시 로드합니다. KIS 어댑터는 미체결 주문 스냅샷을 먼저 조회한 뒤 브로커 잔고 스냅샷(현금, 포지션, 평균단가)을 조회하여 로컬 포트폴리오와 대사합니다. Active live order는 durable lifecycle 저장소에 기록되고 broker polling/dashboard/cancel flow로 노출되며, unresolved 상태에서는 신규 live tick과 대사를 fail-closed합니다. YAML 설정에서는 `app.reconciliation_interval`을 선언할 수 있고, 런타임에서는 `TRADING_SYSTEM_RECONCILIATION_INTERVAL` 환경변수가 여전히 우선 override 역할을 합니다.
 8. **KRX 장시간 가드**: 라이브 실주문(`--live-execution live`)은 KRX 거래 시간(평일 09:00-15:30 KST) 외에는 차단됩니다. Preflight 모드는 `market_closed`를 구조화 사유로 보고하지만 차단하지 않습니다.
 9. **구조화된 프리플라이트 결과**: `/api/v1/live/preflight`는 단순 메시지 대신 `ready`, `reasons`, `blocking_reasons`, `warnings`, readiness `checks`, 심볼별 `symbol_checks`, `next_allowed_actions`, 대표 심볼용 `quote_summary`, 그리고 다중 심볼 세부 상태용 `quote_summaries`/`symbol_count` 필드가 포함된 구조화된 결과를 반환합니다.
 
@@ -1000,6 +1004,7 @@ This guide covers deploying the backend to Railway, the frontend to Vercel, and 
    psql $DATABASE_URL -f scripts/migrations/004_add_order_audit_records.sql
    psql $DATABASE_URL -f scripts/migrations/005_add_live_runtime_event_archive.sql
    psql $DATABASE_URL -f scripts/migrations/006_add_backtest_jobs.sql
+   psql $DATABASE_URL -f scripts/migrations/007_add_live_order_lifecycle.sql
    ```
 3. Store the connection string as `DATABASE_URL` for the next step.
 
@@ -1057,6 +1062,7 @@ Push or open a PR to trigger `.github/workflows/ci.yml`. Two jobs run automatica
    psql $DATABASE_URL -f scripts/migrations/004_add_order_audit_records.sql
    psql $DATABASE_URL -f scripts/migrations/005_add_live_runtime_event_archive.sql
    psql $DATABASE_URL -f scripts/migrations/006_add_backtest_jobs.sql
+   psql $DATABASE_URL -f scripts/migrations/007_add_live_order_lifecycle.sql
    ```
 3. 연결 문자열을 다음 단계를 위해 `DATABASE_URL`로 보관합니다.
 

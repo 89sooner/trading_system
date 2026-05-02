@@ -66,6 +66,38 @@ export interface EventFeed {
   total: number
 }
 
+export interface LiveOrderRecord {
+  record_id: string
+  session_id: string
+  symbol: string
+  side: string
+  requested_quantity: string
+  filled_quantity: string
+  remaining_quantity: string
+  status: string
+  broker_order_id?: string | null
+  submitted_at: string
+  last_synced_at?: string | null
+  stale_after?: string | null
+  cancel_requested: boolean
+  cancel_requested_at?: string | null
+  cancelled_at?: string | null
+  last_error?: string | null
+  payload?: Record<string, unknown> | null
+}
+
+export interface LiveOrderList {
+  orders: LiveOrderRecord[]
+  total: number
+}
+
+export interface LiveOrderCancelResponse {
+  status: 'ok'
+  order: LiveOrderRecord
+  broker_cancel_accepted: boolean
+  message?: string | null
+}
+
 export interface ControlResponse {
   status: string
   state: string
@@ -174,6 +206,8 @@ export interface LiveRuntimeSessionEvidence {
   session: LiveRuntimeSessionRecord
   order_audit_count: number
   recent_order_audit_records: OrderAuditRecordDTO[]
+  live_order_count?: number
+  recent_live_orders?: LiveOrderRecord[]
   equity_point_count: number
   archived_event_count: number
   recent_archived_events: LiveRuntimeEventRecord[]

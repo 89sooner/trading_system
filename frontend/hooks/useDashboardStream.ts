@@ -74,6 +74,7 @@ export function useDashboardStream() {
 
     es.addEventListener('event', () => {
       void queryClient.invalidateQueries({ queryKey: ['dashboard', 'events'] })
+      void queryClient.invalidateQueries({ queryKey: ['dashboard', 'orders'] })
     })
 
     es.addEventListener('equity', (e) => {

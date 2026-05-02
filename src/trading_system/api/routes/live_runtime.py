@@ -13,6 +13,7 @@ from trading_system.api.routes.backtest import _to_app_settings, _to_live_prefli
 from trading_system.api.schemas import (
     EquityPointTimeseriesDTO,
     EquityTimeseriesDTO,
+    LiveOrderRecordDTO,
     LiveRuntimeEventRecordDTO,
     LiveRuntimeSessionEvidenceDTO,
     LiveRuntimeSessionListDTO,
@@ -335,10 +336,25 @@ def get_live_runtime_session_evidence(
         reader = create_historical_equity_reader()
     equity_points = reader.read_session(session_id, limit=5000)
 
+    live_order_repo = getattr(request.app.state, 'live_order_repository', None)
+    live_orders = []
+    live_order_count = 0
+    if live_order_repo is not None:
+        from trading_system.execution.live_orders import LiveOrderFilter
+
+        live_orders = live_order_repo.list(
+            LiveOrderFilter(session_id=session_id, sort='desc', limit=resolved_limit)
+        )
+        live_order_count = len(live_order_repo.list(
+            LiveOrderFilter(session_id=session_id, sort='desc', limit=5000)
+        ))
+
     return LiveRuntimeSessionEvidenceDTO(
         session=_to_session_record_dto(session),
         order_audit_count=order_count,
         recent_order_audit_records=[_to_order_audit_dto(record) for record in order_records],
+        live_order_count=live_order_count,
+        recent_live_orders=[_to_live_order_dto(record) for record in live_orders],
         equity_point_count=len(equity_points),
         archived_event_count=archived_count,
         recent_archived_events=[_to_event_dto(record) for record in archived_events],
@@ -394,6 +410,28 @@ def _to_order_audit_dto(record: OrderAuditRecord) -> OrderAuditRecordDTO:
         timestamp=record.timestamp,
         payload=record.payload,
         broker_order_id=record.broker_order_id,
+    )
+
+
+def _to_live_order_dto(record) -> LiveOrderRecordDTO:
+    return LiveOrderRecordDTO(
+        record_id=record.record_id,
+        session_id=record.session_id,
+        symbol=record.symbol,
+        side=record.side,
+        requested_quantity=record.requested_quantity,
+        filled_quantity=record.filled_quantity,
+        remaining_quantity=record.remaining_quantity,
+        status=record.status,
+        broker_order_id=record.broker_order_id,
+        submitted_at=record.submitted_at,
+        last_synced_at=record.last_synced_at,
+        stale_after=record.stale_after,
+        cancel_requested=record.cancel_requested,
+        cancel_requested_at=record.cancel_requested_at,
+        cancelled_at=record.cancelled_at,
+        last_error=record.last_error,
+        payload=record.payload,
     )
 
 

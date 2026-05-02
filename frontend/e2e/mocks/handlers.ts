@@ -3,6 +3,7 @@ import type {
   DashboardStatus,
   PositionsResponse,
   EventFeed,
+  LiveOrderList,
   BacktestRunStatusDTO,
   TradeAnalyticsResponse,
   StrategyProfileDTO,
@@ -17,7 +18,12 @@ export const dashboardStatus: DashboardStatus = {
   state: 'running',
   last_heartbeat: '2026-04-07T12:00:00Z',
   uptime_seconds: 3600,
+  active: false,
+  controller_state: 'idle',
+  session_id: null,
+  live_execution: 'live',
   provider: 'kis',
+  broker: 'kis',
   symbols: ['005930', '000660'],
   market_session: 'regular',
   last_reconciliation_at: '2026-04-07T11:00:00Z',
@@ -44,6 +50,28 @@ export const dashboardEvents: EventFeed = {
       correlation_id: 'corr-001',
       timestamp: '2026-04-07T11:30:00Z',
       payload: { symbol: '005930', side: 'buy', quantity: 10 },
+    },
+  ],
+  total: 1,
+}
+
+export const dashboardOrders: LiveOrderList = {
+  orders: [
+    {
+      record_id: 'live-order-001',
+      session_id: 'live-test-001',
+      symbol: '005930',
+      side: 'buy',
+      requested_quantity: '3',
+      filled_quantity: '1',
+      remaining_quantity: '2',
+      status: 'partially_filled',
+      broker_order_id: '90001',
+      submitted_at: '2026-04-07T10:30:00Z',
+      last_synced_at: '2026-04-07T10:31:00Z',
+      stale_after: '2026-04-07T10:35:00Z',
+      cancel_requested: false,
+      payload: {},
     },
   ],
   total: 1,
@@ -103,6 +131,8 @@ export const liveRuntimeSessionEvidence: LiveRuntimeSessionEvidence = {
       broker_order_id: 'broker-001',
     },
   ],
+  live_order_count: 1,
+  recent_live_orders: dashboardOrders.orders,
   equity_point_count: 2,
   archived_event_count: 1,
   recent_archived_events: [
@@ -212,6 +242,21 @@ export async function setupMockRoutes(page: Page) {
 
   await page.route('**/api/v1/dashboard/events**', (route) =>
     route.fulfill({ json: dashboardEvents }),
+  )
+
+  await page.route('**/api/v1/dashboard/orders', (route) =>
+    route.fulfill({ json: dashboardOrders }),
+  )
+
+  await page.route('**/api/v1/dashboard/orders/*/cancel', (route) =>
+    route.fulfill({
+      json: {
+        status: 'ok',
+        order: { ...dashboardOrders.orders[0], status: 'cancel_requested', cancel_requested: true },
+        broker_cancel_accepted: true,
+        message: 'accepted',
+      },
+    }),
   )
 
   await page.route('**/api/v1/dashboard/equity**', (route) =>

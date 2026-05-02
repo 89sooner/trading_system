@@ -33,6 +33,10 @@ from trading_system.execution.broker import (
     ResilientBroker,
 )
 from trading_system.execution.kis_adapter import KisBrokerAdapter
+from trading_system.execution.live_orders import (
+    LiveOrderRepository,
+    create_live_order_repository,
+)
 from trading_system.execution.order_audit import OrderAuditRepository
 from trading_system.integrations.kis import KisApiClient, is_krx_market_open
 from trading_system.notifications.webhook import WebhookNotifier, build_webhook_notifier
@@ -101,6 +105,7 @@ class AppServices:
     portfolio_risk: PortfolioRiskLimits | None = None
     webhook_notifier: WebhookNotifier | None = None
     order_audit_repository: OrderAuditRepository | None = None
+    live_order_repository: LiveOrderRepository | None = None
 
     def run(
         self,
@@ -231,6 +236,7 @@ def build_services(
     settings: AppSettings,
     *,
     order_audit_repository: OrderAuditRepository | None = None,
+    live_order_repository: LiveOrderRepository | None = None,
 ) -> AppServices:
     ensure_logging()
     logger = StructuredLogger("trading_system", log_format=StructuredLogFormat.JSON)
@@ -293,6 +299,13 @@ def build_services(
         portfolio_repository=(portfolio_repository if settings.mode == AppMode.LIVE else None),
         webhook_notifier=webhook_notifier,
         order_audit_repository=order_audit_repository,
+        live_order_repository=(
+            live_order_repository
+            if live_order_repository is not None
+            else create_live_order_repository()
+            if settings.mode == AppMode.LIVE
+            else None
+        ),
     )
 
 

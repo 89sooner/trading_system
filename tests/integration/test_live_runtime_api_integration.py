@@ -10,6 +10,12 @@ import trading_system.api.routes.live_runtime as live_runtime_routes
 from trading_system.api.schemas import ControlActionDTO, LiveRuntimeStartRequestDTO
 from trading_system.app.services import PreflightCheckResult
 from trading_system.app.state import AppRunnerState
+from trading_system.execution.broker import OrderCancelResult
+from trading_system.execution.live_orders import (
+    FileLiveOrderRepository,
+    LiveOrderStatus,
+    new_live_order_record,
+)
 
 
 class _FakeController:
@@ -104,6 +110,7 @@ def _make_request(controller, live_loop=None):
                 live_runtime_controller=controller,
                 live_loop=live_loop,
                 live_runtime_history_repository=_FakeHistoryRepo(),
+                live_order_repository=None,
             )
         )
     )
@@ -222,3 +229,53 @@ def test_live_runtime_session_routes_return_history() -> None:
     assert listing.sessions[0].provider == 'kis'
     assert detail.session_id == 'live_20260418_000000'
     assert detail.preflight_summary == {'message': 'ok', 'ready': True}
+
+
+@pytest.mark.anyio
+async def test_dashboard_live_order_list_and_cancel(tmp_path) -> None:
+    controller = _FakeController()
+    controller._active = True
+    controller._session = SimpleNamespace(
+        session_id='live_20260418_000000',
+        live_execution='live',
+        provider='kis',
+        broker='kis',
+        symbols=['005930'],
+    )
+    repo = FileLiveOrderRepository(tmp_path)
+    record = new_live_order_record(
+        session_id='live_20260418_000000',
+        symbol='005930',
+        side='buy',
+        requested_quantity='3',
+        filled_quantity='0',
+        remaining_quantity='3',
+        status=LiveOrderStatus.OPEN.value,
+        broker_order_id='90001',
+        submitted_at='2026-04-18T00:00:00+00:00',
+    )
+    repo.upsert(record)
+    broker = SimpleNamespace(
+        cancel_order=lambda request: OrderCancelResult(
+            broker_order_id=request.broker_order_id,
+            accepted=True,
+            message='accepted',
+            result_code='0',
+        )
+    )
+    live_loop = SimpleNamespace(
+        services=SimpleNamespace(
+            broker_simulator=broker,
+            logger=SimpleNamespace(emit=lambda *args, **kwargs: None),
+        )
+    )
+    request = _make_request(controller, live_loop=live_loop)
+    request.app.state.live_order_repository = repo
+
+    listing = await dashboard_routes.get_live_orders(request)
+    response = await dashboard_routes.cancel_live_order(record.record_id, request, live_loop)
+
+    assert listing.total == 1
+    assert listing.orders[0].broker_order_id == '90001'
+    assert response.broker_cancel_accepted is True
+    assert response.order.status == LiveOrderStatus.CANCEL_REQUESTED.value

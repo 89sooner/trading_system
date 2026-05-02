@@ -39,6 +39,8 @@ TRADING_SYSTEM_LIVE_BAR_SAMPLES=2
 TRADING_SYSTEM_LIVE_POLL_INTERVAL=10
 TRADING_SYSTEM_HEARTBEAT_INTERVAL=60
 TRADING_SYSTEM_RECONCILIATION_INTERVAL=300
+TRADING_SYSTEM_ORDER_POLL_INTERVAL=30
+TRADING_SYSTEM_ORDER_STALE_AFTER_SECONDS=120
 
 TRADING_SYSTEM_ALLOWED_API_KEYS=your-strong-api-key
 # DATABASE_URL=postgresql://...
@@ -137,6 +139,7 @@ TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true TRADING_SYSTEM_LIVE_BAR_SAMPLES=2 TRADING
 - [ ] `resume`이 실제로 상태를 다시 `running`으로 바꾼다
 - [ ] `stop` 후 dashboard가 clean disconnected/stopped 상태로 돌아간다
 - [ ] 같은 paper launch/stop 사이클을 최소 2회 반복해도 orphaned session 상태가 남지 않는다
+- [ ] dashboard의 Open orders 패널이 비어 있거나, active order가 있으면 broker order id/remaining/last sync를 표시한다
 
 ## 첫 실주문 전 최종 게이트
 
@@ -147,7 +150,19 @@ paper 리허설이 안정적인 경우에만 진행한다.
 - [ ] `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true` 전환 직전에 preflight를 한 번 더 실행했다
 - [ ] dashboard 접근과 stop 절차가 이미 준비돼 있다
 - [ ] 첫 실주문 중 `system.control`, `system.heartbeat`, `system.error`, `order.*`, `portfolio.reconciliation.*` 이벤트를 모니터링할 수 있다
+- [ ] 첫 실주문 중 dashboard Open orders 패널에서 broker order id와 상태 polling freshness를 확인할 수 있다
+- [ ] 취소가 필요한 경우 `/api/v1/dashboard/orders/<record_id>/cancel` 또는 dashboard cancel action을 사용할 수 있다
 - [ ] 조금이라도 불명확한 상황이 생기면 즉시 stop 후 paper 모드로 되돌릴 계획이 있다
+
+## 주문 수명주기와 취소
+
+라이브 주문은 `order_audit` 로그와 별도로 durable lifecycle record에 저장된다.
+Open orders 패널은 `submitted`, `open`, `partially_filled`, `cancel_requested`, `stale`, `unknown` 상태의 active order를 표시한다.
+
+- `TRADING_SYSTEM_ORDER_POLL_INTERVAL`초마다 KIS open-order snapshot을 조회해 remaining quantity와 status를 갱신한다.
+- `TRADING_SYSTEM_ORDER_STALE_AFTER_SECONDS`가 지나도 unresolved 상태이면 `live_order.stale` 이벤트가 기록된다.
+- Active 또는 stale order가 있으면 live loop는 신규 주문 tick과 대사를 fail-closed하고 `live_order.gate_blocked` 또는 `portfolio.reconciliation.skipped` 이벤트를 남긴다.
+- Cancel action은 먼저 cancel request를 lifecycle record에 남긴 뒤 KIS 취소 endpoint를 호출한다. broker 응답 실패 시 `live_order.cancel_failed`와 `last_error`를 확인한다.
 
 ## 대사(Reconciliation)
 
@@ -177,10 +192,12 @@ paper 리허설이 안정적인 경우에만 진행한다.
 - active loop가 없을 때도 controller 상태, session id, last runtime error
 - 마지막 대사 시각 및 상태
 - 이벤트 피드에서 대사 이벤트 앰버색 강조
+- Open orders 패널에서 active/stale/cancel_requested 주문과 broker order id 표시
 
 ## 알려진 제약사항
 
 1. `/api/v1/live/preflight`는 이제 다중 심볼을 지원하며, 하위 호환용 `quote_summary`와 심볼별 세부 상태용 `quote_summaries`/`symbol_count`를 함께 반환한다
 2. KIS 미체결 주문 감지는 현재 브로커 잔고 스냅샷의 `ord_psbl_qty` 신호에 의존하며, held symbol에 이 값이 없으면 미체결 없음으로 가정하지 않고 fail-closed로 대사를 건너뛴다
 3. 대사 간격은 YAML의 `app.reconciliation_interval`로도 선언할 수 있지만, 라이브 루프 런타임에서는 `TRADING_SYSTEM_RECONCILIATION_INTERVAL` 환경변수가 여전히 우선 override 역할을 한다
-4. 아직 durable order lifecycle store는 없으므로, 첫 KIS 실주문 세션은 무인 운영이 아니라 supervised rollout로 취급하는 편이 안전하다
+4. order lifecycle store는 active order current-state를 위한 upsert 저장소이며, 전체 체결 원장이나 자동 정정/재주문 엔진은 아니다
+5. 첫 KIS 실주문 세션은 여전히 무인 운영이 아니라 supervised rollout로 취급한다

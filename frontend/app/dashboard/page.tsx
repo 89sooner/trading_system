@@ -9,6 +9,7 @@ import { DashboardPanel } from '@/components/dashboard/DashboardPanel'
 import { ControlButtons } from '@/components/dashboard/ControlButtons'
 import { EquityChart } from '@/components/dashboard/EquityChart'
 import { EventTimeline } from '@/components/dashboard/EventTimeline'
+import { OpenOrdersPanel } from '@/components/dashboard/OpenOrdersPanel'
 import { PositionsPanel } from '@/components/dashboard/PositionsPanel'
 import { StatusIndicator } from '@/components/domain/StatusIndicator'
 import { useDashboardStream } from '@/hooks/useDashboardStream'
@@ -24,6 +25,7 @@ export default function DashboardPage() {
     statusQuery,
     positionsQuery,
     eventsQuery,
+    ordersQuery,
     hasActiveRuntime,
     isLive,
     equitySeries,
@@ -156,6 +158,17 @@ export default function DashboardPage() {
               <PositionsPanel
                 data={hasActiveRuntime ? positionsQuery.data : undefined}
                 loading={hasActiveRuntime ? positionsQuery.isLoading : false}
+              />
+            </DashboardPanel>
+
+            <DashboardPanel
+              eyebrow="Orders"
+              title="Open orders"
+              description="Active broker orders, lifecycle freshness, and cancel control."
+            >
+              <OpenOrdersPanel
+                data={hasActiveRuntime ? ordersQuery.data : undefined}
+                loading={hasActiveRuntime ? ordersQuery.isLoading : false}
               />
             </DashboardPanel>
 

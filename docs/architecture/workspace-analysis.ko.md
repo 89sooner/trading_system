@@ -14,7 +14,7 @@
 - `backtest.engine.run_backtest`는 결정적 재생, 이벤트 수집, equity 추적, 다중 심볼 처리를 오케스트레이션합니다.
 - `api.server`는 API key, CORS, rate-limit 미들웨어 뒤에 백테스트, dispatcher 상태, retention preview/prune, order audit, 라이브 preflight, live runtime session history, 패턴, 전략, 애널리틱스, admin 키 관리, `/health`, 대시보드 라우트를 노출합니다.
 - `frontend/app/*`는 백테스트 실행, 패턴 관리, 전략 프로필, 실행 결과 검토, API key 관리, 라이브 대시보드 모니터링, 최근 live session 탐색을 위한 브라우저 워크플로를 제공하며, run review 화면은 이제 서버 저장 metadata를 함께 표시합니다.
-- `execution.reconciliation.reconcile`은 브로커가 잔고 스냅샷을 제공하는 경우 로컬 `PortfolioBook`을 브로커 상태와 맞출 수 있으며, live loop는 KIS open-order snapshot을 pending 판단의 우선 근거로 사용합니다.
+- `execution.reconciliation.reconcile`은 브로커가 잔고 스냅샷을 제공하는 경우 로컬 `PortfolioBook`을 브로커 상태와 맞출 수 있으며, live loop는 KIS open-order snapshot과 durable live order lifecycle을 pending 판단의 우선 근거로 사용합니다.
 - `notifications.webhook`은 선택된 런타임 이벤트를 `httpx` 기반 bounded worker로 외부 webhook에 전달합니다.
 
 ## 레이어 분석
@@ -156,12 +156,12 @@
 1. **분산 실행 모델**: 백테스트는 durable job/worker contract와 CLI worker를 지원하지만, Redis/Celery/Kafka 같은 외부 queue 서비스나 부분 결과 resume은 아직 없습니다.
 2. **Session history retention**: live runtime session은 검색/export/evidence review가 가능하지만, 오래된 session/event archive의 retention/prune 정책은 아직 없습니다.
 3. **Config parity**: 전략 프로필 선택은 CLI/YAML/API에 정렬되었지만, UI에서 YAML 전체를 편집하는 워크플로는 없습니다.
-4. **Exchange snapshot integration**: KIS open-order snapshot은 pending authority로 연결되었지만, 주문 취소/정정과 장기 order polling worker는 아직 없습니다.
+4. **Exchange order lifecycle**: KIS open-order snapshot은 live order lifecycle polling과 cancel request로 연결되었지만, 주문 정정/자동 재주문과 broker stream 기반 체결 업데이트는 아직 없습니다.
 5. **Operational hardening**: 저장소 기반 API key는 disabled/last-used 추적을 지원하지만, 더 강한 auth, alerting, audit export, deployment guidance는 아직 완전 관리형 트레이딩 플랫폼 수준은 아닙니다.
 
 ## 권장 다음 백로그
 
 1. durable backtest worker를 운영 환경에서 검증하고, 필요하면 외부 queue 서비스 또는 부분 결과 resume을 별도 phase로 검토합니다.
 2. live runtime session/event archive의 retention/prune 정책과 운영 기준을 추가합니다.
-3. KIS open-order source를 기반으로 한 주문 취소/정정 또는 장기 order polling workflow를 검토합니다.
+3. KIS order lifecycle을 실제 sandbox/소액 실주문에서 검증하고, 이후 주문 정정/자동 재주문/stream 기반 체결 업데이트를 별도 phase로 검토합니다.
 4. YAML 전체를 UI에서 관리할지, 파일 기반 운영자 워크플로로 유지할지 결정합니다.

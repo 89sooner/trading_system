@@ -39,6 +39,8 @@ TRADING_SYSTEM_LIVE_BAR_SAMPLES=2
 TRADING_SYSTEM_LIVE_POLL_INTERVAL=10
 TRADING_SYSTEM_HEARTBEAT_INTERVAL=60
 TRADING_SYSTEM_RECONCILIATION_INTERVAL=300
+TRADING_SYSTEM_ORDER_POLL_INTERVAL=30
+TRADING_SYSTEM_ORDER_STALE_AFTER_SECONDS=120
 
 TRADING_SYSTEM_ALLOWED_API_KEYS=your-strong-api-key
 # DATABASE_URL=postgresql://...
@@ -137,6 +139,7 @@ Run at least one full paper session before enabling real order submission.
 - [ ] Confirm `resume` changes state back to `running`
 - [ ] Confirm `stop` returns the dashboard to a clean disconnected/stopped state
 - [ ] Repeat the same paper launch/stop cycle at least twice without orphaned session state
+- [ ] The dashboard Open orders panel is empty or shows broker order id, remaining quantity, and last sync for active orders
 
 ## First real-order checklist
 
@@ -147,7 +150,19 @@ Only after the paper rehearsal is stable:
 - [ ] Re-run preflight immediately before switching `TRADING_SYSTEM_ENABLE_LIVE_ORDERS=true`
 - [ ] Verify dashboard is already reachable and the stop path is ready
 - [ ] Monitor `system.control`, `system.heartbeat`, `system.error`, `order.*`, and `portfolio.reconciliation.*` events during the first run
+- [ ] During the first real order, the dashboard Open orders panel shows broker order id and polling freshness
+- [ ] If cancellation is needed, `/api/v1/dashboard/orders/<record_id>/cancel` or the dashboard cancel action is ready
 - [ ] If anything is unclear, stop and return to paper mode instead of continuing in live mode
+
+## Order lifecycle and cancel
+
+Live orders are stored in a durable lifecycle repository separately from append-only `order_audit` records.
+The Open orders panel shows active orders in `submitted`, `open`, `partially_filled`, `cancel_requested`, `stale`, or `unknown` states.
+
+- The loop polls KIS open-order snapshots every `TRADING_SYSTEM_ORDER_POLL_INTERVAL` seconds and updates remaining quantity/status.
+- Unresolved orders older than `TRADING_SYSTEM_ORDER_STALE_AFTER_SECONDS` emit `live_order.stale`.
+- Active or stale orders block new live ticks and reconciliation, emitting `live_order.gate_blocked` or `portfolio.reconciliation.skipped`.
+- Cancel action records the request first, then calls KIS cancel. On broker failure, inspect `live_order.cancel_failed` and lifecycle `last_error`.
 
 ## Reconciliation
 
@@ -177,10 +192,12 @@ The `/dashboard` UI shows:
 - Controller state, active session id, and last runtime error when no loop is active
 - Last reconciliation timestamp and status
 - Reconciliation events highlighted in amber in the event feed
+- Active/stale/cancel_requested orders with broker order id in the Open orders panel
 
 ## Known Constraints
 
 1. `/api/v1/live/preflight` now supports multiple symbols; legacy consumers may still read `quote_summary`, while newer consumers should prefer `quote_summaries` plus `symbol_count`
 2. KIS unresolved-order detection currently depends on broker-reported `ord_psbl_qty` from the balance snapshot; if that signal is unavailable for a held symbol, reconciliation is skipped fail-closed instead of assuming no pending order
 3. Reconciliation interval can be declared in YAML as `app.reconciliation_interval`, but `TRADING_SYSTEM_RECONCILIATION_INTERVAL` remains the runtime env override for the live loop
-4. There is still no durable order lifecycle store; treat the first real KIS session as a supervised rollout, not a hands-off production run
+4. The order lifecycle store is an upsert current-state view, not a full execution ledger or automatic replace/reorder engine
+5. First KIS real-order sessions should still be treated as supervised rollouts rather than unattended operation

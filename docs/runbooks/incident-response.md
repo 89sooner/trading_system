@@ -58,6 +58,21 @@ Response:
 3. After retries or timeouts, verify with the broker that duplicate orders were not actually submitted.
 4. If the cause is still unclear, `pause` the runtime from the dashboard and collect logs before resuming.
 
+## Scenario C-2: live order stale or cancel failure
+
+Symptoms:
+
+- `live_order.stale`, `live_order.gate_blocked`, or `live_order.cancel_failed` events
+- Dashboard Open orders panel remains in `stale`, `unknown`, or `cancel_requested`
+- `portfolio.reconciliation.skipped` repeats with `active_live_order`
+
+Response:
+
+1. Inspect `broker_order_id`, `remaining_quantity`, `last_synced_at`, and `last_error` in the Open orders panel or `/api/v1/dashboard/orders`.
+2. Compare the broker order id with the KIS order history.
+3. If cancellation is required, use the dashboard cancel action or `/api/v1/dashboard/orders/<record_id>/cancel`.
+4. If status remains unclear, pause or stop the live loop, manually confirm broker state, then resume.
+
 ## Scenario D: reconciliation mismatch
 
 Symptoms:

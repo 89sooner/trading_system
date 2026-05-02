@@ -52,6 +52,19 @@
 3. 재시도/타임아웃 이후 외부에서 중복 주문이 실제로 발생하지 않았는지 브로커 측 주문 내역을 점검한다.
 4. 원인이 미확정이면 대시보드에서 `pause` 후 상태를 고정하고 로그를 수집한다.
 
+## 시나리오 C-2: Live order stale 또는 취소 실패
+
+증상:
+- `live_order.stale`, `live_order.gate_blocked`, `live_order.cancel_failed` 이벤트 발생
+- dashboard Open orders 패널에 `stale`, `unknown`, `cancel_requested` 상태가 유지됨
+- `portfolio.reconciliation.skipped`가 `active_live_order` 사유로 반복됨
+
+대응:
+1. Open orders 패널 또는 `/api/v1/dashboard/orders`에서 `broker_order_id`, `remaining_quantity`, `last_synced_at`, `last_error`를 확인한다.
+2. KIS 주문 내역에서 해당 `broker_order_id`의 실제 체결/취소 상태를 대조한다.
+3. 취소가 필요한 경우 dashboard cancel action 또는 `/api/v1/dashboard/orders/<record_id>/cancel`을 사용한다.
+4. 취소 실패 또는 상태 불명확이 계속되면 live loop를 `pause` 또는 `stop`하고 브로커 상태를 수동 확정한 뒤 재개한다.
+
 ## 시나리오 D: 대사(reconciliation) 불일치
 
 증상:

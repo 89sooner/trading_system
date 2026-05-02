@@ -138,6 +138,38 @@ def test_kis_api_client_submit_order_raises_response_error_on_rejection() -> Non
         )
 
 
+def test_kis_api_client_cancel_order_returns_result() -> None:
+    client = KisApiClient.from_env(
+        secret_provider=_StubSecretProvider(),
+        transport=_CancelSuccessTransport(),
+    )
+
+    result = client.cancel_order(
+        broker_order_id="90001",
+        symbol="005930",
+        side=OrderSide.BUY,
+        quantity=Decimal("2"),
+    )
+
+    assert result.order_id == "90001"
+    assert result.result_code == "0"
+
+
+def test_kis_api_client_cancel_order_raises_response_error_on_rejection() -> None:
+    client = KisApiClient.from_env(
+        secret_provider=_StubSecretProvider(),
+        transport=_CancelRejectedTransport(),
+    )
+
+    with pytest.raises(KisResponseError, match="cancel rejected"):
+        client.cancel_order(
+            broker_order_id="90001",
+            symbol="005930",
+            side=OrderSide.BUY,
+            quantity=Decimal("2"),
+        )
+
+
 def test_kis_quote_validation_rejects_zero_price() -> None:
     quote = KisQuote(
         symbol="005930",
@@ -397,6 +429,34 @@ class _OrderRejectedTransport:
         return HttpResponse(
             status_code=200,
             body={"rt_cd": "1", "msg_cd": "ERROR", "msg1": "주문 가능 수량 부족"},
+        )
+
+
+class _CancelSuccessTransport:
+    def request(self, method: str, url: str, *, headers: dict[str, str], body=None) -> HttpResponse:
+        if method == "POST" and url.endswith("/oauth2/tokenP"):
+            return HttpResponse(status_code=200, body={"access_token": "kis-access-token"})
+
+        assert method == "POST"
+        assert url.endswith("/uapi/domestic-stock/v1/trading/order-rvsecncl")
+        assert headers["tr_id"] == "TTTC0803U"
+        assert body["ORGN_ODNO"] == "90001"
+        assert body["PDNO"] == "005930"
+        assert body["RVSE_CNCL_DVSN_CD"] == "02"
+        return HttpResponse(
+            status_code=200,
+            body={"rt_cd": "0", "msg1": "정상처리", "output": {"ODNO": "90001"}},
+        )
+
+
+class _CancelRejectedTransport:
+    def request(self, method: str, url: str, *, headers: dict[str, str], body=None) -> HttpResponse:
+        if method == "POST" and url.endswith("/oauth2/tokenP"):
+            return HttpResponse(status_code=200, body={"access_token": "kis-access-token"})
+
+        return HttpResponse(
+            status_code=200,
+            body={"rt_cd": "1", "msg_cd": "ERROR", "msg1": "취소 가능 수량 없음"},
         )
 
 

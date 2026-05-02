@@ -14,7 +14,7 @@ Implemented behavior today:
 - `backtest.engine.run_backtest` orchestrates deterministic replay, event capture, equity tracking, and multi-symbol processing.
 - `api.server` exposes backtests, dispatcher status, retention preview/prune, order audit, live preflight, live runtime session history, patterns, strategies, analytics, admin key management, `/health`, and dashboard routes behind API key, CORS, and rate-limit middleware.
 - `frontend/app/*` provides browser workflows for backtest submission, pattern management, strategy profiles, run review, API key administration, live dashboard monitoring, and recent live session browsing, now with server-sourced run metadata shown in the review surface.
-- `execution.reconciliation.reconcile` can align a local `PortfolioBook` with broker snapshots when the broker supports balance snapshots, and the live loop uses KIS open-order snapshots as the preferred pending-order authority.
+- `execution.reconciliation.reconcile` can align a local `PortfolioBook` with broker snapshots when the broker supports balance snapshots, and the live loop uses KIS open-order snapshots plus the durable live order lifecycle as the preferred pending-order authority.
 - `notifications.webhook` provides bounded fire-and-forget delivery for selected runtime events through `httpx`.
 
 ## Layer analysis
@@ -156,12 +156,12 @@ This gives a strong regression baseline for deterministic replay, runtime valida
 1. **Distributed run execution**: backtests now have a durable job/worker contract and CLI worker, but there is still no Redis/Celery/Kafka-style external queue or partial-result resume.
 2. **Session history retention**: live runtime sessions can be searched/exported/reviewed, but old session and event archive retention/prune policy is not yet implemented.
 3. **Config parity**: strategy profile selection is aligned across CLI/YAML/API, but there is still no UI workflow for editing a full YAML runtime config.
-4. **Exchange snapshot integration**: KIS open-order snapshots are wired as pending authority, but cancel/replace and long-running order polling workflows are still not implemented.
+4. **Exchange order lifecycle**: KIS open-order snapshots are connected to live order lifecycle polling and cancel requests, but order replace/automatic re-order and broker-stream fill updates are still missing.
 5. **Operational hardening**: repository-managed API keys now track disabled/last-used state, but richer auth, alerting, audit export, and deployment guidance are still lighter than a fully managed trading platform would require.
 
 ## Recommended next backlog
 
 1. Validate durable backtest workers in production-like operations, then decide whether an external queue service or partial-result resume is worth a separate phase.
 2. Add retention/prune policy and operator guidance for live runtime session and event archives.
-3. Evaluate cancel/replace or long-running order polling workflows on top of the KIS open-order source.
+3. Validate KIS order lifecycle in sandbox or small supervised real-order sessions, then consider order replace/automatic re-order and broker-stream fill updates as a separate phase.
 4. Decide whether additional strategy runtime settings should become first-class YAML fields or remain API/runtime-only inputs.

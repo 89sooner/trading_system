@@ -29,13 +29,15 @@ KIS 실주문 경로는 구현되어 있지만 `TRADING_SYSTEM_ENABLE_LIVE_ORDER
 - [ ] 운영자가 백테스트/라이브 루프의 다중 심볼 지원 범위와 `/api/v1/live/preflight`의 하위 호환 응답 형태(`quote_summary` vs `quote_summaries`/`symbol_count`)를 이해함
 - [ ] 대시보드 사용 대상이면 API 서버가 활성 live loop와 함께 시작되는 배포 방식이 준비됨
 - [ ] `python scripts/backtest_worker_smoke.py` durable backtest worker smoke 통과
-- [ ] Supabase 환경은 `scripts/migrations/006_add_backtest_jobs.sql` 적용 완료, API 또는 worker 시작 전에 `python scripts/check_supabase_backtest_jobs.py` 통과
+- [ ] Supabase 환경은 `scripts/migrations/006_add_backtest_jobs.sql`와 `scripts/migrations/007_add_live_order_lifecycle.sql` 적용 완료, API 또는 worker 시작 전에 repository smoke 통과
 
 ## Gate 4: Incident drill baseline
 
 - [ ] 데이터 끊김 시나리오 점검(incident-response 시나리오 A)
 - [ ] 리스크 거절/비상 정지 시나리오 점검(incident-response 시나리오 B)
 - [ ] 주문 실패/브로커 오류 시나리오 점검(incident-response 시나리오 C)
+- [ ] active/stale live order가 dashboard Open orders 패널과 `/api/v1/dashboard/orders`에 표시되는지 확인
+- [ ] KIS cancel 또는 mock cancel flow가 cancel_requested 상태와 실패 시 `last_error`를 남기는지 확인
 - [ ] 브로커 스냅샷 사용 환경이면 대사 불일치 시나리오 점검(incident-response 시나리오 D)
 - [ ] `/api/v1/live/runtime/sessions/<session_id>/evidence`와 `/dashboard/sessions` route로 historical live session review 검증
 

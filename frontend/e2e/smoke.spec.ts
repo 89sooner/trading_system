@@ -15,8 +15,30 @@ test('home page loads with navigation links', async ({ page }) => {
 })
 
 test('dashboard page loads with MetricCard containers', async ({ page }) => {
+  await page.route('**/api/v1/dashboard/status', (route) =>
+    route.fulfill({
+      json: {
+        state: 'running',
+        last_heartbeat: '2026-04-07T12:00:00Z',
+        uptime_seconds: 3600,
+        active: true,
+        controller_state: 'active',
+        session_id: 'live-test-001',
+        live_execution: 'live',
+        provider: 'kis',
+        broker: 'kis',
+        symbols: ['005930', '000660'],
+        market_session: 'regular',
+        last_reconciliation_at: '2026-04-07T11:00:00Z',
+        last_reconciliation_status: 'ok',
+      },
+    }),
+  )
   await page.goto('/dashboard')
   await expect(page.getByText('Operations Console')).toBeVisible()
+  await expect(page.getByText('Open orders')).toBeVisible()
+  await expect(page.getByText('90001')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Cancel order live-order-001' })).toBeVisible()
   await expect(page.getByText('Recent sessions')).toBeVisible()
 })
 

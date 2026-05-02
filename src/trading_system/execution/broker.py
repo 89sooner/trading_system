@@ -20,6 +20,10 @@ class FillStatus(StrEnum):
     UNFILLED = "unfilled"
 
 
+class BrokerCapabilityError(RuntimeError):
+    """Raised when a broker does not support an optional live capability."""
+
+
 @dataclass(slots=True)
 class FillEvent:
     symbol: str
@@ -64,6 +68,22 @@ class AccountBalanceSnapshot:
     positions: dict[str, Decimal]
     average_costs: dict[str, Decimal] = field(default_factory=dict)
     pending_symbols: tuple[str, ...] = ()
+
+
+@dataclass(slots=True, frozen=True)
+class OrderCancelRequest:
+    broker_order_id: str
+    symbol: str
+    side: OrderSide
+    quantity: Decimal
+
+
+@dataclass(slots=True, frozen=True)
+class OrderCancelResult:
+    broker_order_id: str
+    accepted: bool
+    message: str = ""
+    result_code: str = ""
 
 
 class FillQuantityPolicy(Protocol):
@@ -130,6 +150,9 @@ class BrokerSimulator(Protocol):
     def get_open_orders(self) -> OpenOrderSnapshot | None:
         """Return unresolved/open orders when the broker supports the capability."""
 
+    def cancel_order(self, request: OrderCancelRequest) -> OrderCancelResult:
+        """Cancel an unresolved broker order when the broker supports the capability."""
+
 
 @dataclass(slots=True)
 class PolicyBrokerSimulator:
@@ -173,6 +196,10 @@ class PolicyBrokerSimulator:
     def get_open_orders(self) -> OpenOrderSnapshot | None:
         return None
 
+    def cancel_order(self, request: OrderCancelRequest) -> OrderCancelResult:
+        del request
+        raise BrokerCapabilityError("PolicyBrokerSimulator does not support order cancel.")
+
 
 @dataclass(slots=True)
 class ResilientBroker:
@@ -210,6 +237,18 @@ class ResilientBroker:
         return execute_with_resilience(
             operation="broker_open_orders",
             callback=lambda: self.delegate.get_open_orders(),
+            retry=self.retry_policy,
+            timeout=self.timeout_policy,
+            circuit_breaker=self.circuit_breaker_policy,
+            circuit_state=self._circuit_state,
+        )
+
+    def cancel_order(self, request: OrderCancelRequest) -> OrderCancelResult:
+        if not hasattr(self.delegate, "cancel_order"):
+            raise BrokerCapabilityError("Broker does not support order cancel.")
+        return execute_with_resilience(
+            operation=f"broker_cancel:{request.symbol}",
+            callback=lambda: self.delegate.cancel_order(request),
             retry=self.retry_policy,
             timeout=self.timeout_policy,
             circuit_breaker=self.circuit_breaker_policy,

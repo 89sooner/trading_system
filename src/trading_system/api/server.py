@@ -25,6 +25,7 @@ from trading_system.app.services import build_services
 from trading_system.app.settings import SettingsValidationError as AppSettingsValidationError
 from trading_system.config.env import load_runtime_env
 from trading_system.config.settings import SettingsValidationError as ConfigSettingsValidationError
+from trading_system.execution.live_orders import create_live_order_repository
 from trading_system.execution.order_audit import create_order_audit_repository
 
 load_runtime_env()
@@ -49,11 +50,13 @@ def create_app(live_loop=None) -> FastAPI:
     app.state.live_runtime_history_repository = create_live_runtime_session_repository()
     app.state.live_runtime_event_repository = create_live_runtime_event_repository()
     app.state.order_audit_repository = create_order_audit_repository()
+    app.state.live_order_repository = create_live_order_repository()
     backtest_module._ORDER_AUDIT_REPOSITORY = app.state.order_audit_repository
     app.state.live_runtime_controller = LiveRuntimeController(
         services_builder=lambda settings: build_services(
             settings,
             order_audit_repository=app.state.order_audit_repository,
+            live_order_repository=app.state.live_order_repository,
         ),
         attach_loop=lambda loop: setattr(app.state, 'live_loop', loop),
         history_repository=app.state.live_runtime_history_repository,

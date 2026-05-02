@@ -239,6 +239,8 @@ class LiveRuntimeSessionEvidenceDTO(BaseModel):
     session: LiveRuntimeSessionRecordDTO
     order_audit_count: int
     recent_order_audit_records: list["OrderAuditRecordDTO"] = Field(default_factory=list)
+    live_order_count: int = 0
+    recent_live_orders: list["LiveOrderRecordDTO"] = Field(default_factory=list)
     equity_point_count: int
     archived_event_count: int
     recent_archived_events: list[LiveRuntimeEventRecordDTO] = Field(default_factory=list)
@@ -369,6 +371,38 @@ class DashboardIncidentDTO(BaseModel):
     severity: str
     timestamp: str
     summary: str
+
+
+class LiveOrderRecordDTO(BaseModel):
+    record_id: str
+    session_id: str
+    symbol: str
+    side: str
+    requested_quantity: str
+    filled_quantity: str
+    remaining_quantity: str
+    status: str
+    broker_order_id: str | None = None
+    submitted_at: str
+    last_synced_at: str | None = None
+    stale_after: str | None = None
+    cancel_requested: bool = False
+    cancel_requested_at: str | None = None
+    cancelled_at: str | None = None
+    last_error: str | None = None
+    payload: dict | None = None
+
+
+class LiveOrderListDTO(BaseModel):
+    orders: list[LiveOrderRecordDTO]
+    total: int
+
+
+class LiveOrderCancelResponseDTO(BaseModel):
+    status: Literal["ok"]
+    order: LiveOrderRecordDTO
+    broker_cancel_accepted: bool = False
+    message: str | None = None
 
 
 class DashboardStatusDTO(BaseModel):

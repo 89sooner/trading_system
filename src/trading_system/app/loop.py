@@ -2,13 +2,15 @@ import os
 import time
 import traceback
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from trading_system.app.equity_writer import EquityWriterProtocol
 from trading_system.app.state import AppRunnerState, LiveRuntimeState
 from trading_system.core.compat import UTC
 from trading_system.execution.broker import AccountBalanceSnapshot
+from trading_system.execution.live_orders import LiveOrderStatus, new_live_order_record
 from trading_system.execution.order_audit import append_step_order_audit_events
 from trading_system.execution.reconciliation import reconcile
 from trading_system.execution.step import TradingContext, execute_trading_step
@@ -38,11 +40,18 @@ class LiveTradingLoop:
     reconciliation_interval: int = field(
         default_factory=lambda: _resolve_env_int("TRADING_SYSTEM_RECONCILIATION_INTERVAL", 300)
     )
+    order_poll_interval: int = field(
+        default_factory=lambda: _resolve_env_int("TRADING_SYSTEM_ORDER_POLL_INTERVAL", 30)
+    )
+    order_stale_after_seconds: int = field(
+        default_factory=lambda: _resolve_env_int("TRADING_SYSTEM_ORDER_STALE_AFTER_SECONDS", 120)
+    )
     equity_writer: EquityWriterProtocol | None = field(default=None)
     audit_owner_id: str | None = field(default=None)
     runtime: LiveRuntimeState = field(default_factory=LiveRuntimeState, init=False)
     _last_processed_timestamps: dict[str, datetime] = field(default_factory=dict, init=False)
     _last_reconciliation: datetime | None = field(default=None, init=False)
+    _last_order_sync: datetime | None = field(default=None, init=False)
     _last_position_snapshot: dict[str, str] = field(default_factory=dict, init=False)
 
     @property
@@ -103,6 +112,7 @@ class LiveTradingLoop:
         while self.state != AppRunnerState.STOPPED:
             try:
                 if self.state == AppRunnerState.RUNNING:
+                    self._maybe_sync_live_orders()
                     self._maybe_reconcile()
                     self._run_tick(context)
                     
@@ -180,6 +190,9 @@ class LiveTradingLoop:
             )
 
     def _run_tick(self, context: TradingContext) -> None:
+        if self._has_blocking_live_orders():
+            return
+
         processed_any = False
         for symbol in self.services.symbols:
             bars = list(self.services.data_provider.load_bars(symbol))
@@ -200,6 +213,7 @@ class LiveTradingLoop:
                     owner_id=context.order_audit_owner_id,
                     events=events,
                 )
+                self._append_live_order_lifecycle(events)
                 self._last_processed_timestamps[symbol] = bar.timestamp
                 last_ts = bar.timestamp
                 processed_any = True
@@ -220,7 +234,205 @@ class LiveTradingLoop:
                 payload={"positions": current_snapshot},
             )
 
+    def _append_live_order_lifecycle(self, events) -> None:
+        repository = getattr(self.services, "live_order_repository", None)
+        if repository is None or self.audit_owner_id is None:
+            return
+        now = datetime.now(UTC)
+        stale_after = (now + timedelta(seconds=self.order_stale_after_seconds)).isoformat()
+        filled = events.order_filled
+        rejected = events.order_rejected
+        if filled is not None:
+            broker_order_id = filled.get("broker_order_id")
+            requested = str(filled.get("requested_quantity", "0"))
+            filled_quantity = str(filled.get("filled_quantity", "0"))
+            remaining = str(max(Decimal(requested) - Decimal(filled_quantity), Decimal("0")))
+            status = LiveOrderStatus.FILLED.value
+            if broker_order_id is not None:
+                status = LiveOrderStatus.SUBMITTED.value
+                remaining = requested
+                filled_quantity = "0"
+            repository.upsert(
+                new_live_order_record(
+                    session_id=self.audit_owner_id,
+                    symbol=str(filled.get("symbol")),
+                    side=str(filled.get("side")),
+                    requested_quantity=requested,
+                    filled_quantity=filled_quantity,
+                    remaining_quantity=remaining,
+                    status=status,
+                    broker_order_id=str(broker_order_id) if broker_order_id is not None else None,
+                    submitted_at=now.isoformat(),
+                    stale_after=stale_after if broker_order_id is not None else None,
+                    payload=dict(filled),
+                )
+            )
+        if rejected is not None:
+            repository.upsert(
+                new_live_order_record(
+                    session_id=self.audit_owner_id,
+                    symbol=str(rejected.get("symbol")),
+                    side=str(rejected.get("side")),
+                    requested_quantity=str(rejected.get("quantity", "0")),
+                    filled_quantity="0",
+                    remaining_quantity=str(rejected.get("quantity", "0")),
+                    status=LiveOrderStatus.REJECTED.value,
+                    broker_order_id=None,
+                    submitted_at=now.isoformat(),
+                    payload=dict(rejected),
+                )
+            )
+
+    def _maybe_sync_live_orders(self) -> None:
+        repository = getattr(self.services, "live_order_repository", None)
+        if repository is None or self.audit_owner_id is None:
+            return
+        now = datetime.now(UTC)
+        if (
+            self._last_order_sync is not None
+            and (now - self._last_order_sync).total_seconds() < self.order_poll_interval
+        ):
+            self._mark_stale_live_orders(now)
+            return
+        self._last_order_sync = now
+        active_orders = repository.list_active(session_id=self.audit_owner_id)
+        if not active_orders:
+            return
+        try:
+            snapshot = self.services.broker_simulator.get_open_orders()
+        except Exception as exc:
+            for record in active_orders:
+                repository.update_from_broker(
+                    record.record_id,
+                    status=record.status,
+                    filled_quantity=record.filled_quantity,
+                    remaining_quantity=record.remaining_quantity,
+                    synced_at=now.isoformat(),
+                    last_error=str(exc),
+                )
+            self.services.logger.emit(
+                "live_order.sync_failed",
+                severity=40,
+                payload={"reason": "open_orders_unavailable", "error": str(exc)},
+            )
+            self._mark_stale_live_orders(now)
+            return
+        open_orders = {
+            order.broker_order_id: order
+            for order in (snapshot.orders if snapshot is not None else ())
+        }
+        for record in active_orders:
+            if record.broker_order_id is None:
+                continue
+            order = open_orders.get(record.broker_order_id)
+            if order is None:
+                repository.update_from_broker(
+                    record.record_id,
+                    status=LiveOrderStatus.UNKNOWN.value,
+                    filled_quantity=record.filled_quantity,
+                    remaining_quantity=record.remaining_quantity,
+                    synced_at=now.isoformat(),
+                    last_error="broker_order_missing_from_open_orders",
+                )
+                continue
+            requested = order.requested_quantity
+            remaining = order.remaining_quantity
+            filled = max(requested - remaining, Decimal("0"))
+            status = (
+                LiveOrderStatus.PARTIALLY_FILLED
+                if filled > 0 and remaining > 0
+                else LiveOrderStatus.OPEN
+                if remaining > 0
+                else LiveOrderStatus.FILLED
+            )
+            repository.update_from_broker(
+                record.record_id,
+                status=status.value,
+                filled_quantity=str(filled),
+                remaining_quantity=str(remaining),
+                synced_at=now.isoformat(),
+                broker_order_id=order.broker_order_id,
+                payload={
+                    "broker_order_id": order.broker_order_id,
+                    "status": order.status,
+                    "submitted_at": order.submitted_at,
+                },
+            )
+        self._mark_stale_live_orders(now)
+
+    def _mark_stale_live_orders(self, now: datetime) -> None:
+        repository = getattr(self.services, "live_order_repository", None)
+        if repository is None or self.audit_owner_id is None:
+            return
+        for record in repository.list_stale(now=now.isoformat(), session_id=self.audit_owner_id):
+            if record.status == LiveOrderStatus.STALE.value:
+                continue
+            repository.update_from_broker(
+                record.record_id,
+                status=LiveOrderStatus.STALE.value,
+                filled_quantity=record.filled_quantity,
+                remaining_quantity=record.remaining_quantity,
+                synced_at=now.isoformat(),
+                last_error=record.last_error or "order_status_stale",
+            )
+            self.services.logger.emit(
+                "live_order.stale",
+                severity=40,
+                payload={
+                    "record_id": record.record_id,
+                    "broker_order_id": record.broker_order_id,
+                    "symbol": record.symbol,
+                    "stale_after": record.stale_after,
+                },
+            )
+
+    def _has_blocking_live_orders(self) -> bool:
+        repository = getattr(self.services, "live_order_repository", None)
+        if repository is None or self.audit_owner_id is None:
+            return False
+        active = repository.list_active(session_id=self.audit_owner_id)
+        blocking = [
+            record
+            for record in active
+            if record.status
+            in {
+                LiveOrderStatus.SUBMITTED.value,
+                LiveOrderStatus.OPEN.value,
+                LiveOrderStatus.PARTIALLY_FILLED.value,
+                LiveOrderStatus.CANCEL_REQUESTED.value,
+                LiveOrderStatus.STALE.value,
+                LiveOrderStatus.UNKNOWN.value,
+            }
+        ]
+        if not blocking:
+            return False
+        self.services.logger.emit(
+            "live_order.gate_blocked",
+            severity=30,
+            payload={
+                "reason": "active_or_stale_order",
+                "order_count": len(blocking),
+                "record_ids": [record.record_id for record in blocking[:10]],
+            },
+        )
+        return True
+
     def _maybe_reconcile(self) -> None:
+        repository = getattr(self.services, "live_order_repository", None)
+        if repository is not None and self.audit_owner_id is not None:
+            active = repository.list_active(session_id=self.audit_owner_id)
+            if active:
+                self.runtime.last_reconciliation_at = datetime.now(UTC)
+                self.runtime.last_reconciliation_status = "skipped"
+                self.services.logger.emit(
+                    "portfolio.reconciliation.skipped",
+                    severity=30,
+                    payload={
+                        "reason": "active_live_order",
+                        "pending_order_count": len(active),
+                    },
+                )
+                return
         now = datetime.now(UTC)
         if (
             self._last_reconciliation is not None

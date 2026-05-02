@@ -28,13 +28,15 @@ The KIS live-order path exists, but it is explicitly gated behind `TRADING_SYSTE
 - [ ] Operators understand the multi-symbol capabilities of the backtest/live loop and the backward-compatible `/api/v1/live/preflight` response shape (`quote_summary` vs `quote_summaries`/`symbol_count`)
 - [ ] If the dashboard will be used, deployment is ready to start the API server with an attached live loop
 - [ ] Durable backtest worker smoke passes with `python scripts/backtest_worker_smoke.py`
-- [ ] Supabase environments have applied `scripts/migrations/006_add_backtest_jobs.sql`; `python scripts/check_supabase_backtest_jobs.py` passes before starting API or worker processes
+- [ ] Supabase environments have applied `scripts/migrations/006_add_backtest_jobs.sql` and `scripts/migrations/007_add_live_order_lifecycle.sql`; repository smoke checks pass before starting API or worker processes
 
 ## Gate 4: Incident drill baseline
 
 - [ ] Data disconnect scenario reviewed (incident-response scenario A)
 - [ ] Risk rejection / emergency scenario reviewed (incident-response scenario B)
 - [ ] Order failure / broker error scenario reviewed (incident-response scenario C)
+- [ ] Active/stale live orders are visible in the dashboard Open orders panel and `/api/v1/dashboard/orders`
+- [ ] KIS cancel or mock cancel flow records `cancel_requested` and preserves `last_error` on failure
 - [ ] If the environment uses broker snapshots, reconciliation mismatch scenario reviewed (incident-response scenario D)
 - [ ] Live order audit is verified without relying on `TestClient(create_app())` lifespan startup (`pytest tests/integration/test_order_audit_integration.py -q`)
 - [ ] KIS open-order pending authority is covered by parser and reconciliation tests

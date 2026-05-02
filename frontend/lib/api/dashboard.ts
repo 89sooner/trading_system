@@ -4,6 +4,8 @@ import type {
   DashboardStatus,
   PositionsResponse,
   EventFeed,
+  LiveOrderCancelResponse,
+  LiveOrderList,
   ControlResponse,
   EquityTimeseriesResponse,
   LivePreflightResponseDTO,
@@ -20,6 +22,12 @@ import type {
 export const getDashboardStatus = () => requestJson<DashboardStatus>('/dashboard/status')
 export const getDashboardPositions = () => requestJson<PositionsResponse>('/dashboard/positions')
 export const getDashboardEvents = (limit = 50) => requestJson<EventFeed>(`/dashboard/events?limit=${limit}`)
+export const getDashboardOrders = () => requestJson<LiveOrderList>('/dashboard/orders')
+export const postDashboardOrderCancel = (recordId: string) =>
+  requestJson<LiveOrderCancelResponse>(
+    `/dashboard/orders/${encodeURIComponent(recordId)}/cancel`,
+    { method: 'POST' },
+  )
 export const postDashboardControl = (action: 'pause' | 'resume' | 'reset' | 'stop') =>
   requestJson<ControlResponse>('/dashboard/control', {
     method: 'POST',

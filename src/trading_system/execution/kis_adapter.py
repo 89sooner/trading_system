@@ -7,6 +7,8 @@ from trading_system.execution.broker import (
     FillEvent,
     FillStatus,
     OpenOrderSnapshot,
+    OrderCancelRequest,
+    OrderCancelResult,
 )
 from trading_system.execution.orders import OrderRequest
 from trading_system.integrations.kis import KisApiClient, KisApiError, KisOrderResult
@@ -41,6 +43,20 @@ class KisBrokerAdapter:
     def get_open_orders(self) -> OpenOrderSnapshot:
         access_token = self.client.issue_access_token()
         return self.client.inquire_open_orders(access_token=access_token)
+
+    def cancel_order(self, request: OrderCancelRequest) -> OrderCancelResult:
+        result = self.client.cancel_order(
+            broker_order_id=request.broker_order_id,
+            symbol=request.symbol,
+            side=request.side,
+            quantity=request.quantity,
+        )
+        return OrderCancelResult(
+            broker_order_id=result.order_id,
+            accepted=True,
+            message=result.message,
+            result_code=result.result_code,
+        )
 
 
 def _to_fill_event(

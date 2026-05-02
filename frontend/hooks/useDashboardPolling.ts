@@ -2,7 +2,12 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { getDashboardStatus, getDashboardPositions, getDashboardEvents } from '@/lib/api/dashboard'
+import {
+  getDashboardEvents,
+  getDashboardOrders,
+  getDashboardPositions,
+  getDashboardStatus,
+} from '@/lib/api/dashboard'
 import type { PositionsResponse } from '@/lib/api/types'
 import type { EquityDataPoint } from '@/components/dashboard/EquityChart'
 
@@ -49,10 +54,20 @@ export function useDashboardPolling() {
     retry: 2,
   })
 
+  const ordersQuery = useQuery({
+    queryKey: ['dashboard', 'orders'],
+    queryFn: getDashboardOrders,
+    enabled: hasActiveRuntime,
+    refetchInterval: hasActiveRuntime ? 5000 : false,
+    refetchIntervalInBackground: false,
+    retry: 2,
+  })
+
   const lastSuccessTime = Math.max(
     statusQuery.dataUpdatedAt,
     positionsQuery.dataUpdatedAt,
     eventsQuery.dataUpdatedAt,
+    ordersQuery.dataUpdatedAt,
   )
 
   const [now, setNow] = useState(() => Date.now())
@@ -67,5 +82,13 @@ export function useDashboardPolling() {
       ? [{ time: now, value: computePortfolioValue(positionsQuery.data) }]
       : []
 
-  return { statusQuery, positionsQuery, eventsQuery, hasActiveRuntime, isLive, equitySeries }
+  return {
+    statusQuery,
+    positionsQuery,
+    eventsQuery,
+    ordersQuery,
+    hasActiveRuntime,
+    isLive,
+    equitySeries,
+  }
 }

@@ -49,6 +49,13 @@ class KisOrderResult:
 
 
 @dataclass(slots=True)
+class KisCancelResult:
+    order_id: str
+    result_code: str = ""
+    message: str = ""
+
+
+@dataclass(slots=True)
 class HttpResponse:
     status_code: int
     body: dict[str, Any]
@@ -123,6 +130,7 @@ class KisApiClient:
     _MOCK_BASE_URL = "https://openapivts.koreainvestment.com:29443"
     _PRICE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price"
     _ORDER_PATH = "/uapi/domestic-stock/v1/trading/order-cash"
+    _CANCEL_PATH = "/uapi/domestic-stock/v1/trading/order-rvsecncl"
     _BALANCE_PATH = "/uapi/domestic-stock/v1/trading/inquire-balance"
     _OPEN_ORDERS_PATH = "/uapi/domestic-stock/v1/trading/inquire-psbl-rvsecncl"
     _DEFAULT_MARKET_DIV = "J"
@@ -212,6 +220,28 @@ class KisApiClient:
         )
         return self._parse_order_response(order=order, response=response)
 
+    def cancel_order(
+        self,
+        *,
+        broker_order_id: str,
+        symbol: str,
+        side: OrderSide,
+        quantity: Decimal,
+    ) -> KisCancelResult:
+        access_token = self.issue_access_token()
+        response = self._transport.request(
+            "POST",
+            f"{self._base_url}{self._cancel_path()}",
+            headers=self._cancel_headers(access_token=access_token),
+            body=self._cancel_payload(
+                broker_order_id=broker_order_id,
+                symbol=symbol,
+                side=side,
+                quantity=quantity,
+            ),
+        )
+        return self._parse_cancel_response(broker_order_id=broker_order_id, response=response)
+
     def issue_access_token(self) -> str:
         now = datetime.now(tz=UTC)
         if (
@@ -265,6 +295,52 @@ class KisApiClient:
             "ORD_DVSN": "00",
             "ORD_QTY": str(order.quantity),
             "ORD_UNPR": str(order.limit_price or Decimal("0")),
+        }
+
+    def _cancel_path(self) -> str:
+        configured = os.getenv("TRADING_SYSTEM_KIS_CANCEL_PATH", self._CANCEL_PATH)
+        return configured.strip() or self._CANCEL_PATH
+
+    def _cancel_tr_id(self) -> str:
+        configured = os.getenv("TRADING_SYSTEM_KIS_CANCEL_TR_ID", "TTTC0803U")
+        return configured.strip() or "TTTC0803U"
+
+    def _cancel_headers(self, *, access_token: str) -> dict[str, str]:
+        return {
+            "authorization": f"Bearer {access_token}",
+            "appkey": self._credentials.app_key,
+            "appsecret": self._credentials.app_secret,
+            "tr_id": self._cancel_tr_id(),
+            "custtype": "P",
+            "content-type": "application/json",
+        }
+
+    def _cancel_payload(
+        self,
+        *,
+        broker_order_id: str,
+        symbol: str,
+        side: OrderSide,
+        quantity: Decimal,
+    ) -> dict[str, str]:
+        del side
+        validated_symbol = _validate_domestic_symbol(symbol)
+        normalized_order_id = broker_order_id.strip()
+        if not normalized_order_id:
+            raise KisResponseError("KIS cancel request requires broker_order_id.")
+        if quantity <= 0:
+            raise KisResponseError("KIS cancel request quantity must be positive.")
+        return {
+            "CANO": self._credentials.account_number,
+            "ACNT_PRDT_CD": self._credentials.product_code,
+            "KRX_FWDG_ORD_ORGNO": "",
+            "ORGN_ODNO": normalized_order_id,
+            "ORD_DVSN": "00",
+            "RVSE_CNCL_DVSN_CD": "02",
+            "ORD_QTY": str(quantity),
+            "ORD_UNPR": "0",
+            "QTY_ALL_ORD_YN": "N",
+            "PDNO": validated_symbol,
         }
 
     def inquire_balance(self, *, access_token: str) -> dict[str, Any]:
@@ -419,6 +495,35 @@ class KisApiClient:
             filled_quantity=filled_quantity,
             fill_price=fill_price,
             fee=Decimal("0"),
+            result_code=result_code,
+            message=message,
+        )
+
+    def _parse_cancel_response(
+        self,
+        *,
+        broker_order_id: str,
+        response: HttpResponse,
+    ) -> KisCancelResult:
+        result_code = str(response.body.get("rt_cd", ""))
+        message = str(response.body.get("msg1", "unknown error"))
+        if response.status_code >= 400:
+            raise KisHttpError(
+                f"KIS cancel request failed with status={response.status_code}: {message}"
+            )
+        if result_code and result_code != "0":
+            raise KisResponseError(
+                "KIS cancel rejected "
+                f"(rt_cd={result_code}, msg_cd={response.body.get('msg_cd', '')}, msg1={message})."
+            )
+        output = response.body.get("output")
+        order_id = broker_order_id
+        if isinstance(output, dict):
+            order_id = str(output.get("ODNO") or output.get("odno") or broker_order_id)
+        if not order_id.strip():
+            raise KisResponseError("KIS cancel response did not include a usable order id.")
+        return KisCancelResult(
+            order_id=order_id,
             result_code=result_code,
             message=message,
         )

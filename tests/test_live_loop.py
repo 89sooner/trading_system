@@ -4,6 +4,11 @@ from unittest.mock import MagicMock
 from trading_system.app.loop import LiveTradingLoop
 from trading_system.app.state import AppRunnerState
 from trading_system.execution.broker import AccountBalanceSnapshot, OpenOrder, OpenOrderSnapshot
+from trading_system.execution.live_orders import (
+    FileLiveOrderRepository,
+    LiveOrderStatus,
+    new_live_order_record,
+)
 from trading_system.execution.orders import OrderSide
 from trading_system.execution.step import TradingContext
 from trading_system.portfolio.book import PortfolioBook
@@ -130,5 +135,77 @@ def test_live_loop_reconciliation_skips_when_open_order_query_fails():
             "reason": "open_orders_unavailable",
             "error": "open orders failed",
             "pending_source": "open_orders",
+        },
+    )
+
+
+def test_live_loop_syncs_active_live_order_from_open_orders(tmp_path):
+    repo = FileLiveOrderRepository(tmp_path)
+    record = new_live_order_record(
+        session_id="live_1",
+        symbol="005930",
+        side="buy",
+        requested_quantity="5",
+        filled_quantity="0",
+        remaining_quantity="5",
+        status=LiveOrderStatus.SUBMITTED.value,
+        broker_order_id="90001",
+        submitted_at="2026-05-01T00:00:00+00:00",
+        stale_after="2099-05-01T00:10:00+00:00",
+    )
+    repo.upsert(record)
+    services = MagicMock()
+    services.logger = MagicMock()
+    services.live_order_repository = repo
+    services.broker_simulator.get_open_orders.return_value = OpenOrderSnapshot(
+        orders=(
+            OpenOrder(
+                broker_order_id="90001",
+                symbol="005930",
+                side=OrderSide.BUY,
+                requested_quantity=Decimal("5"),
+                remaining_quantity=Decimal("2"),
+                status="open",
+            ),
+        )
+    )
+
+    loop = LiveTradingLoop(services=services, audit_owner_id="live_1", order_poll_interval=1)
+    loop._maybe_sync_live_orders()
+
+    updated = repo.get(record.record_id)
+    assert updated.status == LiveOrderStatus.PARTIALLY_FILLED.value
+    assert updated.filled_quantity == "3"
+    assert updated.remaining_quantity == "2"
+
+
+def test_live_loop_blocks_tick_when_active_live_order_exists(tmp_path):
+    repo = FileLiveOrderRepository(tmp_path)
+    repo.upsert(
+        new_live_order_record(
+            session_id="live_1",
+            symbol="005930",
+            side="buy",
+            requested_quantity="1",
+            filled_quantity="0",
+            remaining_quantity="1",
+            status=LiveOrderStatus.OPEN.value,
+            broker_order_id="90001",
+        )
+    )
+    services = MagicMock()
+    services.logger = MagicMock()
+    services.live_order_repository = repo
+
+    loop = LiveTradingLoop(services=services, audit_owner_id="live_1")
+
+    assert loop._has_blocking_live_orders() is True
+    services.logger.emit.assert_any_call(
+        "live_order.gate_blocked",
+        severity=30,
+        payload={
+            "reason": "active_or_stale_order",
+            "order_count": 1,
+            "record_ids": [repo.list_active(session_id="live_1")[0].record_id],
         },
     )

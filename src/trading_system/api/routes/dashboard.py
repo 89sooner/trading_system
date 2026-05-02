@@ -21,11 +21,16 @@ from trading_system.api.schemas import (
     EventFeedDTO,
     EventRecordDTO,
     LastPreflightDTO,
+    LiveOrderCancelResponseDTO,
+    LiveOrderListDTO,
+    LiveOrderRecordDTO,
     PositionDTO,
     PositionsResponseDTO,
 )
 from trading_system.app.state import AppRunnerState
 from trading_system.core.compat import UTC
+from trading_system.execution.broker import BrokerCapabilityError, OrderCancelRequest
+from trading_system.execution.orders import OrderSide
 from trading_system.integrations.kis import is_krx_market_open
 
 if TYPE_CHECKING:
@@ -121,6 +126,28 @@ def _controller_state_detail(state: str | None, active: bool) -> str | None:
     if state == "idle":
         return "No runtime session is currently attached to this API process."
     return None
+
+
+def _to_live_order_dto(record) -> LiveOrderRecordDTO:
+    return LiveOrderRecordDTO(
+        record_id=record.record_id,
+        session_id=record.session_id,
+        symbol=record.symbol,
+        side=record.side,
+        requested_quantity=record.requested_quantity,
+        filled_quantity=record.filled_quantity,
+        remaining_quantity=record.remaining_quantity,
+        status=record.status,
+        broker_order_id=record.broker_order_id,
+        submitted_at=record.submitted_at,
+        last_synced_at=record.last_synced_at,
+        stale_after=record.stale_after,
+        cancel_requested=record.cancel_requested,
+        cancel_requested_at=record.cancel_requested_at,
+        cancelled_at=record.cancelled_at,
+        last_error=record.last_error,
+        payload=record.payload,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -259,6 +286,123 @@ async def get_events(
         for r in records
     ]
     return EventFeedDTO(events=dtos, total=len(dtos))
+
+
+@router.get("/orders", response_model=LiveOrderListDTO)
+async def get_live_orders(
+    request: Request,
+    active_only: bool = True,
+    limit: int = 100,
+) -> LiveOrderListDTO:
+    repository = getattr(request.app.state, "live_order_repository", None)
+    if repository is None:
+        return LiveOrderListDTO(orders=[], total=0)
+    controller = _get_controller(request)
+    snapshot = controller.snapshot() if controller is not None else None
+    session_id = snapshot.session_id if snapshot is not None else None
+    if session_id is None:
+        return LiveOrderListDTO(orders=[], total=0)
+    if active_only:
+        records = repository.list_active(session_id=session_id)
+    else:
+        from trading_system.execution.live_orders import LiveOrderFilter
+
+        records = repository.list(LiveOrderFilter(session_id=session_id, limit=limit))
+    selected = records[: max(1, min(limit, 500))]
+    return LiveOrderListDTO(
+        orders=[_to_live_order_dto(record) for record in selected],
+        total=len(records),
+    )
+
+
+@router.post("/orders/{record_id}/cancel", response_model=LiveOrderCancelResponseDTO)
+async def cancel_live_order(
+    record_id: str,
+    request: Request,
+    loop: OptionalLoopDep,
+) -> LiveOrderCancelResponseDTO:
+    repository = getattr(request.app.state, "live_order_repository", None)
+    if repository is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Live order repository is unavailable.",
+        )
+    record = repository.get(record_id)
+    if record is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Live order not found.")
+    if record.is_terminal:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Live order is already terminal.",
+        )
+    requested_at = datetime.now(UTC).isoformat()
+    updated = repository.mark_cancel_requested(record_id, requested_at=requested_at)
+    if updated is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Live order not found.")
+    if loop is None:
+        return LiveOrderCancelResponseDTO(
+            status="ok",
+            order=_to_live_order_dto(updated),
+            broker_cancel_accepted=False,
+            message="Cancel request recorded; no active live loop is attached.",
+        )
+    if updated.broker_order_id is None:
+        updated = repository.mark_cancel_requested(
+            record_id,
+            requested_at=requested_at,
+            last_error="broker_order_id_missing",
+        ) or updated
+        return LiveOrderCancelResponseDTO(
+            status="ok",
+            order=_to_live_order_dto(updated),
+            broker_cancel_accepted=False,
+            message="Cancel request recorded; broker order id is missing.",
+        )
+    try:
+        result = loop.services.broker_simulator.cancel_order(
+            OrderCancelRequest(
+                broker_order_id=updated.broker_order_id,
+                symbol=updated.symbol,
+                side=OrderSide(updated.side),
+                quantity=Decimal(updated.remaining_quantity),
+            )
+        )
+    except (BrokerCapabilityError, ValueError, Exception) as exc:
+        updated = repository.mark_cancel_requested(
+            record_id,
+            requested_at=requested_at,
+            last_error=str(exc),
+        ) or updated
+        loop.services.logger.emit(
+            "live_order.cancel_failed",
+            severity=40,
+            payload={
+                "record_id": record_id,
+                "broker_order_id": updated.broker_order_id,
+                "error": str(exc),
+            },
+        )
+        return LiveOrderCancelResponseDTO(
+            status="ok",
+            order=_to_live_order_dto(updated),
+            broker_cancel_accepted=False,
+            message=str(exc),
+        )
+    loop.services.logger.emit(
+        "live_order.cancel_requested",
+        severity=30,
+        payload={
+            "record_id": record_id,
+            "broker_order_id": updated.broker_order_id,
+            "accepted": result.accepted,
+        },
+    )
+    return LiveOrderCancelResponseDTO(
+        status="ok",
+        order=_to_live_order_dto(updated),
+        broker_cancel_accepted=result.accepted,
+        message=result.message,
+    )
 
 
 @router.post("/control", response_model=ControlResponseDTO, status_code=status.HTTP_200_OK)
